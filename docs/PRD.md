@@ -96,7 +96,7 @@ Elena is the strongest MVP persona: her inputs are documents (no integration nee
 
 **J6 — Ask why.** Months later the user asks "Why did I choose this insurance?" The answer quotes their own note, its date, and the source document, and says plainly if no reason was recorded.
 
-**J7 — Correct or forget.** User edits a wrong date (the correction is logged and the old value kept in history), dismisses a thread (kept as a suppression record so it isn't re-suggested), or forgets permanently (thread, evidence, and optionally the source are hard-deleted).
+**J7 — Correct or forget.** User edits a wrong date (the correction is logged and the old value kept in history), dismisses a thread (kept as a suppression record so it isn't re-suggested), or forgets permanently (thread, evidence, the proposal it came from, any Explain-card lines that quote it, and optionally the source are hard-deleted; only a suppression hash remains, D29, D35).
 
 The extraction sequence behind J1–J3:
 
@@ -257,7 +257,7 @@ Ordered by what most improves capture and retention, not by what's impressive.
   - [ ] Eval thresholds in MVP Definition pass.
   - [ ] Malformed model output triggers one retry, then a user-visible error with "Try again"; no partial garbage.
   - [ ] Every extraction row records model, prompt version, schema version, token counts, latency.
-- **Technical:** Vercel AI SDK `generateObject` with Zod schema (provider-agnostic). Prompts in `/prompts/extract.v1.md`, versioned. Per-user rate limit: 30 extractions/day in the public deployment.
+- **Technical:** Vercel AI SDK `generateObject` with Zod schema (provider-agnostic). `generateObject` is deprecated in AI SDK 7 but kept for now (D34). Prompts in `/prompts/extract.v1.md`, versioned. Per-user rate limit: 30 extractions per UTC day in the public deployment, resetting at midnight UTC (D30). Date re-resolution follows the rules in AI Behavior step 6 (D28, D32).
 
 ### F6 — Review tray (MUST)
 
@@ -286,7 +286,7 @@ Ordered by what most improves capture and retention, not by what's impressive.
 - **Acceptance criteria:**
   - [ ] Reason text is generated deterministically from stored fields (no LLM call at view time).
   - [ ] Panel includes "This is wrong" → edit or dismiss.
-- **Technical:** `surfacing_reason` computed by the ranking function; template strings in `lib/why.ts`.
+- **Technical:** `surfacing_reason` computed by the ranking function; template strings in `why()` in `lib/threads/` (D34; was `lib/why.ts`).
 
 ### F9 — Thread actions (MUST)
 
@@ -299,6 +299,7 @@ Ordered by what most improves capture and retention, not by what's impressive.
   - [ ] Every transition not listed in the lifecycle transition table returns `invalid_transition` (unit tested).
   - [ ] No reversible action shows a confirmation dialog; every irreversible action does.
   - [ ] Forget permanently leaves no rows referencing the thread and deletes evidence spans; the source is deleted too if the user ticks "also delete source."
+  - [ ] Forget permanently also hard-deletes the originating `extraction_items` row(s), including payload, title and quote. Only the suppression hash survives, so the same item is not proposed again (D29). When the source is kept, any Explain-card (brief) lines that quote the forgotten item are also removed from the stored brief (D35).
   - [ ] Dismissed threads never reappear from re-extraction of the same source (matched by source + quote hash).
 - **Technical:** State transitions validated by a single `transition(thread, action)` function with unit tests.
 
@@ -329,7 +330,7 @@ Ordered by what most improves capture and retention, not by what's impressive.
   - [ ] Answers include the user's reason verbatim in quotes, the decision date, and a link to the thread.
   - [ ] A question with no matching decision never produces a speculative answer (eval: 10 negative questions, 0 fabrications).
   - [ ] Response distinguishes "You wrote:" from "Based on the source document:" from "I'm inferring:".
-- **Technical:** Structured output `{answer_found, decision_ids[], answer_parts[{kind: user_reason|source_fact|inference, text, ref}]}`; server rejects decision IDs not in the retrieved set.
+- **Technical:** Structured output `{answer_found, decision_ids[], answer_parts[{kind: user_reason|source_fact|inference, text, ref}]}`; server rejects decision IDs not in the retrieved set. A `user_reason` or `source_fact` part must equal the whole stored text it cites, not a fragment or paraphrase (D33). The `decisions.search` column covers choice and reason only, so retrieval joins `threads` for the title (D31).
 
 ### F13 — Source deletion + export (MUST)
 
@@ -344,10 +345,10 @@ Ordered by what most improves capture and retention, not by what's impressive.
 ### F19 — Visible AI uncertainty (MUST)
 
 - **User story:** As a user, I want to see when the AI isn't sure, so I can trust it when it is.
-- **Behavior:** Every proposal and thread carries a visible confidence label with plain-language copy. Green dot + **Likely** (High band): "I'll send you the proposal Friday" → "Clear commitment with a date." Amber dot + **Maybe** (Medium band): "We should grab lunch sometime" → "Possible intention detected, but I'm not confident enough to remind you." Hollow grey ring + **Also noticed** (Low band): shown only in the collapsed group at the bottom of the review tray. The label always names *why* it's uncertain (hedge words, no date, unclear who said it). Maybe and Also noticed items are never pre-selected and never notified unless the user accepts them.
+- **Behavior:** Every proposal and thread carries a visible confidence label with plain-language copy. Green dot + **Likely** (High band): "I'll send you the proposal Friday" → "Clear commitment with a date." Amber dot + **Maybe** (Medium band): shown unchecked under *Maybe*. Hollow grey ring + **Also noticed** (Low band): "We should grab lunch sometime" → "Possible intention detected, but I'm not confident enough to remind you." Shown only in the collapsed group at the bottom of the review tray (D36; the lunch example was the Maybe example before). The label always names *why* it's uncertain (hedge words, no date, unclear who said it). Maybe and Also noticed items are never pre-selected and never notified unless the user accepts them.
 - **Acceptance criteria:**
   - [ ] Every proposal and thread shows a label; color is never the only signal (dot + word + reason).
-  - [ ] The lunch example in the demo fixture lands in Maybe with the copy above; the proposal example lands in Likely.
+  - [ ] The lunch example in the demo fixture lands in Also noticed (Low, score 0.35) with the copy above; the proposal example lands in Likely (D36; was Maybe).
   - [ ] No *unaccepted* Low-band proposal appears in Today, and no Low-band-origin thread ever appears in a digest (automated tests). A Low proposal the user explicitly accepts becomes a user-confirmed thread and is eligible for Today (Decision D4).
   - [ ] Three user-facing labels only: **Likely** (High), **Maybe** (Medium), **Also noticed** (Low, collapsed). Ignore-band items are never shown (Decision D3).
   - [ ] Uncertainty eval passes (see Testing Strategy).
@@ -467,14 +468,22 @@ The AI does one job per call and never acts on the world. It reads a source and 
 3. **Build context.** User display name + aliases + emails ("who is me"), timezone, the source's reference date and how it was obtained, enabled item types, and up to 30 open thread titles with IDs (for dedupe).
 4. **Extract.** One `generateObject` call with the schema below, temperature 0. Prompt rules: only extract what the text supports; every item needs a verbatim quote; never compute a date you can't anchor — return the raw phrase; prefer fewer, higher-quality items; mark speculation as speculative.
 5. **Validate.** Zod parse (one retry on failure). Quote verification against normalized text: exact substring, else fuzzy match ≥0.9 on a sliding window; fail → drop item and log `quote_unverified`.
-6. **Re-resolve dates.** Parse `date_text` with `chrono-node` using the reference date and timezone. If chrono and model disagree, keep chrono's value, set `due_certainty = inferred`, and add a `Not sure about` note. If neither resolves, no due date.
+6. **Re-resolve dates.** Parse `date_text` with `chrono-node` using the reference date and timezone. If chrono and model disagree, keep chrono's value, set `due_certainty = inferred`, and add a `Not sure about` note. If neither resolves, no due date. Rules (D28, D32):
+   - **Month-day with no year** ("Oct 3"): resolves to the past only if it falls within 30 days before the written-on date; otherwise it resolves to the next occurrence (D28, user decision).
+   - **Invented or reworded `date_text`:** if the phrase is not in the source text, no date is set. There is no fallback to the model's `date_iso`.
+   - **Bare time with no day** ("at 3"): no date.
+   - **Same-day phrases** ("today", "tonight", "this afternoon"): the written-on day.
+   - **AM/PM-ambiguous times:** the date is kept and marked `inferred`.
+   - **Relative-time phrases** ("in 2 hours"): the day is kept but the time is not (`due_time_known = false`).
 7. **Score confidence** (Confidence & Uncertainty Model).
 8. **Dedupe.** Trigram similarity vs. open threads + model's `matches_thread_id` (only honored if that ID was in the context list).
 9. **Persist** the raw output and processed items; return proposals.
 
 **"Who is me" — a weak assumption in the brief.** In a pasted thread, "I'll send the proposal Friday" may be written by Mike, not the user. The extractor must label each commitment's `owner` as `user`, `other`, or `unknown` using the user's names/emails. If any high-value item has `owner = unknown`, the review tray asks "Which of these is you?" with the detected participant names before showing items.
 
-**Model choice.** Use the Vercel AI SDK so the provider is a config value (`AI_PROVIDER`, `AI_MODEL`). Pick a fast mid-tier model with reliable structured output for extraction, and test 2 providers against the eval set in week 1; choose on eval scores and p90 latency, not brand. Ask-why uses the same model. No fine-tuning, no embeddings in the MVP.
+**Model choice.** Use the Vercel AI SDK so the provider is a config value (`AI_PROVIDER`, `AI_MODEL`). Pick a fast mid-tier model with reliable structured output for extraction, and test 2 providers against the eval set in week 1; choose on eval scores and p90 latency, not brand. Ask-why uses the same model. No fine-tuning, no embeddings in the MVP. Until the provider is chosen (due Oct 21, D27), tests run on a fake provider that replays recorded fixtures.
+
+**Prompt follow-up (D33).** The server now accepts a `user_reason` or `source_fact` part only if its text equals the whole stored reason or fact. The ask-why prompt needs a v2 (`prompts/ask-why.v2.md`) telling the model to return "the whole reason/fact". Write it once a provider exists and `pnpm eval` can run, then record the eval result.
 
 **Explicit non-behaviors:** the AI never sends messages, never marks things complete on its own, never answers general questions, never reads sources the user didn't provide, and never fills a missing date, amount, or name with a plausible value.
 
@@ -581,7 +590,7 @@ Model-reported numeric confidence is poorly calibrated, so the MVP never asks th
 | Date present and chrono agrees with model | +0.05 |
 | Date present and chrono disagrees | −0.15 |
 | First-person modal in quote ("I'll", "I will", "I'm going to") for commitments | +0.05 |
-| Hedge words in quote ("maybe", "probably", "sometime", "might") | −0.15 |
+| Hedge words in quote ("maybe", "probably", "sometime", "might"), except on `intention` items, where hedging is what makes it an intention (D36) | −0.15 |
 | Type disabled by user (F17) | drop |
 
 **Bands and behavior:**
@@ -636,9 +645,9 @@ Decision Memory is the feature most likely to be skipped by users and most likel
 
 **Retrieval ("Ask why"):**
 
-1. Postgres full-text search over decision text, thread title, counterparty, and reason → top 5.
+1. Postgres full-text search over decision text, thread title, counterparty, and reason → top 5. `decisions.search` indexes only choice and reason, so the query joins `threads` for title and counterparty (D31).
 2. If 0 results → "I don't have a recorded decision about that." No LLM call.
-3. Else, LLM answers using only those records, returning `answer_parts` with `kind` ∈ {user\_reason, source\_fact, inference} and decision IDs; the server drops any part citing an ID outside the retrieved set.
+3. Else, LLM answers using only those records, returning `answer_parts` with `kind` ∈ {user\_reason, source\_fact, inference} and decision IDs; the server drops any part citing an ID outside the retrieved set. It also drops any `user_reason` or `source_fact` part whose text is not exactly the whole stored reason or fact (D33). **Pending:** `prompts/ask-why.v1.md` does not yet tell the model to return "the whole reason/fact". A v2 prompt saying so is due once a provider is chosen (Question #1) and `pnpm eval` can run.
 4. Rendered as: **You decided** (date) → **You wrote:** “…” → **From the source:** … → *Interpretation:* … (if any).
 
 **Example:**
@@ -766,7 +775,7 @@ The whole MVP is one deployable app plus one Supabase project; there is no separ
 | Database | Supabase Postgres, SQL migrations via Supabase CLI | Prisma/Drizzle-managed migrations: an extra layer; generated types from Supabase are enough. Drizzle is acceptable if the team already knows it |
 | Auth | Supabase Auth (magic link, Google identity) | Clerk/Auth.js: another vendor or more glue |
 | Files | Supabase Storage, private bucket | S3: more setup for no MVP gain |
-| AI | Vercel AI SDK `generateObject` + Zod; provider via env | Direct provider SDK: locks in one vendor; LangChain: unnecessary abstraction |
+| AI | Vercel AI SDK `generateObject` + Zod; provider via env. `generateObject` is deprecated in AI SDK 7; it is kept for now (D34) | Direct provider SDK: locks in one vendor; LangChain: unnecessary abstraction |
 | Document parsing | `unpdf`, `mammoth` | OCR services: out of scope |
 | Date parsing | `chrono-node` + `date-fns-tz` | Trusting the model's dates: the most common failure mode |
 | Background jobs | None for extraction (synchronous, \~5–20 s, within serverless limits); Vercel Cron for daily ranking/digest | Inngest/Trigger.dev/BullMQ: worth it post-MVP when Gmail sync needs long jobs |
@@ -779,12 +788,12 @@ The whole MVP is one deployable app plus one Supabase project; there is no separ
 - **Extraction timeouts.** Set the route's max duration to 60 s. If extraction exceeds 45 s, return a "Still working — we'll show results here" state and poll `GET /api/extractions/:id`. Inputs are capped at 30,000 characters so this is rare.
 - **Injected clock.** All time logic calls `getNow()`. In `DEMO_MODE`, an admin-only control sets a fake "today" stored per user. This is required to demo overdue/due-soon behavior in 2 minutes. Whenever a demo date is set, a persistent banner shows it ("Demo date: Thu Oct 8, 2026") so judges always know the clock is simulated; the banner never appears outside `DEMO_MODE`.
 - **Prompt files.** `/prompts/extract.v1.md`, `/prompts/ask-why.v1.md`; version recorded on each extraction; changing a prompt requires running the eval.
-- **Rate limiting.** Postgres counter table per user per day (no Redis). Public demo: 30 extractions and 50 asks per user per day; global daily spend cap via env.
+- **Rate limiting.** Postgres counter table `usage_counters` per user per **UTC day** (no Redis), written only through the `consume_usage(kind)` function. Public demo: 30 extractions and 50 asks per user per day; global daily spend cap via env. The limit resets at midnight UTC, so changing the profile timezone cannot open a new day. The `rate_limited` copy says "resets at midnight (UTC)" (D30).
 - **Environment variables.** `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY` (server only, used only by cron and deletion), `AI_PROVIDER`, `AI_MODEL`, provider API key, `RESEND_API_KEY`, `CRON_SECRET`, `DEMO_MODE`, `DAILY_AI_BUDGET_USD`, `SENTRY_DSN`, `POSTHOG_KEY`. All documented in `.env.example`.
 
 ## Database Schema
 
-Nine tables. Commitments, deadlines, and actions are not separate tables: they are `extraction_items` (proposals) and `threads` (accepted). History lives in one append-only `thread_events` table.
+Ten tables (D31: `usage_counters` added for rate limiting; was nine). The SQL below is the logical schema. The migrations in `supabase/migrations/` are authoritative for constraint details, such as the composite `(id, user_id)` foreign keys that stop cross-user links. Commitments, deadlines, and actions are not separate tables: they are `extraction_items` (proposals) and `threads` (accepted). History lives in one append-only `thread_events` table.
 
 ```sql
 create table profiles (
@@ -840,6 +849,7 @@ create table threads (
   counterparty text,
   due_at timestamptz,
   due_certainty text not null default 'none' check (due_certainty in ('explicit','inferred','none')),
+  due_time_known boolean not null default false,  -- false: date-only deadline, never render a time (D31)
   consequence text,
   consequence_basis text check (consequence_basis in ('source','interpretation')),
   status text not null default 'open'
@@ -874,10 +884,12 @@ create table evidence (
   user_id uuid not null references profiles on delete cascade,
   source_id uuid references sources on delete set null,  -- quote survives source deletion
   thread_id uuid references threads on delete cascade,
-  extraction_item_id uuid references extraction_items on delete cascade,
+  extraction_item_id uuid references extraction_items on delete set null,  -- D31: was cascade, which
+                                                  -- deleted quotes on surviving threads when a source was deleted (F13)
   quote text not null,
   start_offset int, end_offset int, page int,
-  match_kind text not null check (match_kind in ('exact','fuzzy'))
+  match_kind text not null check (match_kind in ('exact','fuzzy')),
+  quote_hash text                                 -- D31; used for dismiss suppression (F9)
 );
 
 create table thread_events (                     -- append-only audit/history
@@ -903,9 +915,23 @@ create table decisions (
     to_tsvector('english', coalesce(choice,'') || ' ' || coalesce(reason_user,''))) stored
 );
 create index on decisions using gin (search);
+-- search covers choice + reason only; Ask why joins threads for title and counterparty (F12, D31)
+
+create table usage_counters (                    -- D31: rate limiting, one row per user per UTC day
+  user_id uuid not null references profiles on delete cascade,
+  day date not null,                              -- UTC day
+  extractions int not null default 0,
+  asks int not null default 0,
+  primary key (user_id, day)
+);
+-- consume_usage(p_kind text) returns boolean: security definer; atomically checks and increments
+-- the caller's counter for today's UTC day (limits 30 extractions, 50 asks). It is the only write
+-- path. Users can select their own rows but cannot write them.
 ```
 
-Every table has RLS enabled with `using (user_id = auth.uid())` (and `id = auth.uid()` on profiles). Notifications are recorded as `thread_events` of type `digest_sent` / `marked_not_useful` instead of a separate table; add a `notifications` table post-MVP if channels multiply.
+Every table has RLS enabled with `using (user_id = auth.uid())` (and `id = auth.uid()` on profiles). Notifications are recorded as `thread_events` of type `digest_sent` / `marked_not_useful` instead of a separate table; add a `notifications` table post-MVP if channels multiply. `usage_counters` is the exception to full read/write RLS: users may select their own rows, and writes go only through `consume_usage()`.
+
+**Open storage gap (D29, owner: lead-developer).** Forget permanently deletes the originating `extraction_items` rows, but in this schema `suppression_hash` lives only on those rows. The surviving hash needs a home that holds the hash alone (no payload, title or quote), for example an additive table keyed by `user_id` and hash. It must be added before Forget is built, and the deletion test must assert that only the hash remains. The same gap affects Dismiss and reject suppression after a source is deleted, because extractions and their items cascade from sources.
 
 ## API Requirements
 
@@ -921,7 +947,7 @@ Mutations are server actions called from the UI; the routes below exist as HTTP 
 | `PATCH /api/threads/:id` | Edit or transition | `{action, fields?}` where action is complete, wait, snooze, dismiss, reopen, or edit | updated thread |
 | `POST /api/threads/:id/resolve` | Resolve with optional decision | `{resolution, decision?: {choice, reason_user?}}` | thread + decision |
 | `GET /api/threads/:id/why` | Deterministic explanation | — | `{quote, context, source, reasoning[], surfacing_reason}` |
-| `DELETE /api/threads/:id?forget=true&source=true` | Forget permanently | — | `{deleted: {threads, evidence, sources, files}}` |
+| `DELETE /api/threads/:id?forget=true&source=true` | Forget permanently (also hard-deletes the originating `extraction_items`, D29) | — | `{deleted: {threads, evidence, extraction_items, sources, files}}` |
 | `POST /api/ask` | Ask why | `{question}` | `{answer_found, parts[{kind, text, decision_id?, evidence_id?}]}` |
 | `DELETE /api/sources/:id?cascade=true` | Delete source (± derived data) | — | deletion counts |
 | `GET /api/export` | Export all user data | — | JSON file |
@@ -949,6 +975,7 @@ Loose Ends will hold some of the most sensitive text a person has. The MVP makes
 | Pasted text / extracted document text | Postgres `sources.text_content` | Sent to the configured LLM provider at extraction time | Yes; or auto-purge after review if "Keep original text" is off |
 | Uploaded files | Supabase Storage, private bucket | No (only extracted text goes to the LLM) | Yes |
 | Quotes (evidence) | Postgres `evidence` | Sent to LLM only within Ask-why context | Yes, with thread or source |
+| Proposals (`extraction_items`: payload, title, quote) | Postgres `extraction_items` | Produced by the LLM; not sent again | Yes: deleted whenever their source is deleted (extractions cascade from sources), or by Forget permanently, which leaves only the suppression hash (D29) |
 | Decisions and reasons | Postgres `decisions` | Sent to LLM only when retrieved for an Ask-why question | Yes |
 | Product analytics | PostHog | Event names and counts only — never source text, titles, or quotes | Opt-out in settings |
 | Errors | Sentry | Stack traces; request bodies scrubbed | — |
@@ -958,7 +985,7 @@ Loose Ends will hold some of the most sensitive text a person has. The MVP makes
 - **Data minimization:** extraction sends only the source text plus the user's names/aliases, timezone, and up to 30 open thread titles. No other threads, no decision history.
 - **Encryption:** TLS in transit; encryption at rest provided by the hosting platform's disk encryption. The MVP does **not** claim end-to-end or application-level encryption, because the server must read text to extract from it.
 - **AI provider handling:** document which provider and model are configured, link that provider's current API data-usage and retention policy, and state that policies can change. Do not claim "zero data retention" unless a ZDR agreement is actually in place for the deployment.
-- **Deletion:** hard delete, verified by tests, including storage objects. Backups held by the hosting platform expire on its schedule; `PRIVACY.md` states this honestly rather than promising instant erasure everywhere.
+- **Deletion:** hard delete, verified by tests, including storage objects. Forget permanently deletes the thread, its evidence, history and decision, the proposal rows it came from (payload, title and quote), and any Explain-card lines that quote the item, even when the source is kept (D35). What remains is a one-way suppression hash, kept so the same item is not proposed again. `PRIVACY.md` must say that this hash remains (D29). Backups held by the hosting platform expire on its schedule; `PRIVACY.md` states this honestly rather than promising instant erasure everywhere.
 - **User ownership:** full JSON export; MIT-licensed code means users can run their own instance.
 - **Sensitive content:** F18 redaction for card/SSN/IBAN patterns (SHOULD). Onboarding note: "Don't paste passwords or full account numbers." Extraction prompt instructs the model to never copy credentials or account numbers into item fields.
 - **Prompt injection:** source text is untrusted. It is passed as data in a delimited block; the model has no tools and cannot take actions, so the worst case is a wrong or manipulated proposal, which the review tray and quote verification contain. Ask-why answers are constrained to retrieved records.
@@ -974,7 +1001,7 @@ Loose Ends will hold some of the most sensitive text a person has. The MVP makes
 | Wrong date | "Friday" resolved to the wrong week | chrono-node disagrees with model | Use deterministic value, mark "assumed," add "Not sure about" line |
 | Missing reference date | Pasted email with no date | `reference_date_source = defaulted` | Show "I assumed this was written today" with one-click change |
 | Wrong owner | Mike's promise logged as the user's | `owner = unknown` or name mismatch | "Which of these is you?" prompt; confidence penalty |
-| Ambiguous commitment | "We should grab lunch sometime" | `certainty = speculative`, hedge words | Low band; never notified |
+| Ambiguous commitment | "We should grab lunch sometime" | `certainty = speculative`, hedge words | Low band ("Also noticed", score 0.35: speculative 0.30 + exact quote 0.05; no hedge penalty on intentions, D36); never notified |
 | Duplicate thread | Same email pasted twice | Trigram + model match; suppression hash | "Add to existing thread?"; identical quotes never re-proposed |
 | Conflicting info | Second source moves deadline from Oct 31 to Nov 15 | New item matches thread with different `due_at` | Proposal shows "Update due date: Oct 31 → Nov 15?" with both quotes; never silent overwrite |
 | Stale thread | Thread open 60 days with past due date | Overdue > 30 days | Today shows it once with "Still relevant?" (Resolve / Dismiss); then excluded from ranking |
@@ -1017,7 +1044,7 @@ The extraction eval is the most important test in the repo. Everything else is s
 
 Open source is a real differentiator only if someone can run it, trust it, and improve it. The repo should make those three things easy on day one.
 
-**License:** MIT (recommended for Build Fest: maximum adoption, zero friction for contributors). The alternative is AGPL-3.0, which prevents someone from hosting a closed commercial fork; choose it only if a hosted business is planned. See Questions.
+**License:** MIT, decided Oct 18 (D23): maximum adoption, zero friction for contributors. AGPL-3.0, which prevents someone from hosting a closed commercial fork, was the alternative.
 
 **Repository layout:**
 
@@ -1180,6 +1207,41 @@ The day-14 checkpoint is the cut line: SHOULD features (digest, forwarding, dedu
 
 **If behind schedule, cut in this order:** F16 forwarding → F15 digest → F17 toggles → F14 dedupe → DOCX support → Explain card's "Worth considering" section. Never cut: quote verification, date re-resolution, review tray, Why panel, delete.
 
+### Re-plan, Oct 18 (day 17): D15–D27
+
+**Status at re-plan:** the day-14 checkpoint (Oct 15) was not met: no code exists. 13 working days remain (Oct 19–31, days 18–30). Day numbering: Oct 2 = day 1, so Oct 18 = day 17. The rest of this section supersedes the weekly table and the day-7/14/21/26 criteria above. The gate dates are **proposed** (D19) until the user confirms them.
+
+**Assumptions:** 1 developer working all 13 days, including weekends, plus the three Claude agents (lead-developer builds, lead-tester verifies, lead-program-manager tracks and drafts docs). The lead-tester writes the 40 eval fixtures and the 20 Ask-why questions while the build runs. The program manager drafts README, ARCHITECTURE, AI_BEHAVIOR, PRIVACY and CONTRIBUTING from this PRD, and the lead-tester checks every claim in them against the implementation.
+
+**Scope (updated Oct 18, D24–D26):** no cuts are applied yet. All MUST and SHOULD features (F1–F19) are in scope. The proposed cuts D17, D18 and D20 are deferred to the **scope review on Sat Oct 25 (day 24)**, where the user decides cuts from one week of progress using the unchanged cut order. All never-cut items and the 10 non-negotiable rules in CLAUDE.md stay in. *Superseded text:* "the full cut order (D16–D18), plus the proposed MUST trims in D20."
+
+**Build order (D26):** the MUST blocks below come first. SHOULD work fills the remaining capacity in reverse cut order: Explain card "Worth considering" → DOCX → F14 dedupe → F17 toggles → F15 digest → F16 forwarding. F18 redaction goes in with the F5 pipeline work (Oct 20–21) if it fits. SHOULD work never displaces a MUST block. The AI layer is built on a fake recorded-fixture provider until the provider is chosen (due Oct 21, D27); the first live `pnpm eval` waits for that choice.
+
+**Proposed gates (D19):**
+
+| Gate | Date (day) | Exit criteria (all must be met) |
+| --- | --- | --- |
+| Core-loop checkpoint (replaces day 14) | Thu Oct 23 (22) | In production: magic-link sign-in → paste → review tray → accept → thread → Done. Text-layer PDF upload produces an Explain card, and a scanned PDF shows the unsupported message. Unit tests pass for quote verification, date re-resolution (including DST and year rollover), band scoring and `transition()`. The RLS isolation test passes. `pnpm eval` runs on ≥ 20 fixtures and reports scores. |
+| Feature freeze (was Oct 22) | Sun Oct 26 (25) | Resolve with reason and Ask why work, including the zero-match path with no LLM call. Today ranks and caps at 5, with a reason line on each item. The Why panel renders from stored fields. Forget permanently, source deletion, account deletion and export are verified by integration tests. Demo mode works: clock, banner, seed and `DEMO_REPLAY`. The rate limit and `DAILY_AI_BUDGET_USD` cap are on. Every remaining cut is recorded in this log. After this gate: bug fixes, prompt changes and copy only. |
+| Eval gate (was Oct 27) | Tue Oct 28 (27) | The 40-fixture eval (≥ 12 ambiguous) meets every threshold in Testing Strategy. The 10 answerable and 10 unanswerable Ask-why questions give 0 fabrications. Axe checks pass on Today, Review tray, Thread detail, Why panel and Settings. The E2E demo flow passes on recorded fixtures. `evals/SCORECARD.md` is generated. |
+| Submission | Fri Oct 31 (30) | README (with scorecard), ARCHITECTURE, AI_BEHAVIOR, PRIVACY, CONTRIBUTING, LICENSE and `.env.example` are merged. The privacy-copy check against rule 9 passes. The demo has been rehearsed 5 times under 2:30, the video and backup video are recorded, and the submission is sent. Target: send by end of Oct 30; Oct 31 is buffer. |
+
+**Block plan:**
+
+| Dates (days) | lead-developer builds | lead-tester verifies | lead-program-manager |
+| --- | --- | --- | --- |
+| Oct 19 (18) | Scaffold the repo, CI, Supabase production and demo projects, Vercel, all migrations with RLS, `getNow()`, error envelope. F1 magic link and onboarding aliases | RLS test harness; fixtures 1–10 with golden JSON | Collect user decisions due Oct 19 (team, accounts); license decided Oct 18 (D23); provider due Oct 21 (D27) |
+| Oct 20–21 (19–20) | F5: `extract()`, prompt v1, quote verification, chrono re-resolution, bands and labels (F19), persistence. F2 paste and F4 quick add with progress | Unit tests for dates, quotes and scoring; fixtures to 20; first `pnpm eval` run | Track; draft AI_BEHAVIOR from PRD |
+| Oct 22–23 (21–22) | F6 review tray; threads, `transition()`, `thread_events`, F9 actions with undo and confirm; F3 PDF upload; F7 Explain card; production deploy | Core-loop checkpoint verification; fixtures to 30 | **Core-loop checkpoint review, Oct 23** |
+| Oct 24–25 (23–24) | F10 Today; F8 Why panel and Source viewer; F11 Resolve; F12 Ask why; F13 delete, export and account deletion | Deletion and export integration tests; Ask-why question set; fixtures to 40 | Draft PRIVACY and ARCHITECTURE. **Scope review with the user, Sat Oct 25 (D25):** cuts, D17/D18/D20, freeze date |
+| Oct 26 (25) | Demo mode and seed; rate limit and budget cap; design-standard and accessibility pass | E2E demo flow; axe checks | **Feature freeze review, Oct 26** |
+| Oct 27–28 (26–27) | Fixes only; prompt iterations, each with a version bump and an eval run | Full 40-fixture eval and Ask-why eval each iteration; scorecard | **Eval gate review, Oct 28** |
+| Oct 29 (28) | README setup steps, `.env.example`; docs fixes | Check doc claims against the implementation | Finalise docs; demo script; 5 rehearsals |
+| Oct 30 (29) | Video support; fixes only | Final regression run | Video recorded; submission package |
+| Oct 31 (30) | Buffer | — | **Submission** |
+
+**If the team is bigger:** with 2 developers, one owns the pipeline and evals full-time (Q9). The D20 trims (Google sign-in, "Which of these is you?", "Still relevant?") are restored and built Oct 24–26, and DOCX (D17) can be reconsidered at the core-loop checkpoint. With 3 or more, add one day of buffer before the eval gate. *Superseded Oct 18:* "SHOULD features stay out either way unless the user overrides D16." The user has overridden D16 (D24); SHOULD features are in scope until the Oct 25 review.
+
 ## Hackathon Demo Plan
 
 The demo should prove one claim: *Loose Ends turns a messy pile into a few trustworthy threads, and remembers why you decided.* Every beat shows either understanding, restraint, or receipts.
@@ -1208,16 +1270,17 @@ The demo should prove one claim: *Loose Ends turns a messy pile into a few trust
 
 | # | Question | Options | Recommendation | Decide by | Outcome |
 | --- | --- | --- | --- | --- | --- |
-| 1 | Which LLM provider/model? | Two candidates evaluated on fixtures | Choose on eval scores + p90 latency + cost | Day 5 | *Not recorded* |
-| 2 | License | MIT or AGPL-3.0 | MIT unless a hosted business is planned | Day 2 | *Not recorded* |
-| 3 | Build F16 forwarding address in MVP? | Yes (SHOULD) or defer | Decide at day-14 checkpoint | Day 14 | *Not recorded* |
-| 4 | Daily digest default | Off or on | Off; offer it after the first accepted thread | Day 14 | *Not recorded* |
-| 5 | Keep source text by default? | Keep, or purge after review | Keep (needed for Why context); make purge one toggle | Day 10 | *Not recorded* |
-| 6 | Which persona leads the demo and README? | Priya (commitments), Elena (documents) | Lead with the mixed demo; README hero copy aimed at life admin | Day 20 | Open |
-| 7 | DOCX support | MUST or cut | Keep only if `mammoth` works in 1 day; otherwise PDF/TXT only | Day 6 | *Not recorded* |
-| 8 | Analytics opt-in vs opt-out | — | Opt-out, events only, no content; state it in onboarding | Day 3 | *Not recorded* (v1.1 docs assume opt-out) |
-| 9 | Team size and ownership | Solo or split (AI pipeline vs UI) | If 2+ people, one owns pipeline + evals full-time | Day 1 | *Not recorded* |
-| 10 | Exact Build Fest submission requirements (video length, repo rules) | — | Confirm with ZTM before day 7 and adjust demo plan | Day 3 | *Not recorded* |
+| 1 | Which LLM provider/model? | Two candidates evaluated on fixtures | Choose on eval scores + p90 latency + cost | Day 5 | *Pending user, due Oct 21 (D27; was Oct 19). Build proceeds on a fake provider until then* |
+| 2 | License | MIT or AGPL-3.0 | MIT unless a hosted business is planned | Day 2 | **Decided Oct 18: MIT (D23)** |
+| 3 | Build F16 forwarding address in MVP? | Yes (SHOULD) or defer | Decide at day-14 checkpoint | Day 14 | *In scope, built last (D24, D26). The Oct 18 no-go (D16) is suspended. Final call at the Oct 25 scope review (D25)* |
+| 4 | Daily digest default | Off or on | Off; offer it after the first accepted thread | Day 14 | *Open again: F15 is back in scope (D24), so the default needs deciding. Recommendation unchanged: off. Decide at the Oct 25 scope review (D25)* |
+| 5 | Keep source text by default? | Keep, or purge after review | Keep (needed for Why context); make purge one toggle | Day 10 | *Pending user, due Oct 19; keep by default* |
+| 6 | Which persona leads the demo and README? | Priya (commitments), Elena (documents) | Lead with the mixed demo; README hero copy aimed at life admin | Day 20 | Open, due Oct 27 (README draft and demo script) |
+| 7 | DOCX support | MUST or cut | Keep only if `mammoth` works in 1 day; otherwise PDF/TXT only | Day 6 | *In scope for now; proposed cut (D17) deferred to the Oct 25 scope review (D25)* |
+| 8 | Analytics opt-in vs opt-out | — | Opt-out, events only, no content; state it in onboarding | Day 3 | *Proposed: defer PostHog, hide notice and toggle (D22), pending user, due Oct 20* |
+| 9 | Team size and ownership | Solo or split (AI pipeline vs UI) | If 2+ people, one owns pipeline + evals full-time | Day 1 | *Pending user, due Oct 19; plan assumes solo (D15)* |
+| 10 | Exact Build Fest submission requirements (video length, repo rules) | — | Confirm with ZTM before day 7 and adjust demo plan | Day 3 | *Pending user, due Oct 20; video length drives the demo cut* |
+| 11 | Which band does the lunch example ("We should grab lunch sometime") land in? Under the current weights it scores 0.30 (speculative) + 0.05 (exact quote) − 0.15 (hedge "sometime") = **0.20, which is Ignore**, so it would never be shown. F19 acceptance says Maybe and the failure-modes table says Low; the demo needs it visible to show restraint | (a) Keep the weights and accept Ignore: the example is hidden and the demo loses its restraint beat. (b) Don't apply the hedge penalty to `intention` items, because hedging is what makes something an intention: score 0.35, so it lands in Low ("Also noticed"); set F19's expected band to Also noticed. (c) Raise the weights or band edges until it reaches Medium (≥ 0.50, for example a speculative base of 0.65); this would also lift other speculative items into Maybe. (d) Lower the Ignore edge to 0.20: Low, but every speculative-plus-hedge item would then show | **(b):** a narrow change that matches the failure-modes table and the "restraint" demo story, and keeps Maybe for genuinely medium items. Any weight change needs `pnpm eval` once a provider exists | Before the core-loop checkpoint (Oct 23) | **Decided Oct 18: option (b) (D36).** The hedge penalty no longer applies to `intention` items; lunch scores 0.35, which is Low ("Also noticed"). The weights table, F19 and the failure-modes table are updated. Needs `pnpm eval` once a provider exists |
 
 ## Decisions Log (v1.1)
 
@@ -1239,6 +1302,31 @@ Decisions made on Oct 18, 2026 to reconcile the PRD, content model, site contrac
 | D12 | A visible demo-date banner whenever `DEMO_MODE` has a date set | Not specified | Technical Architecture, design standard |
 | D13 | Why panel and Source viewer are first-class components with their own content specs | Mentioned only as fields | Content model, site contract |
 | D14 | Delete account is a MUST control in Settings → Data | In F13 acceptance criteria but missing from UI docs | Content model §8, site contract §2.10 |
+| D15 | **Proposed, pending user confirmation (due Oct 19).** Re-plan the remaining 13 days (Oct 19–31) around a 1-developer team plus Claude agents. Oct 18 = day 17 (Oct 2 = day 1). The plan is in "Re-plan, Oct 18" under 30-Day Development Plan. *Note added Oct 18:* that plan's scope and build order are changed by D24–D27 | Weekly plan assuming the day-14 checkpoint passed; v1.1 notes call Oct 18 "day 16" | 30-Day Development Plan, Questions #9, CLAUDE.md Schedule and gates |
+| D16 | **Suspended Oct 18 by the user (D24); not in force.** Original entry, decided Oct 18 and kept for the record: SHOULD features F14 dedupe, F15 digest, F16 forwarding, F17 toggles and F18 redaction are not built in the MVP, because the day-14 checkpoint was not green. Their UI and settings stay hidden, as SITE_CONTRACT §4 and CONTENT_MODEL "Remaining gaps" already require. PRIVACY.md and the README must not claim redaction. Risk 9 relies on the onboarding note, the retention toggle and deletion. `POST /api/inbound-email` and the digest part of `cron/daily` are not built. The user may override this | F14–F18 conditional on the day-14 checkpoint | F14–F18, Questions #3 and #4, Risks #1 and #9, API Requirements, CLAUDE.md cut notes |
+| D17 | **Proposed; deferred Oct 18 to the Oct 25 scope review (D25), not decided. DOCX stays in scope until then.** Cut DOCX support (5th in the cut order). Upload accepts PDF, TXT and MD only | F3 included DOCX; Question #7 | F3, Question #7. On confirmation, also update SITE_CONTRACT §2.2 and `unsupported_type` copy in §2.13, CONTENT_MODEL file picker, and DESIGN_STANDARD file drop zone |
+| D18 | **Proposed; deferred Oct 18 to the Oct 25 scope review (D25), not decided. "Worth considering" stays in scope until then.** Cut the Explain card's "Worth considering" section (6th in the cut order). The other five sections stay. The `worth_considering` schema field stays and is simply not rendered, so neither the schema nor the prompt changes | F7 had six sections | F7. On confirmation, also update the CONTENT_MODEL Explain card row |
+| D19 | **Proposed, pending user (due Oct 19).** Move the gates: core-loop checkpoint Thu Oct 23, feature freeze Sun Oct 26, eval gate Tue Oct 28, submission Fri Oct 31 (target send Oct 30). Exit criteria are in "Re-plan, Oct 18". *Note added Oct 18:* the Oct 25 scope review (D25) sits one day before the proposed Oct 26 freeze, so the freeze date is to be reconsidered at that review | Day 14 Oct 15, freeze Oct 22, eval gate Oct 27, submission Oct 31 | 30-Day Development Plan, CLAUDE.md Schedule and gates |
+| D20 | **Proposed; deferred Oct 18 to the Oct 25 scope review (D25), not decided. Touches MUST scope. All three sub-items stay in scope until then.** For a 1-developer team, trim three MUST sub-items that the full cut order does not cover: (a) Google sign-in, so F1 is magic link only; (b) the v1.1 "Which of these is you?" clarification in F6, with onboarding aliases kept; (c) the v1.1 "Still relevant?" prompt in F10, which cannot trigger in an app younger than 30 days. None is a never-cut item. Restore all three if the team is 2 or more | F1 required both sign-in methods; F6 and F10 v1.1 additions | F1, F6, F10, MVP Definition step 1. On confirmation, also update SITE_CONTRACT §2.0, §2.4, §2.5 and §2.14, and CONTENT_MODEL sign-in, clarification and Still relevant? rows |
+| D21 | **Proposed, pending user (due Oct 19).** Environments are local, production and a separate demo deployment (`DEMO_MODE=true`) on its own Supabase project. No staging project. Magic-link email uses a custom SMTP sender, because Supabase's built-in sender is rate-limited | Production + staging, plus a demo instance | Deployment Strategy |
+| D22 | **Proposed, pending user (due Oct 20).** Defer PostHog until after submission. Metrics come from the database during Build Fest. Hide the onboarding analytics notice and the Settings analytics toggle until events ship, so the privacy copy matches the implementation (rule 9). Sentry stays | PostHog event taxonomy; opt-out analytics notice (Question #8) | Analytics & Success Metrics, F1, Question #8. On confirmation, also update SITE_CONTRACT §2.0 and §2.12, and CONTENT_MODEL analytics rows |
+| D23 | **Decided (Oct 18, user).** License is MIT. A `LICENSE` file is part of the submission gate | MIT recommended, AGPL-3.0 alternative (Question #2) | Open Source Strategy, Question #2 |
+| D24 | **Decided (Oct 18, user override).** No cuts for now. The user overrides the rule that SHOULD work proceeds only if the day-14 checkpoint was green. F14 dedupe, F15 digest, F16 forwarding, F17 toggles and F18 redaction stay in scope, and D16 is suspended. Until a SHOULD feature is built and verified by the lead-tester, its UI and settings stay hidden (SITE_CONTRACT §4) and no document claims it, which covers redaction in PRIVACY.md and the README (rule 9) | D16: F14–F18 not built because the day-14 checkpoint was not green | D16, F14–F18, Questions #3 and #4, "Re-plan, Oct 18", CLAUDE.md Schedule and gates |
+| D25 | **Decided (Oct 18, user).** Scope review on Sat Oct 25 (day 24). The user decides cuts based on one week of build progress. The deferred proposals D17 (DOCX), D18 ("Worth considering") and D20 (MUST trims) are decided there. The cut order and never-cut list are unchanged and are applied at that review. The proposed Oct 26 freeze (D19) is reconsidered at the same review | Cuts decided Oct 18 (D16) or due Oct 19 (D17, D18, D20) | D17, D18, D19, D20, Questions #3, #4 and #7, "Re-plan, Oct 18", CLAUDE.md Schedule and gates |
+| D26 | **Decided (Oct 18, user).** Build order: MUST features and never-cut items first. SHOULD work follows in reverse cut order, so the items cut last are built first: Explain card "Worth considering" → DOCX → F14 dedupe → F17 toggles → F15 digest → F16 forwarding last. F18 redaction is built during the F5 pipeline work where it fits (it sits before the LLM call and needs offsets remapped for quote verification). With this order, whatever is unbuilt on Oct 25 is the next item in the cut order | No build order for SHOULD work; SHOULD built in week 3 only if the checkpoint was green | "Re-plan, Oct 18" block plan, CLAUDE.md Schedule and gates |
+| D27 | **Decided (Oct 18, user).** Building starts Oct 18/19 without an LLM provider. The AI layer stays provider-agnostic through the Vercel AI SDK. Tests and E2E use a fake provider that replays recorded fixtures. The provider/model choice (Question #1) is still pending and is now due Oct 21, because the first live `pnpm eval` needs it | Provider due Oct 19 (D15), before the pipeline build | Question #1, "Re-plan, Oct 18" block plan |
+| D28 | **Decided (Oct 18, user).** A month-day date with no year resolves to the past only if it falls within 30 days before the written-on date. Otherwise it resolves to the next occurrence | Unspecified; left to chrono-node defaults | AI Behavior step 6, F5, CONTENT_MODEL Due date row |
+| D29 | **Decided (Oct 18, user).** Forget permanently also hard-deletes the originating `extraction_items` row(s), including payload, title and quote. Only the suppression hash survives. Where that hash is stored is an open storage gap (see Database Schema). *Extended Oct 18 by D35:* brief lines that quote the item are removed too | J7 and F9 named only the thread, evidence and optionally the source | J7, F9, API Requirements, Database Schema note, Privacy & Security, CONTENT_MODEL Forget thread row |
+| D30 | **Decided (Oct 18, user).** The rate limit counts per UTC day. The `rate_limited` copy reads "It resets at midnight (UTC)." | "Per user per day" with no timezone; the copy showed the user's `{timezone}` | F5, Technical Architecture rate limiting, SITE_CONTRACT §2.13 |
+| D31 | **Decided (Oct 18, PM; consistency with the implementation, no behaviour change).** In the PRD schema: `evidence.extraction_item_id` is `on delete set null`, not cascade, so threads keep their quote excerpts when a source is deleted (F13). Also added are `evidence.quote_hash`, `threads.due_time_known`, the `usage_counters` table (10 tables) and the `consume_usage()` function. Decision full-text search joins `threads` for the title (F12) and counterparty | The SQL cascaded evidence from proposals; nine tables; columns missing | Database Schema, F12, Decision Memory |
+| D32 | **Decided (Oct 18, PM; records how rule 3 is implemented).** An invented or reworded `date_text` gives no date, with no fallback. A bare time with no day gives no date. Same-day phrases resolve to the written-on day. AM/PM-ambiguous times are marked `inferred`. Relative-time phrases keep the day but not the time | Unspecified | AI Behavior step 6 |
+| D33 | **Decided (Oct 18, PM; records implemented server validation).** Ask-why `user_reason` and `source_fact` parts must equal the whole stored text. The ask-why prompt needs a v2 saying "the whole reason/fact". It is due once a provider exists and `pnpm eval` can run | Parts had to cite a retrieved ID only | F12, Decision Memory, AI Behavior |
+| D34 | **Decided (Oct 18, PM; consistency fixes).** "Six statuses" corrected to five (D2). The Why-panel templates live in `why()` in `lib/threads/`, as CLAUDE.md says (was `lib/why.ts`). CLAUDE.md commands use `pnpm exec supabase …`, because the Supabase CLI is a devDependency. `generateObject` is deprecated in AI SDK 7 but kept for now. Decision-ID ranges in the SITE_CONTRACT and CONTENT_MODEL headers now point to the whole log | Conflicting text | If I Had Only 30 Days, F8, F5, Technical Architecture, CLAUDE.md Commands and Stack, SITE_CONTRACT and CONTENT_MODEL headers. *Note added Oct 18:* the user approved changing `.claude/agents/lead-developer.md` to "D1 onward", and it is done |
+| D35 | **Decided (Oct 18, user). Extends D29.** Forget permanently, with the source kept, also removes any Explain-card (brief) lines that quote the forgotten item. The rest of the brief stays. The brief no longer survives Forget unchanged | D29 deleted proposals but left brief lines quoting the item in `extractions.brief` | J7, F9, Privacy & Security, CONTENT_MODEL Forget thread row |
+| D36 | **Decided (Oct 18, user; closes Question #11, option b).** The hedge-word penalty no longer applies to `intention` items. "We should grab lunch sometime" scores 0.35 and lands in Low ("Also noticed"). The change needs `pnpm eval` once a provider exists, and the result must be recorded | Hedge penalty on every type; lunch scored 0.20 (Ignore) while F19 said Maybe and failure modes said Low | Confidence weights table, F19, AI Reliability failure modes, Hackathon demo script, Question #11 |
+| D37 | **Decided (Oct 18, user).** The checkpoint commit of the current work to a local branch is approved, pending the lead-tester's verification. The approval covers a local branch only | Pending user | Process only |
+
+**Status markers (D15 onward):** an entry marked *Proposed* does not override older text until the user confirms it. On confirmation, change the marker to *Decided (date)* and update the documents listed in the same change. An entry marked *Decided* is in force now.
 
 ## If I Had Only 30 Days…
 
@@ -1249,7 +1337,7 @@ Concretely, build only this:
 1. **One input box** that takes pasted text or a text-layer PDF.
 2. **One extraction call** with a strict schema, followed by the deterministic layer that does the real trust work: quote verification, date re-resolution with chrono-node, "who is me," confidence bands. This layer is the product; give it at least 40% of the engineering time.
 3. **A review tray** where the common case is one click.
-4. **Threads with six statuses**, an Explain card, and a Why panel generated from stored data.
+4. **Threads with five statuses** (D2), an Explain card, and a Why panel generated from stored data.
 5. **A Today view capped at 5.**
 6. **Resolve → "Want me to remember why?" → Ask why**, answered only from what was recorded.
 7. **Delete that really deletes**, and an honest PRIVACY.md.
@@ -1269,7 +1357,7 @@ And be honest about the main limitation in the README: *"Today you bring things 
 | --- | --- | --- | --- |
 | 0:00–0:15 | The problem | Today view, empty | "We all make promises in email and get letters we don't fully read. Loose Ends catches what slips — and shows its receipts." |
 | 0:15–0:40 | Messy input | Paste the Mike email thread | "Here's a real-looking mess: a proposal, a vague lunch idea, and something I'm waiting on." |
-| 0:40–1:00 | Understanding + restraint | Review tray: *Likely* — Send revised proposal to Mike (Fri Oct 9), Waiting on Mike's contract from Legal; *Maybe* — Lunch with Mike, unchecked | "It found the promise and the date. It flagged lunch as a maybe — it's not going to nag me about small talk." Accept. |
+| 0:40–1:00 | Understanding + restraint | Review tray: *Likely* — Send revised proposal to Mike (Fri Oct 9), Waiting on Mike's contract from Legal; *Also noticed* (collapsed, opened on stage) — Lunch with Mike, unchecked (D36; was *Maybe*) | "It found the promise and the date. It put lunch under Also noticed — it's not going to nag me about small talk." Accept. |
 | 1:00–1:15 | Receipts | Click "Why?" on the proposal thread | "Every thread shows the exact sentence it came from, and how it read 'Friday' as October 9." |
 | 1:15–1:35 | Explain → Act | Upload the insurance PDF → Explain card | "Now a renewal notice. What it is, what to do, by when — $1,200 to $1,470, auto-renews October 31. Facts are cited; interpretation is labeled." |
 | 1:35–1:45 | Time passes | Demo clock → Thu Oct 8; Today shows "Send revised proposal — due tomorrow" at the top | "Three days later, only what matters is at the top." Mark it Done. |

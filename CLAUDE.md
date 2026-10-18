@@ -6,7 +6,7 @@ Loose Ends turns messages and documents the user pastes in into a short list of 
 
 Read the relevant document before changing behaviour, copy or visuals. When they conflict, the order below wins, and the conflict is raised with the lead-program-manager agent rather than resolved silently.
 
-1. `docs/PRD.md` (v1.1) — product, scope, schema, API, AI behaviour. Its **Decisions Log (D1–D14)** overrides older text anywhere.
+1. `docs/PRD.md` (v1.1) — product, scope, schema, API, AI behaviour. Its **Decisions Log (D1–D37)** overrides older text anywhere. Entries marked *Proposed* take effect only after the user confirms them.
 2. `docs/SITE_CONTRACT.md` (v1.1) — pages, routes, states, error copy, behaviour.
 3. `docs/CONTENT_MODEL.md` (v1.1) — fields, constraints, user-facing glossary.
 4. `docs/DESIGN_STANDARD.md` — visual standard: tokens, type, spacing, components, motion, microcopy.
@@ -15,7 +15,7 @@ Do not load these whole by default; open the section you need (they are long).
 
 ## Stack
 
-Next.js App Router + TypeScript · Tailwind + shadcn/ui + Lucide · Supabase (Postgres, Auth, Storage, RLS) · Vercel AI SDK `generateObject` + Zod · `unpdf`, `mammoth` · `chrono-node` + `date-fns-tz` · Vitest, Playwright, `@axe-core/playwright` · Sentry, PostHog · Vercel hosting + Cron.
+Next.js App Router + TypeScript · Tailwind + shadcn/ui + Lucide · Supabase (Postgres, Auth, Storage, RLS) · Vercel AI SDK `generateObject` + Zod (deprecated in AI SDK 7, kept for now; D34) · `unpdf`, `mammoth` · `chrono-node` + `date-fns-tz` · Vitest, Playwright, `@axe-core/playwright` · Sentry, PostHog · Vercel hosting + Cron.
 
 No separate backend, queue, vector DB, LangChain, Redis or ORM-managed migrations.
 
@@ -23,15 +23,15 @@ No separate backend, queue, vector DB, LangChain, Redis or ORM-managed migration
 
 | Task | Command |
 | --- | --- |
-| Local Supabase | `supabase start` |
+| Local Supabase | `pnpm exec supabase start` |
 | Dev server | `pnpm dev` |
 | Typecheck / lint | `pnpm typecheck` · `pnpm lint` |
 | Unit + integration | `pnpm test` |
 | E2E (recorded LLM fixtures) | `pnpm test:e2e` |
 | Extraction + Ask-why eval (live model, costs money) | `pnpm eval` |
-| New migration | `supabase migration new <name>` |
+| New migration | `pnpm exec supabase migration new <name>` |
 
-`pnpm dev`, `pnpm eval` and `supabase start` come from the PRD. The other script names are the expected convention; if `package.json` differs, update this table.
+`pnpm dev`, `pnpm eval` and `supabase start` come from the PRD. The Supabase CLI is a devDependency, so it runs through `pnpm exec` (D34). The other script names are the expected convention; if `package.json` differs, update this table.
 
 ## Repository layout
 
@@ -98,14 +98,24 @@ Three project subagents live in `.claude/agents/`. Delegate to them by name ("us
 
 ## Schedule and gates
 
+**Re-planned Oct 18 (day 17).** The day-14 checkpoint (Oct 15) was not met because nothing had been built. Plan, assumptions and block owners: PRD "Re-plan, Oct 18" (D15–D27). The gate dates below are *proposed* (D19) until the user confirms them. Days count from Oct 2 = day 1.
+
 | Gate | Date | Exit criteria |
 | --- | --- | --- |
-| Day 14 checkpoint | Oct 15 | Paste → review → thread → complete in production; PDF → Explain card; date tests pass. Decides SHOULD go/no-go |
-| Day 21 feature freeze | Oct 22 | Resolve + Ask why work; Today ranks and caps at 5; delete/export verified; v1.1 additions built or cut |
-| Day 26 eval gate | Oct 27 | 40-fixture eval passes thresholds; demo seeded and rehearsed |
-| Day 30 submission | Oct 31 | README, ARCHITECTURE, AI_BEHAVIOR, PRIVACY, CONTRIBUTING merged; video recorded |
+| Core-loop checkpoint (replaces day 14) | Thu Oct 23 | In production: magic link → paste → review → accept → thread → Done. Text-layer PDF → Explain card; scanned PDF shows the unsupported message. Quote, date, band and `transition()` unit tests pass. RLS test passes. `pnpm eval` runs on ≥ 20 fixtures |
+| Feature freeze (was Oct 22) | Sun Oct 26 | Resolve + Ask why work, including the zero-match path. Today ranks and caps at 5. Why panel renders from stored fields. Forget, source deletion, account deletion and export are verified by tests. Demo mode and seed are ready. Rate limit and budget cap are on. Cuts are recorded. Fixes only after this |
+| Eval gate (was Oct 27) | Tue Oct 28 | 40-fixture eval passes thresholds; Ask-why 0 fabrications; axe checks pass; E2E demo flow passes; scorecard generated |
+| Submission | Fri Oct 31 | README, ARCHITECTURE, AI_BEHAVIOR, PRIVACY, CONTRIBUTING, LICENSE merged; privacy copy check passes; 5 rehearsals under 2:30; video recorded. Target send Oct 30 |
 
-**Cut order if behind:** F16 forwarding → F15 digest → F17 toggles → F14 dedupe → DOCX → Explain card "Worth considering". **Never cut:** quote verification, date re-resolution, review tray, Why panel, delete.
+**Cuts applied: none yet.** The user overrode the day-14 rule on Oct 18 (D24; D16 suspended), so F14–F18 stay in scope. The proposed cuts DOCX (D17), Explain card "Worth considering" (D18) and the MUST trims (D20: Google sign-in, "Which of these is you?", "Still relevant?") are deferred, not decided. A SHOULD feature's UI stays hidden and unclaimed (including redaction) until the lead-tester verifies it.
+
+**Scope review: Sat Oct 25 (day 24, D25).** The user decides cuts from one week of progress, applying the cut order and never-cut list below unchanged. The same review decides D17, D18 and D20 and reconsiders the proposed Oct 26 freeze date, which falls the next day.
+
+**Build order (D26):** MUST and never-cut work first. Then SHOULD work in reverse cut order: "Worth considering" → DOCX → F14 dedupe → F17 toggles → F15 digest → F16 forwarding last. F18 redaction goes in with the F5 pipeline work where it fits. SHOULD work never displaces a MUST block.
+
+**LLM provider (D27):** not chosen yet, due Oct 21 (needed for the first live `pnpm eval`). Build against the provider-agnostic AI SDK layer, with a fake recorded-fixture provider for tests. **License:** MIT (D23).
+
+**Cut order (applied at the Oct 25 review):** F16 forwarding → F15 digest → F17 toggles → F14 dedupe → DOCX → Explain card "Worth considering", then the D20 items. Anything beyond that touches a MUST and goes to the user. **Never cut:** quote verification, date re-resolution, review tray, Why panel, delete.
 
 **Eval thresholds:** recall ≥ 80%, precision ≥ 75%, date accuracy ≥ 95%, owner accuracy ≥ 90%, band accuracy ≥ 85%, unverified quotes shown = 0, Ask-why fabrications = 0.
 

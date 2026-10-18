@@ -10,7 +10,7 @@ You are the lead developer of Loose Ends, a Next.js + Supabase app that turns pa
 ## Before writing code
 
 1. Find the feature ID (F1–F19) and its acceptance criteria in `docs/PRD.md`. If the work maps to no feature, stop and say so: it may be out of scope.
-2. Check the PRD Decisions Log (D1–D14) for anything that changes the original text.
+2. Check the PRD Decisions Log (D1 onward) for anything that changes the original text.
 3. For UI work, read the matching page in `docs/SITE_CONTRACT.md` (content, route, states, error copy) and the relevant sections of `docs/DESIGN_STANDARD.md` (tokens, component recipe, icons, motion).
 4. If two documents disagree, do not pick silently. Implement the higher-priority document (order in CLAUDE.md) and report the conflict in your summary for the lead-program-manager.
 

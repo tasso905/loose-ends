@@ -2,7 +2,7 @@
 
 **Status:** MVP implementation contract — **v1.1, Oct 18, 2026**  
 **Basis:** PRD v1.1, content model v1.1 and the Loose Ends Visual Design Standard  
-**Purpose:** Define the site's pages, routes, content, states and interaction behaviour. Decision IDs (D1–D14) refer to the PRD Decisions Log. All visual values (colours, type, spacing, timing) come from the Visual Design Standard; this contract no longer proposes its own.
+**Purpose:** Define the site's pages, routes, content, states and interaction behaviour. Decision IDs (D1 onward) refer to the PRD Decisions Log. All visual values (colours, type, spacing, timing) come from the Visual Design Standard; this contract no longer proposes its own.
 
 **v1.1 changes:** navigation reconciled with the PRD (Decisions added); new pages for sign-in/onboarding, Why panel, Source viewer and Decisions; route map; error copy table; per-screen state matrix; quick-add routing exception; undo-vs-confirm rule; Active/Closed thread filter; account deletion.
 
@@ -199,7 +199,7 @@ Field-level content, constraints and copy are defined in the content model v1.1;
 | `unsupported_scan` | `This looks like a scan. I can't read scans yet.` | `Paste the text instead` | No |
 | `extraction_failed` | `Something went wrong reading this. Your text is saved.` | `Try again`, `Back to Add` | Yes |
 | `extraction_slow` | `Still working — we'll show results here.` | Page polls | — |
-| `rate_limited` | `You've reached today's limit of {limit} {sources/questions}. It resets at midnight ({timezone}).` | None | No |
+| `rate_limited` | `You've reached today's limit of {limit} {sources/questions}. It resets at midnight (UTC).` (the limit counts per UTC day, so the reset is always shown in UTC, not the user's timezone; D30) | None | No |
 | `invalid_transition` | `That change isn't possible any more. Refresh to see the latest.` | `Refresh` | No |
 | Network / offline | `You're offline. Nothing was saved.` | `Try again` | Yes |
 | Any other save failure | `That didn't save. Try again.` | `Try again` | Yes |

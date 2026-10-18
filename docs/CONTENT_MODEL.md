@@ -1,6 +1,6 @@
 # Loose Ends — Content Model
 
-**Version:** v1.1 — Oct 18, 2026 (reconciled with PRD v1.1, site contract v1.1 and the visual design standard; decision IDs D1–D14 refer to the PRD Decisions Log)  
+**Version:** v1.1 — Oct 18, 2026 (reconciled with PRD v1.1, site contract v1.1 and the visual design standard; decision IDs D1 onward refer to the PRD Decisions Log)  
 **Scope:** Minimal content model for the Must-Have MVP features.  
 **Product principle:** AI proposes; the user reviews and decides. No evidence → no automatic reminder.  
 **Core definition:** An *Open Loop* is a real-world situation with an unresolved action, dependency, decision, or consequence.
@@ -54,7 +54,7 @@
 | Loop type | Candidate category | `Commitment`, `Request`, `Waiting on`, `Admin`, or `Decision`; set by the type → kind mapping (D5); user can change |
 | Suggested next action | What the user may need to do | Specific, actionable, concise; labelled `Suggested` |
 | Counterparty | Person or organization involved | Optional; use only when supported by source; flag ambiguous identity |
-| Due date | Candidate date or deadline | Explicit dates plain; inferred dates carry an `Assumed` chip with the resolution explained; never invent a precise date |
+| Due date | Candidate date or deadline | Explicit dates plain; inferred dates carry an `Assumed` chip with the resolution explained; never invent a precise date. A month-day with no year is in the past only if it falls within 30 days before the written-on date, otherwise the next occurrence (D28) |
 | Confidence label | Strength of extraction | Dot + word + reason, e.g. `Likely · Clear commitment with a date`; colour never the only signal |
 | Evidence quote | Verbatim source excerpt supporting the proposal | Must match source exactly; include page/location when available; if no verifiable quote, the item is not shown |
 | Review choice | User disposition of proposal | `Accept`, `Edit`, or `Reject`; `Accept selected` and `Reject all` at tray level |
@@ -161,7 +161,7 @@
 | Retain original source | Controls source retention | Toggle, on by default; explain effect before changing |
 | Sources list | Every source the user added | Title, kind, date, derived thread count |
 | Delete source | Per-source deletion | Two options: `Delete source only` (threads keep quotes) or `Delete source and everything from it`; confirmation lists what is deleted and what remains |
-| Forget thread | Permanently removes a thread and associated data | From Thread detail; confirmation with optional `Also delete source` |
+| Forget thread | Permanently removes a thread and associated data: the thread, its evidence, history and decision, the proposal it came from (payload, title and quote), and any Explain-card lines that quote it, even if the source is kept (D35). Only a one-way suppression hash remains, so the same item is not proposed again (D29) | From Thread detail; confirmation with optional `Also delete source`; the confirmation lists what is deleted |
 | Export data | Download user's data | JSON; threads, evidence/provenance, decisions, sources metadata |
 | Delete account | Removes all data and storage (D14) | Confirmation requires typing `delete`; explains backup expiry honestly |
 | Privacy/data explanation | Explains storage and use | Matches PRIVACY.md; no unimplemented promises |

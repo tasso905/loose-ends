@@ -1,0 +1,78 @@
+@import "tailwindcss";
+
+/* Tokens copied from docs/DESIGN_STANDARD.md "Tokens". Font families point at the
+   next/font variables set in app/layout.tsx, with the standard's fallbacks. */
+:root {
+  /* Loose Ends tokens */
+  --le-bg: #F7F5F0; --le-surface: #FFFEFB; --le-surface-hover: #F6F3EC;
+  --le-surface-sunken: #F1EEE7; --le-surface-raised: #FFFFFF;
+  --le-border: #E4DFD5; --le-border-strong: #CFC8BA; --le-scrim: rgba(22,21,19,.32);
+  --le-text: #1F1D1A; --le-text-secondary: #5C574F; --le-text-tertiary: #736D63; --le-text-on-accent: #FFFFFF;
+  --le-accent: #2E4A86; --le-accent-hover: #253D70; --le-accent-pressed: #1D3260; --le-accent-subtle: #E8EDF6;
+  --le-likely-fg: #2F6140; --le-likely-bg: #E7F1E9; --le-likely-dot: #3F7A4E;
+  --le-maybe-fg: #8A5A12; --le-maybe-bg: #FBF1DD; --le-maybe-dot: #B7791F;
+  --le-low-dot: #9A9387;
+  --le-danger-fg: #A23B32; --le-danger-bg: #F8E6E3; --le-danger-hover: #8A3129; --le-danger-pressed: #722820;
+  --le-evidence-rule: #B9AE98; --le-evidence-bg: #F1EEE7; --le-highlight: #F7E6A6;
+  --le-font-sans: var(--font-plex-sans), "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --le-font-serif: var(--font-plex-serif), "IBM Plex Serif", Georgia, "Times New Roman", serif;
+  --le-font-mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  --le-radius-control: 6px; --le-radius-card: 10px; --le-radius-modal: 14px;
+  --le-shadow-float: 0 1px 2px rgba(31,29,26,.06), 0 8px 24px rgba(31,29,26,.08);
+  --le-shadow-modal: 0 16px 48px rgba(31,29,26,.16);
+  --le-dur-press: 60ms; --le-dur-fast: 120ms; --le-dur-base: 180ms; --le-dur-slow: 240ms;
+  --le-ease-out: cubic-bezier(.2,0,0,1); --le-ease-in: cubic-bezier(.4,0,1,1);
+
+  /* shadcn/ui variables, set from the tokens above */
+  --background: var(--le-bg); --foreground: var(--le-text);
+  --card: var(--le-surface); --card-foreground: var(--le-text);
+  --popover: var(--le-surface-raised); --popover-foreground: var(--le-text);
+  --primary: var(--le-accent); --primary-foreground: var(--le-text-on-accent);
+  --secondary: var(--le-surface-sunken); --secondary-foreground: var(--le-text);
+  --muted: var(--le-surface-sunken); --muted-foreground: var(--le-text-secondary);
+  --accent: var(--le-surface-hover); --accent-foreground: var(--le-text);
+  --destructive: var(--le-danger-fg);
+  --border: var(--le-border); --input: var(--le-border); --ring: var(--le-accent);
+  --radius: 10px;
+}
+
+/* Tailwind v4 reads theme values from CSS (@theme) rather than theme.extend. */
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --font-sans: var(--le-font-sans);
+  --font-serif: var(--le-font-serif);
+  --font-mono: var(--le-font-mono);
+  --radius-control: var(--le-radius-control);
+  --radius-card: var(--le-radius-card);
+  --radius-modal: var(--le-radius-modal);
+}
+
+body {
+  background: var(--le-bg);
+  color: var(--le-text);
+  font-family: var(--le-font-sans);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}

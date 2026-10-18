@@ -1,0 +1,23 @@
+{
+  "name": "retry-once",
+  "task": "extract",
+  "input": "Acme said they'd pay by the 15th.",
+  "responses": [
+    "{ this is not json",
+    {
+      "source_summary": "Note about an Acme payment",
+      "participants": [{ "name": "Acme", "is_user": "no" }],
+      "items": [
+        {
+          "type": "waiting_on", "title": "Acme payment",
+          "owner": "other", "counterparty": "Acme", "action": "Pay the invoice",
+          "date_text": "the 15th", "date_iso": "2026-10-15", "amount_text": null,
+          "certainty": "explicit", "uncertainty_notes": [],
+          "matches_thread_id": null,
+          "evidence": [{ "quote": "Acme said they'd pay by the 15th", "speaker": null }]
+        }
+      ],
+      "brief": null
+    }
+  ]
+}

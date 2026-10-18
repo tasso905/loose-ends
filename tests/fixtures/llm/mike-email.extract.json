@@ -1,0 +1,38 @@
+{
+  "name": "mike-email",
+  "task": "extract",
+  "input": "Thanks Mike — I'll send you the revised proposal Friday. We should grab lunch sometime.",
+  "responses": [
+    {
+      "source_summary": "Email from you to Mike about a proposal",
+      "participants": [{ "name": "Mike", "is_user": "no" }, { "name": "Sam", "is_user": "yes" }],
+      "items": [
+        {
+          "type": "commitment", "title": "Send revised proposal to Mike",
+          "owner": "user", "counterparty": "Mike", "action": "Send the revised proposal",
+          "date_text": "Friday", "date_iso": "2026-10-09", "amount_text": null,
+          "certainty": "explicit", "uncertainty_notes": [],
+          "matches_thread_id": null,
+          "evidence": [{ "quote": "I'll send you the revised proposal Friday", "speaker": "Sam" }]
+        },
+        {
+          "type": "intention", "title": "Lunch with Mike",
+          "owner": "user", "counterparty": "Mike", "action": "Arrange lunch",
+          "date_text": null, "date_iso": null, "amount_text": null,
+          "certainty": "speculative", "uncertainty_notes": ["Casual phrasing; may not be a real plan"],
+          "matches_thread_id": null,
+          "evidence": [{ "quote": "We should grab lunch sometime", "speaker": "Sam" }]
+        },
+        {
+          "type": "commitment", "title": "Call the insurer",
+          "owner": "user", "counterparty": null, "action": "Call the insurer",
+          "date_text": null, "date_iso": null, "amount_text": null,
+          "certainty": "explicit", "uncertainty_notes": [],
+          "matches_thread_id": "not-a-real-thread",
+          "evidence": [{ "quote": "I will call the insurer tomorrow morning", "speaker": "Sam" }]
+        }
+      ],
+      "brief": null
+    }
+  ]
+}

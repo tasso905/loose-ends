@@ -1,0 +1,12 @@
+{
+  "name": "fabricated-ask-why",
+  "task": "ask_why",
+  "input": "Why did I pick the blue car?",
+  "responses": [
+    {
+      "answer_found": true,
+      "decision_ids": ["dec-nope"],
+      "answer_parts": [{ "kind": "user_reason", "text": "Blue is calming.", "ref": "dec-nope" }]
+    }
+  ]
+}

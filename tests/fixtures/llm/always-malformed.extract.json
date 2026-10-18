@@ -1,0 +1,6 @@
+{
+  "name": "always-malformed",
+  "task": "extract",
+  "input": "This input always gets a malformed response.",
+  "responses": [{ "items": "not an array" }]
+}

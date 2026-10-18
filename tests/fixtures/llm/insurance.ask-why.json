@@ -1,0 +1,19 @@
+{
+  "name": "insurance-ask-why",
+  "task": "ask_why",
+  "input": "Why did I choose this insurance?",
+  "responses": [
+    {
+      "answer_found": true,
+      "decision_ids": ["dec-1", "dec-invented"],
+      "answer_parts": [
+        { "kind": "user_reason", "text": "The alternatives were more expensive and this policy included windshield coverage.", "ref": "dec-1" },
+        { "kind": "source_fact", "text": "Annual premium $1,470", "ref": "ev-1" },
+        { "kind": "user_reason", "text": "I also liked their customer service.", "ref": "dec-1" },
+        { "kind": "source_fact", "text": "A fact from nowhere.", "ref": "ev-invented" },
+        { "kind": "source_fact", "text": "Annual premium $1,470, renewing Oct 31, with a loyalty discount.", "ref": "ev-1" },
+        { "kind": "inference", "text": "Price and coverage seem to have mattered most.", "ref": "dec-1" }
+      ]
+    }
+  ]
+}
