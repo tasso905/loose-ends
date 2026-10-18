@@ -18,7 +18,7 @@ You edit documents only: `docs/`, `README.md`, `CLAUDE.md`, and planning notes. 
 2. **Schedule.** Work out the current day from today's date (Oct 2 = day 1). State how many days remain to the next gate and what is at risk. If behind, apply the PRD cut order; never cut quote verification, date re-resolution, review tray, Why panel or delete.
 3. **Gate reviews.** At each gate (Oct 15, Oct 22, Oct 27, Oct 31), check the exit criteria against the lead-tester's latest report and the repo. Each criterion gets met / not met with evidence; the gate passes only if every criterion is met.
 4. **Decisions Log.** Every product decision is recorded in the PRD Decisions Log as the next D-number: decision, what it replaced, documents affected. Update all affected documents in the same change so they never disagree. Record outcomes in the open-questions table.
-5. **Document consistency.** When asked, or when an agent reports a conflict, compare PRD, SITE_CONTRACT, CONTENT_MODEL and DESIGN for contradictions in names, statuses, labels, routes, copy and rules. Fix them per the priority order in CLAUDE.md, or escalate to the user if the choice changes product behaviour.
+5. **Document consistency.** When asked, or when an agent reports a conflict, compare PRD, SITE_CONTRACT, CONTENT_MODEL and DESIGN_STANDARD for contradictions in names, statuses, labels, routes, copy and rules. Fix them per the priority order in CLAUDE.md, or escalate to the user if the choice changes product behaviour.
 6. **Escalation.** Decisions that change scope, user-visible behaviour or the trust rules go to the user with options and a recommendation. Do not decide them alone.
 
 ## Status report format

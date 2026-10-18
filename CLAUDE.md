@@ -9,7 +9,7 @@ Read the relevant document before changing behaviour, copy or visuals. When they
 1. `docs/PRD.md` (v1.1) — product, scope, schema, API, AI behaviour. Its **Decisions Log (D1–D14)** overrides older text anywhere.
 2. `docs/SITE_CONTRACT.md` (v1.1) — pages, routes, states, error copy, behaviour.
 3. `docs/CONTENT_MODEL.md` (v1.1) — fields, constraints, user-facing glossary.
-4. `docs/DESIGN.md` — visual standard: tokens, type, spacing, components, motion, microcopy.
+4. `docs/DESIGN_STANDARD.md` — visual standard: tokens, type, spacing, components, motion, microcopy.
 
 Do not load these whole by default; open the section you need (they are long).
 
@@ -46,7 +46,7 @@ prompts/              extract.v1.md, ask-why.v1.md (versioned)
 supabase/migrations/  SQL, additive only during Build Fest
 evals/fixtures/       synthetic inputs + golden outputs; evals/run.ts
 tests/                unit, integration, e2e
-docs/                 PRD, SITE_CONTRACT, CONTENT_MODEL, DESIGN, ARCHITECTURE, PRIVACY, AI_BEHAVIOR
+docs/                 PRD, SITE_CONTRACT, CONTENT_MODEL, DESIGN_STANDARD, ARCHITECTURE, PRIVACY, AI_BEHAVIOR
 ```
 
 ## Non-negotiable rules
@@ -57,7 +57,7 @@ These encode the product's trust model. Breaking one is a bug even if tests pass
 2. **Proposals, not facts.** Nothing from paste/upload becomes a thread until the user accepts it. Only High-confidence quick-add items auto-create, always with an 8 s undo.
 3. **Dates are deterministic.** `chrono-node` re-resolves every date; on disagreement keep chrono's value, mark `inferred`, add a "Not sure about" line. Never fill a missing date, amount or name.
 4. **Low confidence never surfaces unasked.** Unaccepted Low items never appear in Today; Low-origin threads never appear in a digest (D4).
-5. **Facts, user words and interpretation look different** — the "Three voices" in DESIGN.md. User text and decision reasons are stored and shown verbatim.
+5. **Facts, user words and interpretation look different** — the "Three voices" in DESIGN_STANDARD.md. User text and decision reasons are stored and shown verbatim.
 6. **No LLM at view time.** Why panel, surfacing reasons and confidence labels come from stored fields and templates.
 7. **Ask why answers only from retrieved decisions.** Zero matches → "I don't have a recorded decision about that." with no LLM call; reject cited IDs outside the retrieved set.
 8. **Delete means delete.** Forget permanently and source deletion hard-delete rows and storage objects, verified by tests.
@@ -77,9 +77,9 @@ These encode the product's trust model. Breaking one is a bug even if tests pass
 
 ## UI conventions
 
-- Use DESIGN.md tokens (`--le-*` in code) — no raw hex, px or ms values in components.
+- Use DESIGN_STANDARD.md tokens (`--le-*` in code) — no raw hex, px or ms values in components.
 - IBM Plex Sans for UI, IBM Plex Serif only for verbatim source quotes. No italics.
-- Icons: exactly the Lucide names in DESIGN.md's Iconography map, `strokeWidth={1.75}`.
+- Icons: exactly the Lucide names in DESIGN_STANDARD.md's Iconography map, `strokeWidth={1.75}`.
 - User-facing words come from the CONTENT_MODEL glossary: Done, Resolve…, Not needed, Dismiss, Forget permanently, Assumed, Interpretation, Suggested, You wrote, Likely / Maybe / Also noticed.
 - Reversible actions: execute + 8 s undo toast. Irreversible actions: confirmation dialog, no undo (D8).
 - WCAG 2.1 AA; never colour alone; `prefers-reduced-motion` respected; 44 px touch targets below 768 px.
