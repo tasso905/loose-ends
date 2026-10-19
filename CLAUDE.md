@@ -6,7 +6,7 @@ Loose Ends turns messages and documents the user pastes in into a short list of 
 
 Read the relevant document before changing behaviour, copy or visuals. When they conflict, the order below wins, and the conflict is raised with the lead-program-manager agent rather than resolved silently.
 
-1. `docs/PRD.md` (v1.1) — product, scope, schema, API, AI behaviour. Its **Decisions Log (D1–D37)** overrides older text anywhere. Entries marked *Proposed* take effect only after the user confirms them.
+1. `docs/PRD.md` (v1.1) — product, scope, schema, API, AI behaviour. Its **Decisions Log (D1–D38)** overrides older text anywhere. Entries marked *Proposed* take effect only after the user confirms them.
 2. `docs/SITE_CONTRACT.md` (v1.1) — pages, routes, states, error copy, behaviour.
 3. `docs/CONTENT_MODEL.md` (v1.1) — fields, constraints, user-facing glossary.
 4. `docs/DESIGN_STANDARD.md` — visual standard: tokens, type, spacing, components, motion, microcopy.
@@ -27,6 +27,7 @@ No separate backend, queue, vector DB, LangChain, Redis or ORM-managed migration
 | Dev server | `pnpm dev` |
 | Typecheck / lint | `pnpm typecheck` · `pnpm lint` |
 | Unit + integration | `pnpm test` |
+| Live Supabase checks (RLS, storage, deletion; needs local Supabase running) | `pnpm test:supabase` |
 | E2E (recorded LLM fixtures) | `pnpm test:e2e` |
 | Extraction + Ask-why eval (live model, costs money) | `pnpm eval` |
 | New migration | `pnpm exec supabase migration new <name>` |

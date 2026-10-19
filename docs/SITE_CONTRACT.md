@@ -10,7 +10,7 @@
 
 | Order | Page / section | Purpose |
 |---:|---|---|
-| 0 | Sign in and onboarding | Magic link or Google identity sign-in; one aliases question; sensitive-data and analytics notices. |
+| 0 | Sign in and onboarding | Also the first screen judges and new users see; there is no public landing page (D38). Pitch headline (the page's h1) and subline above the form; magic link or Google identity sign-in; one aliases question; sensitive-data and analytics notices. |
 | 1 | App shell and navigation | Today · Threads · Decisions, global Add, account menu, review chip, demo-date banner. |
 | 2 | Add / Capture | Paste, upload or quick-add source material. |
 | 3 | Extraction progress | Real pipeline steps; success, failure, slow and unsupported states. |
@@ -37,10 +37,10 @@
 
 | Route | Page | Auth | Notes |
 |---|---|---|---|
-| `/sign-in` | Sign in | Public | `?sent=1` shows the check-your-email state |
+| `/sign-in` | Sign in | Public | First screen for signed-out visitors; no public landing page (D38). `?sent=1` shows the check-your-email state. `?next={path}` is kept through the check-your-email state and the magic link |
 | `/auth/callback` | Auth handoff | Public | Redirects to `/onboarding` on first sign-in, else to the `next` param or `/today` |
 | `/onboarding` | Aliases question | Signed in | Shown once; skippable |
-| `/` | — | Signed in | Redirects to `/today` |
+| `/` | — | Any | Signed in: redirects to `/today`. Signed out: redirects to `/sign-in`, with no `next` because `/` lands on Today anyway (D38) |
 | `/today` | Today | Signed in | Default landing page |
 | `/add` | Add / Capture | Signed in | `?mode=paste` (default), `upload`, `quick` |
 | `/review/[extractionId]` | Extraction progress + Review Tray | Signed in | Same route shows progress, then proposals; survives refresh by polling |
@@ -49,6 +49,8 @@
 | `/sources/[id]` | Source viewer | Signed in | `?evidence=[evidenceId]` highlights and scrolls to that quote |
 | `/decisions` | Decisions / Ask Why | Signed in | `?q=` holds the last question so answers can be deep-linked |
 | `/settings` | Settings | Signed in | Anchors `#profile` and `#data` |
+
+**Signed-out access (D38):** a signed-out visit to any Signed in route redirects to `/sign-in?next={path}`, where the path includes its query string. After sign-in, `/auth/callback` sends the user to `next`. On first sign-in, onboarding comes first and then `next`. Only same-site relative paths are honoured as `next`; anything else falls back to `/today`.
 
 Unknown or other users' IDs render a plain not-found page (`This thread doesn't exist or was deleted.`) with a link to Today; never reveal whether another user's record exists.
 
@@ -60,10 +62,12 @@ Field-level content, constraints and copy are defined in the content model v1.1;
 
 | Field | Constraints |
 |---|---|
+| Pitch headline (D38) | `Tie up your loose ends.` The page's only h1. Below the `Loose Ends` wordmark and above the subline. Exact text |
+| Pitch subline (D38) | `Paste in the mess. Get back what's still open, each with the sentence it came from.` Directly below the headline and above the sign-in form. Exact text; no added marketing copy, and no privacy or speed claims (rule 9) |
 | Email + `Email me a sign-in link` | Disabled while sending; check-your-email state names the address and offers `Use a different email` |
 | `Continue with Google` | Identity scopes only (`openid email profile`) |
 | Aliases question | Skippable; signed-in email always saved as alias |
-| Notices | "Don't paste passwords or full account numbers." Analytics notice with opt-out link |
+| Notices | "Don't paste passwords or full account numbers.", shown on the sign-in page and in onboarding. Analytics notice with opt-out link |
 
 ### 2.1 App shell and navigation
 
