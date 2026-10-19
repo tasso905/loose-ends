@@ -176,6 +176,24 @@ describe("rule 8: deletion leaves no quote text behind", () => {
   });
 });
 
+/* Pre-release review: the model's raw brief has no offsets. */
+describe("D35 / rule 8: Forget leaves nothing about the item in raw_output.brief", () => {
+  // REGRESSION GUARD (medium, rule 8, fixed pre-release review; regression on fix/pre-release-hardening): raw_output.brief has no offsets,
+  // so only the text rule applies, and a line quoting a 2-word fragment of the forgotten sentence survives
+  // with its text ("Send the zebrafish proposal to Quillon"). The raw copy is never shown, so precision does
+  // not matter there. Suggested fix: on Forget, set raw_output.brief to null instead of scrubbing it.
+  it("a raw brief line quoting a short fragment of the forgotten quote is removed", async () => {
+    const g = await seed();
+    await db.query(
+      `update public.extractions set raw_output = jsonb_set(raw_output, '{brief}', $2::jsonb) where id = $1`,
+      [g.extraction, JSON.stringify({ what_to_do: [{ text: "Send the zebrafish proposal to Quillon", basis: "source", quote: "zebrafish proposal" }] })],
+    );
+    await forget(g.thread, false);
+    const raw = await db.query<{ j: string }>(`select raw_output::text j from public.extractions where id = $1`, [g.extraction]);
+    expect(raw.rows[0]!.j).not.toMatch(SECRET);
+  });
+});
+
 /* Round 8: scrub_brief (D35) precision. scrub_brief is pure, so these call it directly. */
 describe("D35 scrub_brief: removes only lines that quote the forgotten item", () => {
   const brief = {
@@ -208,16 +226,16 @@ describe("D35 scrub_brief: removes only lines that quote the forgotten item", ()
     expect(await kept(["   "])).toEqual(ALL);
   });
 
-  // OPEN DEFECT (medium, D35 over-removal): overlap is plain containment in either direction, on both the
+  // REGRESSION GUARD (medium, D35 over-removal, fixed pre-release): overlap was plain containment in either direction, on both the
   // line's quote and its text. A short forgotten quote (Zod allows 3 characters) is "contained" in many
   // unrelated lines, so it wipes most of the Explain card.
-  it.fails.each([["the"], ["Oct"], ["a"]])("a very short forgotten quote %j does not remove unrelated lines", async (q) => {
+  it.each([["the"], ["Oct"], ["a"]])("a very short forgotten quote %j does not remove unrelated lines", async (q) => {
     expect(await kept([q])).toEqual(ALL);
   });
 
-  // OPEN DEFECT (medium, D35 over-removal): a short line text ("Renew", "Pay") is contained in an unrelated
+  // REGRESSION GUARD (medium, D35 over-removal, fixed pre-release): a short line text ("Renew", "Pay") is contained in an unrelated
   // forgotten quote, so the line is removed although its own quote has nothing to do with the forgotten item.
-  it.fails("an unrelated quote that happens to contain a short line text does not remove that line", async () => {
+  it("an unrelated quote that happens to contain a short line text does not remove that line", async () => {
     expect(await kept(["Please renew your gym membership and pay the trainer"])).toEqual(ALL);
   });
 });
