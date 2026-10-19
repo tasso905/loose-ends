@@ -8,7 +8,10 @@ export type LogEvent =
   | "extraction_retry"
   | "ask_why_ref_rejected"
   | "account_delete_late_objects"
-  | "account_delete_sweep_failed";
+  | "account_delete_sweep_failed"
+  | "sign_in_link_failed"
+  | "auth_callback_failed"
+  | "onboarding_save_failed";
 
 export type LogProps = Record<string, string | number | boolean | null>;
 

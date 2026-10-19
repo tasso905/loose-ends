@@ -1,0 +1,89 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  # Tests and E2E use recorded LLM fixtures only; no live model, no secrets.
+  AI_PROVIDER: fake
+  AI_MODEL: recorded
+
+jobs:
+  checks:
+    name: Typecheck, lint, unit + integration, build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm typecheck
+      - run: pnpm lint
+      - run: pnpm test
+      - run: pnpm build
+
+  supabase:
+    name: Live Supabase + E2E
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+
+      # Local Supabase in Docker with the CLI's default dev keys (not secrets). Only the services the
+      # suites use: Postgres, Auth, PostgREST, Storage, Kong and Mailpit.
+      - name: Start Supabase
+        run: pnpm exec supabase start -x realtime,imgproxy,postgres-meta,studio,edge-runtime,logflare,vector,supavisor
+      - name: Export Supabase env
+        run: |
+          pnpm exec supabase status -o json > "$RUNNER_TEMP/sb.json"
+          node -e '
+            const fs = require("fs");
+            const raw = fs.readFileSync(process.argv[1], "utf8");
+            const j = JSON.parse(raw.slice(raw.indexOf("{")));
+            const out = [
+              `LE_SUPABASE_URL=${j.API_URL}`,
+              `LE_SUPABASE_ANON_KEY=${j.ANON_KEY}`,
+              `LE_SUPABASE_SERVICE_ROLE_KEY=${j.SERVICE_ROLE_KEY}`,
+              `LE_MAILPIT_URL=${j.MAILPIT_URL || j.INBUCKET_URL}`,
+            ];
+            fs.appendFileSync(process.env.GITHUB_ENV, out.join("\n") + "\n");
+          ' "$RUNNER_TEMP/sb.json"
+
+      - run: pnpm test:supabase
+
+      - name: Install Playwright Chromium
+        run: pnpm exec playwright install --with-deps chromium
+      - run: pnpm test:e2e
+
+      - name: Upload Playwright report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 7
+
+      - name: Stop Supabase
+        if: always()
+        run: pnpm exec supabase stop --no-backup
