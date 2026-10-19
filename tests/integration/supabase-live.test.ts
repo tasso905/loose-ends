@@ -12,6 +12,7 @@ import { execSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { deleteAccount, type AccountAdminClient } from "@/lib/account/deleteAccount";
 
 interface Env {
   url: string;
@@ -349,5 +350,91 @@ describe.skipIf(!env)("real local Supabase: RLS, rate limit, deletion", () => {
       for (const [t] of TABLES) expect(rows[t], t).toEqual([]);
     }
     expect((await admin.storage.from("sources").remove([g.path])).error).toBeNull();
+  });
+
+  /* ---- Pre-release hardening (lead-developer) ---- */
+
+  it("deleteAccount(): removes every storage object (paginated, subfolder) and then all rows", async () => {
+    const K = await makeUser("k");
+    await seed(K, "k");
+    for (const p of ["a.txt", "b.txt", "c.txt", "nested/d.txt", "nested/e.txt"]) {
+      const up = await K.client.storage.from("sources").upload(`${K.id}/${p}`, new Blob([`x ${TOKEN}`], { type: "text/plain" }));
+      expect(up.error).toBeNull();
+    }
+    const r = await deleteAccount(admin as unknown as AccountAdminClient, K.id, { pageSize: 2 });
+    expect(r).toEqual({ ok: true, objectsRemoved: 6 });
+    const rows = await allRows(K.id);
+    for (const [t] of TABLES) expect(rows[t], t).toEqual([]);
+    expect((await admin.storage.from("sources").list(K.id)).data ?? []).toEqual([]);
+    expect((await admin.storage.from("sources").list(`${K.id}/nested`)).data ?? []).toEqual([]);
+    expect((await admin.auth.admin.getUserById(K.id)).data.user).toBeNull();
+  }, 60_000);
+
+  it("deleteAccount(): a storage failure leaves the user and rows in place", async () => {
+    const L = await makeUser("l");
+    const g = await seed(L, "l");
+    const broken = {
+      storage: { from: () => ({ list: async () => ({ data: null, error: { message: "down" } }), remove: async () => ({ data: null, error: null }) }) },
+      auth: admin.auth,
+    } as unknown as AccountAdminClient;
+    const r = await deleteAccount(broken, L.id);
+    expect(r).toMatchObject({ ok: false, error: { code: "save_failed", retryable: true } });
+    expect((await admin.auth.admin.getUserById(L.id)).data.user?.id).toBe(L.id);
+    expect((await allRows(L.id)).threads).toHaveLength(1);
+    expect((await admin.storage.from("sources").download(g.path)).error).toBeNull();
+  });
+
+  it.each([
+    ["scrub_brief", { p_brief: {}, p_quotes: [] }],
+    ["norm_quote", { t: "x" }],
+    ["touch_updated_at", {}],
+    ["handle_new_user", {}],
+    ["profiles_check_timezone", {}],
+    ["extraction_items_delete_evidence", {}],
+    ["sources_delete_source_only_evidence", {}],
+    ["thread_events_no_update", {}],
+  ])("RPC %s is refused for anon and authenticated", async (fn, args) => {
+    expect((await anon.rpc(fn, args)).error, `anon ${fn}`).not.toBeNull();
+    expect((await A.client.rpc(fn, args)).error, `authenticated ${fn}`).not.toBeNull();
+  });
+
+  it("private helpers are not reachable through the API", async () => {
+    const r = await A.client.schema("private").rpc("scrub_brief", { p_brief: {}, p_quotes: [] });
+    expect(r.error).not.toBeNull();
+  });
+
+  it("forget_thread and consume_usage still work for authenticated after the grant changes", async () => {
+    const M = await makeUser("m");
+    const g = await seed(M, "m");
+    expect((await M.client.rpc("consume_usage", { p_kind: "ask" })).error).toBeNull();
+    const f = await M.client.rpc("forget_thread", { p_thread_id: g.thread, p_delete_source: false });
+    expect(f.error).toBeNull();
+    const ex = (await admin.from("extractions").select("brief").eq("id", g.extraction).single()).data as { brief: { what_to_do: Array<{ text: string }> } };
+    expect(ex.brief.what_to_do.map((l) => l.text)).toEqual(["Read the parrot memo"]);
+  });
+});
+
+describe.skipIf(!env)("real local Supabase: account deletion vs a still-valid session (pre-release review)", () => {
+  // REGRESSION GUARD (medium-high, rule 8, fixed pre-release review): JWTs are stateless, and the storage insert policy only checks
+  // auth.uid() against the folder name. After deleteAccount() removes the files and deletes the auth
+  // user, the user's existing session (another tab, an in-flight upload) can still upload into the
+  // folder. Table inserts fail on the profiles foreign key; storage has no such check, so the object is
+  // orphaned. Suggested fix: the storage insert policy also requires
+  // `exists (select 1 from public.profiles p where p.id = auth.uid())`, and deleteAccount() sweeps the
+  // folder once more after deleteUser().
+  it("a deleted user's session cannot upload to storage", async () => {
+    const svc = createClient(env!.url, env!.service, opts);
+    const email = `le-test-post-${randomUUID().slice(0, 6)}@example.com`;
+    const password = `pw-${randomUUID()}`;
+    const { data } = await svc.auth.admin.createUser({ email, password, email_confirm: true });
+    const uid = data.user!.id;
+    const user = createClient(env!.url, env!.anon, opts);
+    await user.auth.signInWithPassword({ email, password });
+    expect((await svc.auth.admin.deleteUser(uid)).error).toBeNull();
+    const up = await user.storage.from("sources").upload(`${uid}/after-delete.txt`, new Blob(["after delete"]));
+    // clean up whatever got through before asserting
+    const left = (await svc.storage.from("sources").list(uid)).data ?? [];
+    if (left.length) await svc.storage.from("sources").remove(left.map((o) => `${uid}/${o.name}`));
+    expect(up.error).not.toBeNull();
   });
 });

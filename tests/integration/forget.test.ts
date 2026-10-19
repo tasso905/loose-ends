@@ -111,11 +111,12 @@ describe("forget_thread()", () => {
 });
 
 describe("forget_thread(): Explain card scrub (user decision, Oct 18)", () => {
-  it("drops brief lines quoting the forgotten item in both copies, and keeps unrelated lines", async () => {
+  it("scrubs the stored brief (keeping unrelated lines) and drops the raw brief", async () => {
     const brief = {
       what_this_is: [{ text: "A note to Quillon", basis: "source", quote: "I’ll send  Quillon the zebrafish proposal Friday" }],
       what_to_do: [
-        { text: "Send it", basis: "source", quote: "zebrafish proposal" },
+        // Pre-release: a partial quote counts only from 12 characters and 3 words ("zebrafish proposal" no longer would).
+        { text: "Send it", basis: "source", quote: "the zebrafish proposal" },
         { text: "Read the memo", basis: "source", quote: "the parrot memo is ready" },
       ],
       by_when: [],
@@ -128,8 +129,10 @@ describe("forget_thread(): Explain card scrub (user decision, Oct 18)", () => {
 
     await forget(false);
 
-    const row = await db.query<{ brief: typeof brief; raw: { brief: typeof brief } }>(`select brief, raw_output as raw from extractions`);
-    for (const b of [row.rows[0]!.brief, row.rows[0]!.raw.brief]) {
+    const row = await db.query<{ brief: typeof brief; raw: { brief: typeof brief | null } }>(`select brief, raw_output as raw from extractions`);
+    // Pre-release review: the model's raw brief (no offsets, never shown) is dropped entirely on Forget.
+    expect(row.rows[0]!.raw.brief).toBeNull();
+    for (const b of [row.rows[0]!.brief]) {
       expect(b.what_this_is).toEqual([]);
       expect(b.what_to_do).toEqual([{ text: "Read the memo", basis: "source", quote: "the parrot memo is ready" }]);
       expect(b.if_you_dont).toEqual([{ text: "Nothing stated", basis: "interpretation", quote: null }]);
@@ -138,5 +141,26 @@ describe("forget_thread(): Explain card scrub (user decision, Oct 18)", () => {
     }
     const after = await textEverywhere();
     for (const [table, text] of Object.entries(after)) if (table !== "sources") expect(containsContent(text), table).toBe(false);
+  });
+});
+
+describe("private.scrub_brief(): offsets win when a line carries them (pre-release)", () => {
+  const line = (quote: string, start: number, end: number) => ({ text: "t", basis: "source", quote, match: { start_offset: start, end_offset: end } });
+  const scrub = async (brief: unknown, quotes: string[], ranges: string) =>
+    (await db.query<{ b: { what_to_do: Array<{ quote: string }> } }>(`select private.scrub_brief($1::jsonb, $2::text[], $3::int4range[]) as b`, [JSON.stringify(brief), quotes, ranges])).rows[0]!.b;
+
+  it("removes a line whose source span overlaps forgotten evidence, even if its quote text differs", async () => {
+    const b = await scrub({ what_to_do: [line("send it", 10, 40), line("the parrot memo is ready", 60, 84)] }, ["unrelated words here entirely"], "{\"[0,20)\"}");
+    expect(b.what_to_do.map((l) => l.quote)).toEqual(["the parrot memo is ready"]);
+  });
+
+  it("keeps a line with offsets outside every forgotten span, even if its text matches", async () => {
+    const b = await scrub({ what_to_do: [line("I'll send Quillon the zebrafish proposal Friday", 100, 147)] }, [QUOTE], "{\"[0,20)\"}");
+    expect(b.what_to_do).toHaveLength(1);
+  });
+
+  it("falls back to the text rule when no ranges are given", async () => {
+    const b = await scrub({ what_to_do: [line("I'll send Quillon the zebrafish proposal Friday", 100, 147)] }, [QUOTE], "{}");
+    expect(b.what_to_do).toHaveLength(0);
   });
 });
