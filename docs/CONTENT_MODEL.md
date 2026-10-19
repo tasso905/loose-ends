@@ -11,13 +11,15 @@
 
 | Field | Description | Constraints |
 |---|---|---|
-| Sign-in heading | Names the product and the action | `Loose Ends`; one short line of purpose |
+| Product name | Names the product | `Loose Ends` as the wordmark (DESIGN_STANDARD "Wordmark and favicon"), at the top of the page. It is not a heading. The sign-in page is also the first screen for new users and judges; there is no landing page (D38) |
+| Pitch headline | Says what the product is for | Exactly `Tie up your loose ends.` (D38, Oct 19). The page's only h1, replacing the earlier "`Loose Ends` heading". Below the wordmark, above the subline |
+| Pitch subline | Says how it works | Exactly `Paste in the mess. Get back what's still open, each with the sentence it came from.` (D38, Oct 19). Body text directly below the headline, above the email field. Order: wordmark → headline → subline → sign-in form → notices. No other marketing copy; no privacy or speed claims (rule 9) |
 | Email field | Magic-link address | Standard email validation; one field only |
 | Send link button | Requests a magic link | Label `Email me a sign-in link`; disabled while sending |
 | Google button | Identity-only Google sign-in | Label `Continue with Google`; no mailbox scopes |
 | Check-your-email state | Confirms the link was sent | Names the address; offers `Use a different email`; never claims sign-in succeeded |
 | Aliases question | Helps tell "you" from others in pasted threads | "What name and emails do people use for you?"; skippable; signed-in email always saved as an alias |
-| Sensitive-data note | Sets expectations before first paste | "Don't paste passwords or full account numbers." |
+| Sensitive-data note | Sets expectations before first paste | "Don't paste passwords or full account numbers."; shown on the sign-in page and in onboarding |
 | Analytics notice | Explains event-only analytics | Plain statement + opt-out link; no content is ever sent |
 
 ### 1. App shell and navigation
