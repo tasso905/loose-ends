@@ -15,7 +15,9 @@ import { getModel } from "./provider";
  *    the whole stored fact), so nothing but stored text is ever shown as the user's or the source's;
  *  - `inference` parts keep the model's text and are always labeled Interpretation.
  * If no retrieved decision is cited after filtering, the answer is NO_RECORD_MESSAGE.
- * A failed model call throws AskWhyFailedError, which carries only the failure kind (rule 9).
+ * A failed model call is retried once only when classifyAiError() marks it retryable (D43 parity
+ * with extract(); SDK retries are off), then throws AskWhyFailedError, which carries only the
+ * failure kind (rule 9).
  */
 
 export const NO_RECORD_MESSAGE = "I don't have a recorded decision about that.";
@@ -111,22 +113,31 @@ export async function askWhy(question: string, decisions: RetrievedDecision[], d
   const logger = deps.logger ?? defaultLog;
 
   const started = performance.now();
-  let result: Awaited<ReturnType<typeof generateObject<typeof AskWhyModelSchema>>>;
-  try {
-    result = await generateObject({
-      model,
-      schema: AskWhyModelSchema,
-      system: loadPrompt(ASK_WHY_PROMPT_VERSION),
-      prompt: buildAskWhyPrompt(question, decisions),
-      temperature: 0,
-      maxRetries: 1,
-    });
-  } catch (err) {
-    // Provider errors carry the request body (question + decisions); keep only the classification.
-    const f = classifyAiError(err);
-    const latencyMs = Math.round(performance.now() - started);
-    logger("ask_why_failed", { kind: f.kind, status: f.status, error: err instanceof Error ? err.name : "non_error_thrown", latency_ms: latencyMs });
-    throw new AskWhyFailedError(f, latencyMs);
+  // D43 parity with extract(): no SDK-level retries; one retry only when classifyAiError says
+  // another attempt can help (never on quota, safety, rejected or config).
+  let result: Awaited<ReturnType<typeof generateObject<typeof AskWhyModelSchema>>> | undefined;
+  for (let attempt = 1; result === undefined; attempt++) {
+    try {
+      result = await generateObject({
+        model,
+        schema: AskWhyModelSchema,
+        system: loadPrompt(ASK_WHY_PROMPT_VERSION),
+        prompt: buildAskWhyPrompt(question, decisions),
+        temperature: 0,
+        maxRetries: 0,
+      });
+    } catch (err) {
+      // Provider errors carry the request body (question + decisions); keep only the classification.
+      const f = classifyAiError(err);
+      const error = err instanceof Error ? err.name : "non_error_thrown";
+      if (f.retryable && attempt < 2) {
+        logger("ask_why_retry", { kind: f.kind, status: f.status, error });
+        continue;
+      }
+      const latencyMs = Math.round(performance.now() - started);
+      logger("ask_why_failed", { kind: f.kind, status: f.status, error, attempts: attempt, latency_ms: latencyMs });
+      throw new AskWhyFailedError(f, latencyMs);
+    }
   }
   const latencyMs = Math.round(performance.now() - started);
   const tokens: [number | null, number | null] = [result.usage.inputTokens ?? null, result.usage.outputTokens ?? null];

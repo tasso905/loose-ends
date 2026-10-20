@@ -52,6 +52,9 @@ const RETRYABLE: Record<AiFailureKind, boolean> = {
   unknown: true,
 };
 
+/** Whether a failure of this kind can succeed on another attempt (the table above). */
+export const isRetryableKind = (kind: AiFailureKind): boolean => RETRYABLE[kind];
+
 const failure = (kind: AiFailureKind, status: number | null = null): AiFailure => ({ kind, status, retryable: RETRYABLE[kind] });
 
 export function classifyAiError(err: unknown): AiFailure {
