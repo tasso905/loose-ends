@@ -101,6 +101,19 @@
 
   /* Saving/submitting spinner: Loader2 rotating 900ms linear (DESIGN_STANDARD Product moments). */
   --animate-spin-status: spin 900ms linear infinite;
+  /* Extraction in progress: skeleton cards pulse 1 → 0.6 → 1 over 1.6s (DESIGN_STANDARD Product moments). */
+  --animate-skeleton: le-skeleton 1.6s ease-in-out infinite;
+  /* A new pipeline step fades in at --dur-base. */
+  --animate-fade-in: le-fade-in var(--le-dur-base) var(--le-ease-out);
+
+  @keyframes le-skeleton {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.6; }
+  }
+  @keyframes le-fade-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
 }
 
 /* Focus-visible ring for buttons and links: 2px --le-accent, 2px offset (DESIGN_STANDARD Interactions). */
@@ -122,5 +135,10 @@ body {
   *:not(.animate-spin-status), *::before, *::after {
     animation-duration: 0.01ms !important;
     transition-duration: 0.01ms !important;
+  }
+  /* The skeleton pulse stops and holds at 0.8 opacity. */
+  .animate-skeleton {
+    animation: none !important;
+    opacity: 0.8;
   }
 }

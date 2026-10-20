@@ -1,0 +1,23 @@
+{
+  "name": "slow-paste",
+  "task": "extract",
+  "input": "Hi Dana, I'll book the venue for the team offsite by Thursday. Synthetic E2E fixture (slow response).",
+  "delay_ms": 3000,
+  "responses": [
+    {
+      "source_summary": "Note to Dana about the offsite venue",
+      "participants": [{ "name": "Dana", "is_user": "no" }],
+      "items": [
+        {
+          "type": "commitment", "title": "Book the offsite venue",
+          "owner": "user", "counterparty": "Dana", "action": "Book the venue for the team offsite",
+          "date_text": "by Thursday", "date_iso": null, "amount_text": null,
+          "certainty": "explicit", "uncertainty_notes": [],
+          "matches_thread_id": null,
+          "evidence": [{ "quote": "I'll book the venue for the team offsite by Thursday", "speaker": null }]
+        }
+      ],
+      "brief": null
+    }
+  ]
+}
