@@ -31,6 +31,31 @@ test("signed-out / goes to /sign-in with the pitch in order", async ({ page }) =
   await expect(page.getByText(/analytics/i)).toHaveCount(0);
 });
 
+test("Continue with Google follows the email form and asks for identity scopes only (F1, D41)", async ({ page }) => {
+  // playwright.config.ts pins NEXT_PUBLIC_AUTH_GOOGLE_ENABLED=true; the authorize request is intercepted,
+  // so no Google credentials or enabled provider are needed.
+  let authorize: URL | null = null;
+  await page.route("**/auth/v1/authorize**", async (route) => {
+    authorize = new URL(route.request().url());
+    await route.fulfill({ status: 200, contentType: "text/html", body: "<title>intercepted</title>" });
+  });
+
+  await page.goto("/sign-in?next=%2Fthreads");
+  const text = (await page.locator("main").innerText()).replace(/\s+/g, " ");
+  const send = text.indexOf("Email me a sign-in link");
+  expect(send).toBeGreaterThanOrEqual(0);
+  expect(text.indexOf(" or Continue with Google", send)).toBeGreaterThan(send);
+
+  await page.getByRole("button", { name: "Continue with Google" }).click();
+  await expect.poll(() => authorize?.toString() ?? null).not.toBeNull();
+  const url = authorize as unknown as URL;
+  expect(url.searchParams.get("provider")).toBe("google");
+  expect(url.searchParams.get("scopes")?.split(/\s+/).sort()).toEqual(["email", "openid", "profile"]);
+  const redirectTo = new URL(url.searchParams.get("redirect_to") ?? "");
+  expect(redirectTo.pathname).toBe("/auth/callback");
+  expect(redirectTo.searchParams.get("next")).toBe("/threads");
+});
+
 test("invalid email shows a field error and sends nothing", async ({ page }) => {
   await page.goto("/sign-in");
   await page.getByLabel("Email").fill("not-an-email");

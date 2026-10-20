@@ -9,7 +9,11 @@ export function supabasePublicEnv(): { url: string; anonKey: string } {
   return { url, anonKey };
 }
 
-/** Google identity sign-in is built but off until Google Cloud OAuth credentials exist (D20 pending). */
+/**
+ * Google identity sign-in (D41): the button renders whenever this flag is "true". Set it only where the
+ * Supabase Google provider is also enabled, or the click lands on a bare provider error page instead of
+ * `oauth_failed`. Off by default (contributors without credentials); E2E pins it on.
+ */
 export function isGoogleSignInEnabled(): boolean {
   return process.env.NEXT_PUBLIC_AUTH_GOOGLE_ENABLED === "true";
 }

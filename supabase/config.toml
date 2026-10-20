@@ -336,8 +336,14 @@ skip_nonce_check = false
 email_optional = false
 
 # F1 Google identity sign-in (PRD: `openid email profile` only; the app requests those scopes).
-# Off until Google Cloud OAuth credentials exist. To try it locally: set the two env vars, set
-# enabled = true, restart Supabase, and set NEXT_PUBLIC_AUTH_GOOGLE_ENABLED=true for the app.
+# Ships switched on (D41), but stays false here so CI and contributors without Google credentials
+# get a stack that does not advertise Google. To switch it on locally, put these in supabase/.env
+# (gitignored; the CLI loads it and SUPABASE_AUTH_EXTERNAL_GOOGLE_ENABLED overrides `enabled` below):
+#   SUPABASE_AUTH_EXTERNAL_GOOGLE_ENABLED=true
+#   SUPABASE_AUTH_EXTERNAL_GOOGLE_CLIENT_ID=<web client id>
+#   SUPABASE_AUTH_EXTERNAL_GOOGLE_SECRET=<web client secret>
+# then restart Supabase and set NEXT_PUBLIC_AUTH_GOOGLE_ENABLED=true in .env.local for the app.
+# Do not write enabled = "env(...)": this CLI fails to parse the config when the variable is unset.
 [auth.external.google]
 enabled = false
 client_id = "env(SUPABASE_AUTH_EXTERNAL_GOOGLE_CLIENT_ID)"
