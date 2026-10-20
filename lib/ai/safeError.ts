@@ -1,4 +1,4 @@
-import { classifyAiError, isRetryableKind, AskWhyFailedError, type AiFailureKind } from "./errors";
+import { classifyAiError, isRetryableKind, safeErrorName, AskWhyFailedError, type AiFailureKind } from "./errors";
 import { ExtractionFailedError } from "./extract";
 
 /**
@@ -8,6 +8,9 @@ import { ExtractionFailedError } from "./extract";
  * carries `rawText` (the model's output, which quotes the source), provider errors carry the
  * request body and response text, and any `cause` can hold either. None of that is copied here,
  * and neither is `message` or `stack` (an arbitrary error's message can echo the request).
+ *
+ * Never throws: every read of the error happens inside try, so a throwing getter or a hostile
+ * Proxy yields the "unknown" fallback instead of escaping with its own (possibly content) error.
  *
  * Usage: `log("…", { ...safeErrorFields(err), extraction_id })` or
  * `Sentry.captureMessage("ai_failed", { extra: safeErrorFields(err) })`; never pass `err` itself.
@@ -34,26 +37,40 @@ const NAME = /^[A-Za-z_$][\w$.]{0,63}$/;
 const safeName = (v: unknown): string => (typeof v === "string" && NAME.test(v) ? v : "Error");
 const num = (v: unknown): number | null => (typeof v === "number" && Number.isFinite(v) ? v : null);
 
+const KINDS: readonly AiFailureKind[] = ["quota", "unavailable", "safety", "malformed", "rejected", "config", "unknown"];
+const kindOf = (v: unknown): AiFailureKind => (KINDS.includes(v as AiFailureKind) ? (v as AiFailureKind) : "unknown");
+
+const fallback = (error: string): SafeErrorFields => ({
+  error,
+  kind: "unknown",
+  status: null,
+  retryable: false,
+  code: null,
+  attempts: null,
+  model: null,
+  latency_ms: null,
+  cause_error: null,
+});
+
 export function safeErrorFields(err: unknown): SafeErrorFields {
-  const base: SafeErrorFields = {
-    error: err instanceof Error ? safeName(err.name) : "non_error_thrown",
-    kind: "unknown",
-    status: null,
-    retryable: false,
-    code: null,
-    attempts: null,
-    model: null,
-    latency_ms: null,
-    cause_error: null,
-  };
+  try {
+    return unsafeFields(err);
+  } catch {
+    return fallback(safeErrorName(err));
+  }
+}
+
+function unsafeFields(err: unknown): SafeErrorFields {
+  const base = fallback(safeErrorName(err));
 
   if (err instanceof ExtractionFailedError) {
+    const kind = kindOf(err.kind);
     return {
       ...base,
-      kind: err.kind,
+      kind,
       status: num(err.status),
-      retryable: isRetryableKind(err.kind),
-      code: err.code,
+      retryable: isRetryableKind(kind),
+      code: err.code === "extraction_failed" ? err.code : null,
       attempts: num(err.attempts),
       model: typeof err.model === "string" && MODEL.test(err.model) ? err.model : null,
       latency_ms: num(err.latencyMs),
@@ -61,7 +78,7 @@ export function safeErrorFields(err: unknown): SafeErrorFields {
     };
   }
   if (err instanceof AskWhyFailedError) {
-    return { ...base, kind: err.kind, status: num(err.status), retryable: err.retryable, latency_ms: num(err.latencyMs) };
+    return { ...base, kind: kindOf(err.kind), status: num(err.status), retryable: err.retryable === true, latency_ms: num(err.latencyMs) };
   }
   const f = classifyAiError(err);
   return { ...base, kind: f.kind, status: num(f.status), retryable: f.retryable };

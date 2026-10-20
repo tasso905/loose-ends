@@ -57,8 +57,37 @@ export const isRetryableKind = (kind: AiFailureKind): boolean => RETRYABLE[kind]
 
 const failure = (kind: AiFailureKind, status: number | null = null): AiFailure => ({ kind, status, retryable: RETRYABLE[kind] });
 
+/**
+ * Never throws: an error with a throwing getter or a hostile Proxy classifies as "unknown"
+ * instead of escaping the caller's catch block with its own (possibly content-bearing) error.
+ */
 export function classifyAiError(err: unknown): AiFailure {
-  if (RetryError.isInstance(err)) return classifyAiError(err.lastError);
+  try {
+    return classify(err);
+  } catch {
+    return failure("unknown");
+  }
+}
+
+const ERROR_NAME = /^[A-Za-z_$][\w$.]{0,63}$/;
+
+/**
+ * The error's class name if it looks like an identifier, "Error" otherwise, "non_error_thrown"
+ * for non-Errors. Never throws (getters and Proxies are read inside try). The one name helper for
+ * every AI log line and safeErrorFields() (rule 9).
+ */
+export function safeErrorName(err: unknown): string {
+  try {
+    if (!(err instanceof Error)) return "non_error_thrown";
+    const name: unknown = err.name;
+    return typeof name === "string" && ERROR_NAME.test(name) ? name : "Error";
+  } catch {
+    return "Error";
+  }
+}
+
+function classify(err: unknown): AiFailure {
+  if (RetryError.isInstance(err)) return classify(err.lastError);
   if (err instanceof AiConfigError || LoadAPIKeyError.isInstance(err) || NoSuchModelError.isInstance(err)) return failure("config");
   if (err instanceof Error && err.name === "NoRecordingError") return failure("config");
 

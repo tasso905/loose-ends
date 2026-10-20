@@ -303,7 +303,7 @@ describe("S0 eval scoring integrity (defect pinned with it.fails; flip to it() o
     }
   });
 
-  it.fails("desired: a failed fixture's expected items count as missed (recall), so an all-failure run cannot PASS", async () => {
+  it("desired: a failed fixture's expected items count as missed (recall), so an all-failure run cannot PASS", async () => {
     const dir = mkdtempSync(join(tmpdir(), "le-s0-"));
     try {
       for (const n of ["a", "b", "c"]) mkFixture(dir, n, [item]);

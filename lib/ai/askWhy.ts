@@ -1,7 +1,7 @@
 import { generateObject, type LanguageModel } from "ai";
 import { log as defaultLog, type Logger } from "@/lib/log";
 import { normalizeText } from "@/lib/pipeline/normalize";
-import { AskWhyFailedError, classifyAiError } from "./errors";
+import { AskWhyFailedError, classifyAiError, safeErrorName } from "./errors";
 import { ASK_WHY_SCHEMA_VERSION, AskWhyModelSchema, type AnswerPartKind } from "./schema";
 import { ASK_WHY_PROMPT_VERSION, block, loadPrompt } from "./prompts";
 import { getModel } from "./provider";
@@ -129,7 +129,7 @@ export async function askWhy(question: string, decisions: RetrievedDecision[], d
     } catch (err) {
       // Provider errors carry the request body (question + decisions); keep only the classification.
       const f = classifyAiError(err);
-      const error = err instanceof Error ? err.name : "non_error_thrown";
+      const error = safeErrorName(err);
       if (f.retryable && attempt < 2) {
         logger("ask_why_retry", { kind: f.kind, status: f.status, error });
         continue;
