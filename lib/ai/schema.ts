@@ -1,3 +1,4 @@
+import { jsonSchema, zodSchema, type JSONSchema7, type Schema } from "ai";
 import { z } from "zod";
 
 /**
@@ -79,3 +80,43 @@ export const AskWhyOutput = z.object({
   answer_parts: z.array(z.object({ kind: AnswerPartKind, text: z.string(), ref: z.string().nullable() })),
 });
 export type AskWhyOutput = z.infer<typeof AskWhyOutput>;
+
+/**
+ * Length and count constraints are stripped from the JSON schema sent to the model. Gemini (D42)
+ * refuses the extraction schema with HTTP 400 when it carries `minLength`/`maxLength`/`minItems`/
+ * `maxItems` (each bound multiplies the constrained-decoding state space). The limits are not
+ * weakened: the model still gets them as prompt instructions, and every response is validated
+ * against the full Zod schema above, which rejects anything out of bounds (→ retry, then
+ * `extraction_failed`). Only constraint keywords are removed; structure, enums, required fields
+ * and `additionalProperties: false` are sent unchanged.
+ */
+export const MODEL_SCHEMA_STRIPPED_KEYWORDS = ["minLength", "maxLength", "minItems", "maxItems"] as const;
+
+type Json = JSONSchema7 | JSONSchema7[] | boolean | undefined;
+
+function stripConstraints<T extends Json>(node: T): T {
+  if (Array.isArray(node)) return node.map(stripConstraints) as T;
+  if (node === undefined || typeof node === "boolean") return node;
+  const out: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(node)) {
+    if ((MODEL_SCHEMA_STRIPPED_KEYWORDS as readonly string[]).includes(k)) continue;
+    if (k === "properties" || k === "$defs" || k === "definitions") {
+      // Keys here are property names, not keywords: keep every key, recurse into each value.
+      out[k] = Object.fromEntries(Object.entries(v as Record<string, JSONSchema7>).map(([n, d]) => [n, stripConstraints(d)]));
+    } else if (k === "items" || k === "additionalProperties" || k === "anyOf" || k === "oneOf" || k === "allOf" || k === "not") {
+      out[k] = stripConstraints(v as Json);
+    } else {
+      out[k] = v;
+    }
+  }
+  return out as T;
+}
+
+/** The schema passed to `generateObject`: constraint-free JSON schema for the model, full Zod validation. */
+export function modelSchema<T>(schema: z.ZodType<T>): Schema<T> {
+  const zod = zodSchema(schema);
+  return jsonSchema<T>(async () => stripConstraints(await zod.jsonSchema), { validate: (value) => zod.validate!(value) });
+}
+
+export const ExtractionModelSchema = modelSchema(Extraction);
+export const AskWhyModelSchema = modelSchema(AskWhyOutput);

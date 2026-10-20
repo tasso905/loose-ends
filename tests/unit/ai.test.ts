@@ -83,7 +83,9 @@ describe("extract() with the recorded fake model", () => {
     const model = createRecordedModel();
     const p = extract(input("An input nobody recorded."), { model, logger: () => {} });
     await expect(p).rejects.toBeInstanceOf(ExtractionFailedError);
-    expect(model.doGenerateCalls).toHaveLength(2);
+    // A missing recording is a config failure: retrying cannot help, so there is one call only.
+    await expect(p).rejects.toMatchObject({ kind: "config", attempts: 1 });
+    expect(model.doGenerateCalls).toHaveLength(1);
     await expect(model.doGenerate(model.doGenerateCalls[0]!)).rejects.toBeInstanceOf(NoRecordingError);
   });
 

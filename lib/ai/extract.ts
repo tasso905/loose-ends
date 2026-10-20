@@ -1,12 +1,15 @@
 import { NoObjectGeneratedError, generateObject, type LanguageModel } from "ai";
 import { log as defaultLog, type Logger } from "@/lib/log";
-import { EXTRACTION_SCHEMA_VERSION, Extraction, type ItemType } from "./schema";
+import { classifyAiError, type AiFailureKind } from "./errors";
+import { EXTRACTION_SCHEMA_VERSION, ExtractionModelSchema, type Extraction, type ItemType } from "./schema";
 import { EXTRACT_PROMPT_VERSION, block, loadPrompt } from "./prompts";
 import { getModel } from "./provider";
 
 /**
  * F5 extraction call: one `generateObject` call, temperature 0, Zod-validated, one retry on
- * failure, then ExtractionFailedError (`extraction_failed`). Returns the validated model output
+ * failure, then ExtractionFailedError (`extraction_failed`). The retry is skipped when it cannot
+ * help (provider quota, safety block, rejected request, config error; see lib/ai/errors.ts), so a
+ * failure does not spend a second call. Returns the validated model output
  * plus the trace fields every `extractions` row records (model, prompt version, schema version,
  * token counts, latency). Post-processing (quote verification, date re-resolution, scoring)
  * happens in lib/pipeline and is not done here.
@@ -45,12 +48,15 @@ export class ExtractionFailedError extends Error {
   constructor(
     readonly attempts: number,
     readonly model: string,
+    /** Error class name only (never the provider message, which can echo the request). */
     readonly causeMessage: string,
     readonly latencyMs: number,
     /** Last raw model text, if any; stored in `extractions.raw_output` for debugging, never logged. */
     readonly rawText: string | null,
+    readonly kind: AiFailureKind = "unknown",
+    readonly status: number | null = null,
   ) {
-    super(`Extraction failed after ${attempts} attempt(s): ${causeMessage}`);
+    super(`Extraction failed after ${attempts} attempt(s): ${kind}${status ? ` (${status})` : ""}`);
     this.name = "ExtractionFailedError";
   }
 }
@@ -90,9 +96,12 @@ export async function extract(input: ExtractInput, deps: ExtractDeps = {}): Prom
   const started = performance.now();
   let lastError = "unknown error";
   let lastRawText: string | null = null;
-  for (let attempt = 1; attempt <= 2; attempt++) {
+  let lastFailure = classifyAiError(undefined);
+  let attempt = 0;
+  while (attempt < 2) {
+    attempt++;
     try {
-      const result = await generateObject({ model, schema: Extraction, system, prompt, temperature: 0, maxRetries: 0 });
+      const result = await generateObject({ model, schema: ExtractionModelSchema, system, prompt, temperature: 0, maxRetries: 0 });
       const output: Extraction = {
         ...result.object,
         // matches_thread_id is honored only if that ID was in the context list (PRD pipeline step 8).
@@ -112,10 +121,29 @@ export async function extract(input: ExtractInput, deps: ExtractDeps = {}): Prom
         attempts: attempt,
       };
     } catch (err) {
-      lastError = err instanceof Error ? err.name : String(err);
+      // Rule 9: only the error class name and the classification are kept; provider errors carry
+      // the request body (source text) and must not be logged or rethrown.
+      lastError = err instanceof Error ? err.name : "non_error_thrown";
       lastRawText = NoObjectGeneratedError.isInstance(err) ? (err.text ?? null) : null;
-      if (attempt === 1) logger("extraction_retry", { extraction_id: deps.extractionId ?? null, error: lastError });
+      lastFailure = classifyAiError(err);
+      if (!lastFailure.retryable) break;
+      if (attempt === 1) {
+        logger("extraction_retry", {
+          extraction_id: deps.extractionId ?? null,
+          error: lastError,
+          kind: lastFailure.kind,
+          status: lastFailure.status,
+        });
+      }
     }
   }
-  throw new ExtractionFailedError(2, label, lastError, Math.round(performance.now() - started), lastRawText);
+  throw new ExtractionFailedError(
+    attempt,
+    label,
+    lastError,
+    Math.round(performance.now() - started),
+    lastRawText,
+    lastFailure.kind,
+    lastFailure.status,
+  );
 }

@@ -1,7 +1,8 @@
 import { generateObject, type LanguageModel } from "ai";
 import { log as defaultLog, type Logger } from "@/lib/log";
 import { normalizeText } from "@/lib/pipeline/normalize";
-import { ASK_WHY_SCHEMA_VERSION, AskWhyOutput, type AnswerPartKind } from "./schema";
+import { AskWhyFailedError, classifyAiError } from "./errors";
+import { ASK_WHY_SCHEMA_VERSION, AskWhyModelSchema, type AnswerPartKind } from "./schema";
 import { ASK_WHY_PROMPT_VERSION, block, loadPrompt } from "./prompts";
 import { getModel } from "./provider";
 
@@ -14,6 +15,7 @@ import { getModel } from "./provider";
  *    the whole stored fact), so nothing but stored text is ever shown as the user's or the source's;
  *  - `inference` parts keep the model's text and are always labeled Interpretation.
  * If no retrieved decision is cited after filtering, the answer is NO_RECORD_MESSAGE.
+ * A failed model call throws AskWhyFailedError, which carries only the failure kind (rule 9).
  */
 
 export const NO_RECORD_MESSAGE = "I don't have a recorded decision about that.";
@@ -109,14 +111,23 @@ export async function askWhy(question: string, decisions: RetrievedDecision[], d
   const logger = deps.logger ?? defaultLog;
 
   const started = performance.now();
-  const result = await generateObject({
-    model,
-    schema: AskWhyOutput,
-    system: loadPrompt(ASK_WHY_PROMPT_VERSION),
-    prompt: buildAskWhyPrompt(question, decisions),
-    temperature: 0,
-    maxRetries: 1,
-  });
+  let result: Awaited<ReturnType<typeof generateObject<typeof AskWhyModelSchema>>>;
+  try {
+    result = await generateObject({
+      model,
+      schema: AskWhyModelSchema,
+      system: loadPrompt(ASK_WHY_PROMPT_VERSION),
+      prompt: buildAskWhyPrompt(question, decisions),
+      temperature: 0,
+      maxRetries: 1,
+    });
+  } catch (err) {
+    // Provider errors carry the request body (question + decisions); keep only the classification.
+    const f = classifyAiError(err);
+    const latencyMs = Math.round(performance.now() - started);
+    logger("ask_why_failed", { kind: f.kind, status: f.status, error: err instanceof Error ? err.name : "non_error_thrown", latency_ms: latencyMs });
+    throw new AskWhyFailedError(f, latencyMs);
+  }
   const latencyMs = Math.round(performance.now() - started);
   const tokens: [number | null, number | null] = [result.usage.inputTokens ?? null, result.usage.outputTokens ?? null];
 

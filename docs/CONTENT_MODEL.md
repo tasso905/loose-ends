@@ -46,6 +46,7 @@
 | Source title | Optional human-readable source name | Optional; max 120 characters; user-editable |
 | Written-on date | Date associated with the source | Optional; default to today only when visibly labelled `Assumed`; ISO date internally |
 | Quick-add text | A brief note or commitment entered directly | Single line; max 2,000 characters; preserve user wording |
+| AI provider notice | Tells the user where their text goes before they send it | Conditional (D42, PRD Question #12): required on Paste, Upload and Quick add if the deployment uses the Gemini free tier; plain words that the text goes to Google, which may use it to improve its products, and that people at Google may read it. Wording pending user approval. Never claim the data is not used or not read |
 | Submit / progress / error | Starts extraction and communicates state | `Review source` (paste/upload) or `Add` (quick add); progress tied to real pipeline steps; errors from the error copy table (site contract §2.13) |
 
 ### 3. Extraction and Review Tray
@@ -168,7 +169,7 @@
 | Forget thread | Permanently removes a thread and associated data: the thread, its evidence, history and decision, the proposal it came from (payload, title and quote), and any Explain-card lines that quote it, even if the source is kept (D35). Only a one-way suppression hash remains, so the same item is not proposed again (D29) | From Thread detail; confirmation with optional `Also delete source`; the confirmation lists what is deleted |
 | Export data | Download user's data | JSON; threads, evidence/provenance, decisions, sources metadata |
 | Delete account | Removes all data and storage (D14) | Confirmation requires typing `delete`; explains backup expiry honestly |
-| Privacy/data explanation | Explains storage and use | Matches PRIVACY.md; no unimplemented promises |
+| Privacy/data explanation | Explains storage and use | Matches PRIVACY.md; no unimplemented promises. Names Google (Gemini API) as the AI provider; free-tier terms disclosed if used (D42) |
 | Sign out | Ends account session in this browser | Local-only: other browsers and devices stay signed in; there is no "sign out everywhere" (D39). Confirms only after the session has ended |
 | SHOULD-only fields | Digest on/off and hour; per-type toggles | Shown only if F15/F17 ship |
 

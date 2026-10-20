@@ -93,6 +93,7 @@ Field-level content, constraints and copy are defined in the content model v1.1;
 | Written-on date | Optional, collapsed under `When was this written?`; defaults to today with an `Assumed` label |
 | Quick-add field | Single line; max 2,000 characters; placeholder `e.g. Send Mike the proposal Friday` |
 | Submit | `Review source` (paste/upload) or `Add` (quick add); disabled while invalid or submitting |
+| AI provider notice (D42) | Conditional on Question #12 (PRD, due Oct 22). If the deployment uses the Gemini free tier: a plain-words notice on all three modes, visible before submit, saying the text is sent to Google, which may use it to improve its products, and that people at Google may read it. Wording pending user approval. If billing is enabled: no notice required here; Settings → Data and PRIVACY.md name Google as the AI provider |
 
 ### 2.3 Extraction progress
 
@@ -191,7 +192,7 @@ Field-level content, constraints and copy are defined in the content model v1.1;
 |---|---|
 | Profile | Display name, aliases (add/remove), timezone (IANA select), analytics toggle (ships with the first PostHog event, hidden until then; D40) |
 | Data | Retention toggle; sources list with two delete options; `Export data (JSON)`; `Delete account…` (D14) |
-| Privacy explanation | Matches PRIVACY.md |
+| Privacy explanation | Matches PRIVACY.md. Names Google (Gemini API) as the AI provider and, if the free tier is used, says Google may use pasted text and Ask-why context to improve its products and people may read it (D42) |
 | SHOULD fields | Digest and type toggles only if F15/F17 ship |
 | Sign out | Ends the session in this browser only; there is no "sign out everywhere" (D39). Confirms only after the session has ended |
 
@@ -205,11 +206,14 @@ Field-level content, constraints and copy are defined in the content model v1.1;
 | `too_many_pages` | `This document has {n} pages. The limit is 30.` | `Choose another file` | No |
 | `unsupported_scan` | `This looks like a scan. I can't read scans yet.` | `Paste the text instead` | No |
 | `extraction_failed` | `Something went wrong reading this. Your text is saved.` | `Try again`, `Back to Add` | Yes |
+| `ask_failed` *Proposed (PRD Question #13), pending user approval* | `I couldn't answer that just now. Try asking again.` | Inline under the Ask box, question kept; `Try again` | Yes |
 | `extraction_slow` | `Still working. I'll show results here.` (D40) | Page polls | — |
 | `rate_limited` | `You've reached today's limit of {limit} {sources/questions}. It resets at midnight (UTC).` (the limit counts per UTC day, so the reset is always shown in UTC, not the user's timezone; D30) | None | No |
 | `invalid_transition` | `That change isn't possible any more. Refresh to see the latest.` | `Refresh` | No |
 | Network / offline | `You're offline. Nothing was saved.` | `Try again` | Yes |
 | Any other save failure | `That didn't save. Try again.` | `Try again` | Yes |
+
+**Extraction failures (D43).** Every extraction failure shows `extraction_failed`, whatever the cause, including the AI provider's own quota (429); `rate_limited` is only the user's own daily limit. Before the error shows, the server retries once only when a retry can help (provider unavailable or malformed output), never on quota, a safety block, a rejected request or a config error. `Try again` is always offered and starts a new attempt.
 
 **Sign in and onboarding (D39).** Sign-in errors appear under the email field, except offline, which is a page banner with `Try again`. The `?error=` codes come from `/auth/callback`; an unknown `?error=` code shows nothing. The `sign_in_rate_limited` code below is Supabase Auth's link-request limit and is separate from the app `rate_limited` code above (sources/questions per UTC day).
 
@@ -238,7 +242,7 @@ Errors appear next to the control that caused them (forms) or as an error banner
 | Thread detail | Skeleton header + card | — | Not-found page | Source deleted; decision missing reason |
 | Why panel | Inline spinner | — | `Couldn't load this explanation.` + retry | Source deleted |
 | Source viewer | Skeleton text | — | Not-found page | Deleted state |
-| Decisions | Skeleton list | Decision list empty state | Page banner | No match; no reason |
+| Decisions | Skeleton list | Decision list empty state | Page banner; a failed ask shows `ask_failed` inline under the Ask box (*Proposed*, §2.13) | No match; no reason |
 | Sign in (D39) | Send button disabled while sending | — | Field errors and `?error=` messages per §2.13; offline banner | Check-your-email state (§2.0); no-JavaScript message |
 | Onboarding (D39) | — | — | Field errors per §2.13; save-failure and offline banners | Skip |
 | Settings | Skeleton form | No sources: `You haven't added anything yet.` | Field / banner errors | Export in progress; deletion in progress |

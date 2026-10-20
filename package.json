@@ -17,6 +17,7 @@
     "test:supabase": "LE_SUPABASE_LIVE=1 vitest run tests/integration/supabase-live.test.ts"
   },
   "dependencies": {
+    "@ai-sdk/google": "4.0.99",
     "@supabase/ssr": "^0.12.7",
     "@supabase/supabase-js": "^2.118.0",
     "ai": "^7.0.143",
