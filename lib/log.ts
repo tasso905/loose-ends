@@ -23,5 +23,5 @@ export type LogProps = Record<string, string | number | boolean | null>;
 export type Logger = (event: LogEvent, props: LogProps) => void;
 
 export const log: Logger = (event, props) => {
-  console.warn(JSON.stringify({ event, ...props }));
+  console.warn(JSON.stringify({ ...props, event }));
 };

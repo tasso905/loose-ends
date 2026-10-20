@@ -70,7 +70,7 @@ function posthogClient({ key, host }: { key: string; host: string }): CaptureCli
     if (typeof ph.on === "function") {
       ph.on("error", (err: unknown) => {
         try {
-          defaultLog("analytics_capture_failed", { event: null, error: errorName(err) });
+          defaultLog("analytics_capture_failed", { analytics_event: null, error: errorName(err) });
         } catch {
           // Never throw from the SDK's emitter.
         }
@@ -109,11 +109,11 @@ export function createTracker(deps: TrackerDeps = {}) {
     try {
       const checked = validateEvent(event, props);
       if (!checked.ok) {
-        logger("analytics_rejected", { reason: checked.reason, event: checked.event, fields: checked.fields.join(",") });
+        logger("analytics_rejected", { reason: checked.reason, analytics_event: checked.event, fields: checked.fields.join(",") });
         return "rejected";
       }
       if (!UserId.safeParse(userId).success) {
-        logger("analytics_rejected", { reason: "invalid_user_id", event: checked.event, fields: "" });
+        logger("analytics_rejected", { reason: "invalid_user_id", analytics_event: checked.event, fields: "" });
         return "rejected";
       }
       const settings = posthogSettings(deps.env ?? process.env);
@@ -131,7 +131,7 @@ export function createTracker(deps: TrackerDeps = {}) {
       return "sent";
     } catch (err) {
       try {
-        logger("analytics_capture_failed", { event: knownEventName(event), error: errorName(err) });
+        logger("analytics_capture_failed", { analytics_event: knownEventName(event), error: errorName(err) });
       } catch {
         // Logging must not throw into the request path either.
       }

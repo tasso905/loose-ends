@@ -202,7 +202,7 @@ describe("rule 9: content cannot reach a PostHog request", () => {
     const { t, logs } = tracker();
     expect(await t.trackAndWait(UID, name, {})).toBe("rejected");
     expect(sent).toEqual([]);
-    expect(logs).toEqual([{ event: "analytics_rejected", props: { reason: "unknown_event", event: null, fields: "" } }]);
+    expect(logs).toEqual([{ event: "analytics_rejected", props: { reason: "unknown_event", analytics_event: null, fields: "" } }]);
   });
 
   it.each([
@@ -282,7 +282,7 @@ describe("rule 9: content cannot reach the server logs", () => {
     const err = new Error(SECRET);
     const { t, logs } = tracker({ getClient: () => ({ captureImmediate: async () => Promise.reject(err) }) });
     expect(await t.trackAndWait(UID, "data_exported", {})).toBe("failed");
-    expect(logs).toEqual([{ event: "analytics_capture_failed", props: { event: "data_exported", error: "Error" } }]);
+    expect(logs).toEqual([{ event: "analytics_capture_failed", props: { analytics_event: "data_exported", error: "Error" } }]);
     const weird = Object.assign(new Error("x"), { name: SECRET });
     const b = tracker({ getClient: () => ({ captureImmediate: async () => Promise.reject(weird) }) });
     await b.t.trackAndWait(UID, "data_exported", {});
@@ -488,7 +488,7 @@ describe("failure isolation: capture cannot throw into or delay the request", ()
   // call passes a prop named `event` (the analytics event name or null). The prop overwrites the log
   // event, so production lines read {"event":null,"error":"PostHogFetchNetworkError"} with no
   // "analytics_capture_failed" / "analytics_rejected" name to search or alert on.
-  it.fails("analytics log lines keep their log event name", async () => {
+  it("analytics log lines keep their log event name", async () => {
     const lines = await consoleLinesFor(async () => {
       await failingCapture();
       const t = createTracker({ env: {}, shipped: true, isOptedIn: async () => true, schedule: () => {} });

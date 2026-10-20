@@ -205,10 +205,10 @@ describe("track() gating (D40)", () => {
     expect(await t.trackAndWait("dana@example.com", "trust_rating", { score: 3 })).toBe("rejected");
     expect(capture).not.toHaveBeenCalled();
     expect(logs).toEqual([
-      { event: "analytics_rejected", props: { reason: "unknown_event", event: null, fields: "" } },
-      { event: "analytics_rejected", props: { reason: "invalid_props", event: "why_opened", fields: "note" } },
-      { event: "analytics_rejected", props: { reason: "invalid_props", event: "why_opened", fields: "thread_id" } },
-      { event: "analytics_rejected", props: { reason: "invalid_user_id", event: "trust_rating", fields: "" } },
+      { event: "analytics_rejected", props: { reason: "unknown_event", analytics_event: null, fields: "" } },
+      { event: "analytics_rejected", props: { reason: "invalid_props", analytics_event: "why_opened", fields: "note" } },
+      { event: "analytics_rejected", props: { reason: "invalid_props", analytics_event: "why_opened", fields: "thread_id" } },
+      { event: "analytics_rejected", props: { reason: "invalid_user_id", analytics_event: "trust_rating", fields: "" } },
     ]);
     expect(JSON.stringify(logs)).not.toContain("Dana");
     expect(JSON.stringify(logs)).not.toContain("dana@");
@@ -220,7 +220,7 @@ describe("track() never throws into the request path", () => {
     const err = Object.assign(new Error(`request failed: ${SECRET}`), { name: "PostHogFetchHttpError" });
     const { t, logs } = harness({ getClient: () => ({ captureImmediate: async () => Promise.reject(err) }) });
     expect(await t.trackAndWait(UID, "resolve_saved", VALID.resolve_saved)).toBe("failed");
-    expect(logs).toEqual([{ event: "analytics_capture_failed", props: { event: "resolve_saved", error: "PostHogFetchHttpError" } }]);
+    expect(logs).toEqual([{ event: "analytics_capture_failed", props: { analytics_event: "resolve_saved", error: "PostHogFetchHttpError" } }]);
     expect(JSON.stringify(logs)).not.toContain("Dana");
   });
 
@@ -230,7 +230,7 @@ describe("track() never throws into the request path", () => {
     };
     const a = harness({ getClient: boom });
     expect(await a.t.trackAndWait(UID, "data_exported", {})).toBe("failed");
-    expect(a.logs[0]).toEqual({ event: "analytics_capture_failed", props: { event: "data_exported", error: "Error" } });
+    expect(a.logs[0]).toEqual({ event: "analytics_capture_failed", props: { analytics_event: "data_exported", error: "Error" } });
 
     const b = harness({ isOptedIn: async () => boom(), log: boom });
     expect(await b.t.trackAndWait(UID, "data_exported", {})).toBe("failed");
