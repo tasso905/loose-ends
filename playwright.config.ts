@@ -4,7 +4,9 @@ import { localSupabase } from "./tests/e2e/localSupabase";
 // E2E runs against local Supabase (Auth + Mailpit) and recorded LLM fixtures (AI_PROVIDER=fake);
 // never a live model and never a cloud project.
 const sb = localSupabase();
-const BASE_URL = "http://127.0.0.1:3000";
+// E2E_PORT lets a second checkout run E2E next to a dev server already on 3000.
+const PORT = Number(process.env.E2E_PORT ?? 3000);
+const BASE_URL = `http://127.0.0.1:${PORT}`;
 const PROD = Boolean(process.env.CI || process.env.E2E_PROD);
 
 export default defineConfig({
@@ -18,7 +20,7 @@ export default defineConfig({
   projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
   webServer: {
     // CI (or E2E_PROD=1) tests the production build; locally `next dev` keeps the loop fast.
-    command: PROD ? "pnpm build && pnpm start --hostname 127.0.0.1 --port 3000" : "pnpm dev --hostname 127.0.0.1 --port 3000",
+    command: PROD ? `pnpm build && pnpm start --hostname 127.0.0.1 --port ${PORT}` : `pnpm dev --hostname 127.0.0.1 --port ${PORT}`,
     url: `${BASE_URL}/sign-in`,
     reuseExistingServer: !process.env.CI,
     timeout: PROD ? 300_000 : 180_000,
