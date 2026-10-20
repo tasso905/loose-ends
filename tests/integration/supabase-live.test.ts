@@ -4,8 +4,8 @@
  * which use stand-ins for auth and storage.
  *
  * Skipped unless LE_SUPABASE_LIVE=1. Then it reads URL and keys from `supabase status -o json`
- * (or LE_SUPABASE_URL / LE_SUPABASE_ANON_KEY / LE_SUPABASE_SERVICE_ROLE_KEY) and skips if the API
- * is not reachable. Run: LE_SUPABASE_LIVE=1 pnpm vitest run tests/integration/supabase-live.test.ts
+ * (or LE_SUPABASE_URL / LE_SUPABASE_ANON_KEY / LE_SUPABASE_SERVICE_ROLE_KEY). With LE_SUPABASE_LIVE=1
+ * it FAILS (never skips) when the env cannot be resolved or /auth/v1/health is not reachable. Run: LE_SUPABASE_LIVE=1 pnpm vitest run tests/integration/supabase-live.test.ts
  * Creates throwaway users (le-test-*@example.com) and deletes them at the end. Synthetic data only.
  */
 import { execSync } from "node:child_process";
@@ -28,11 +28,20 @@ function loadEnv(): Env | null {
   try {
     const out = execSync("pnpm exec supabase status -o json", { stdio: ["ignore", "pipe", "ignore"], timeout: 30_000 }).toString();
     const j = JSON.parse(out.slice(out.indexOf("{"))) as Record<string, string>;
-    if (!j.API_URL || !j.ANON_KEY || !j.SERVICE_ROLE_KEY) return null;
+    if (!j.API_URL || !j.ANON_KEY || !j.SERVICE_ROLE_KEY) throw new Error("supabase status returned no API_URL or keys");
     return { url: j.API_URL, anon: j.ANON_KEY, service: j.SERVICE_ROLE_KEY };
-  } catch {
-    return null;
+  } catch (e) {
+    // LE_SUPABASE_LIVE=1 means "run the live suite": a silent skip would read as a pass.
+    throw new Error(`LE_SUPABASE_LIVE=1 but local Supabase env could not be resolved: ${(e as Error).message}`);
   }
+}
+
+/** Fails the suite when Auth is not reachable, so `pnpm test:supabase` cannot pass by skipping. */
+async function assertReachable(e: Env): Promise<void> {
+  const res = await fetch(`${e.url}/auth/v1/health`, { headers: { apikey: e.anon } }).catch((err: Error) => {
+    throw new Error(`Supabase Auth not reachable at ${e.url}: ${err.message}`);
+  });
+  if (!res.ok) throw new Error(`Supabase Auth health check failed: HTTP ${res.status}`);
 }
 
 const env = loadEnv();
@@ -167,6 +176,7 @@ describe.skipIf(!env)("real local Supabase: RLS, rate limit, deletion", () => {
   let gB: Graph;
 
   beforeAll(async () => {
+    await assertReachable(env!);
     admin = createClient(env!.url, env!.service, opts);
     anon = createClient(env!.url, env!.anon, opts);
     A = await makeUser("a");
@@ -422,6 +432,8 @@ describe.skipIf(!env)("real local Supabase: account deletion vs a still-valid se
   // orphaned. Suggested fix: the storage insert policy also requires
   // `exists (select 1 from public.profiles p where p.id = auth.uid())`, and deleteAccount() sweeps the
   // folder once more after deleteUser().
+  beforeAll(async () => assertReachable(env!));
+
   it("a deleted user's session cannot upload to storage", async () => {
     const svc = createClient(env!.url, env!.service, opts);
     const email = `le-test-post-${randomUUID().slice(0, 6)}@example.com`;

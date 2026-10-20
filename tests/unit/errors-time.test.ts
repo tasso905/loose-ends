@@ -26,7 +26,7 @@ describe("error envelope (SITE_CONTRACT §2.13)", () => {
     expect(apiError("invalid_transition").error.message).toBe("That change isn't possible any more. Refresh to see the latest.");
     expect(apiError("offline").error).toMatchObject({ message: "You're offline. Nothing was saved.", retryable: true });
     expect(apiError("save_failed").error).toMatchObject({ message: "That didn't save. Try again.", retryable: true });
-    expect(EXTRACTION_SLOW_MESSAGE).toBe("Still working — we'll show results here.");
+    expect(EXTRACTION_SLOW_MESSAGE).toBe("Still working. I'll show results here.");
   });
 
   it("errorResponse sets an HTTP status and JSON body", async () => {
