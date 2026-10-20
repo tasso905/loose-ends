@@ -13,7 +13,9 @@ export type ErrorCode =
   | "rate_limited"
   | "invalid_transition"
   | "offline"
-  | "save_failed";
+  | "save_failed"
+  | "not_found"
+  | "unauthenticated";
 
 export interface ApiError {
   error: { code: ErrorCode; message: string; retryable: boolean };
@@ -30,6 +32,8 @@ type Params = {
   invalid_transition: undefined;
   offline: undefined;
   save_failed: undefined;
+  not_found: undefined;
+  unauthenticated: undefined;
 };
 
 const num = (n: number) => n.toLocaleString("en-US");
@@ -62,6 +66,10 @@ const COPY: { [K in ErrorCode]: { retryable: boolean; status: number; message: (
   },
   offline: { retryable: true, status: 503, message: () => "You're offline. Nothing was saved." },
   save_failed: { retryable: true, status: 500, message: () => "That didn't save. Try again." },
+  // HTTP-only codes for route handlers (S2 poll route). Not in §2.13 yet: pages render the
+  // not-found page and the sign-in redirect instead, so users do not normally see these strings.
+  not_found: { retryable: false, status: 404, message: () => "This doesn't exist or was deleted." },
+  unauthenticated: { retryable: false, status: 401, message: () => "Sign in to continue." },
 };
 
 /** `extraction_slow` is a status, not an error (PRD API Requirements). */

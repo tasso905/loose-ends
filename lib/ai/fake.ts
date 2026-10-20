@@ -16,7 +16,8 @@ import { readBlock } from "./prompts";
  *     "responses": [ <JSON object or raw string>, ... ] }
  * The key is the content of the prompt's <source> block (extract) or <question> block (ask_why).
  * Successive calls with the same input step through `responses` (the last one repeats), so a
- * malformed first response followed by a valid one exercises the retry path.
+ * malformed first response followed by a valid one exercises the retry path. An optional
+ * `delay_ms` holds each response back, so tests can observe the progress stages of a slow call.
  */
 
 export const Recording = z
@@ -26,6 +27,7 @@ export const Recording = z
     input: z.string().optional(),
     input_sha256: z.string().optional(),
     responses: z.array(z.unknown()).min(1),
+    delay_ms: z.number().int().min(0).max(120_000).optional(),
   })
   .refine((r) => r.input !== undefined || r.input_sha256 !== undefined, { message: "input or input_sha256 is required" });
 export type Recording = z.infer<typeof Recording>;
@@ -89,6 +91,7 @@ export function createRecordedModel(opts: { modelId?: string; recordings?: Recor
       calls.set(rec.name, n + 1);
       const response = rec.responses[Math.min(n, rec.responses.length - 1)];
       const out = typeof response === "string" ? response : JSON.stringify(response);
+      if (rec.delay_ms) await new Promise((resolve) => setTimeout(resolve, rec.delay_ms));
 
       return {
         content: [{ type: "text", text: out }],

@@ -41,3 +41,42 @@ export async function asUser<T>(db: PGlite, uid: string, fn: () => Promise<T>): 
     await db.exec("reset role");
   }
 }
+
+/**
+ * The extraction service's database port (`RpcDb`) over PGlite: calls `public.<fn>` with named
+ * arguments as user `uid`, so integration tests run the real SQL functions and RLS stand-ins.
+ * jsonb arguments are serialized; errors come back as `{ data: null, error: { code, message } }`.
+ */
+export function rpcAs(db: PGlite, uid: string) {
+  const types = new Map<string, Map<string, string>>();
+  async function argTypes(fn: string): Promise<Map<string, string>> {
+    const known = types.get(fn);
+    if (known) return known;
+    const res = await db.query<{ n: string; t: string }>(
+      `select unnest(p.proargnames) as n, unnest(p.proargtypes::regtype[]::text[]) as t
+       from pg_proc p where p.proname = $1 and p.pronamespace = 'public'::regnamespace`,
+      [fn],
+    );
+    const m = new Map(res.rows.map((r) => [r.n, r.t]));
+    types.set(fn, m);
+    return m;
+  }
+  return {
+    async rpc(fn: string, args: Record<string, unknown>): Promise<{ data: unknown; error: unknown }> {
+      const t = await argTypes(fn);
+      const keys = Object.keys(args);
+      const values = keys.map((k) => {
+        const v = args[k];
+        if (v === null || v === undefined) return null;
+        return t.get(k) === "jsonb" ? JSON.stringify(v) : v;
+      });
+      const sql = `select public.${fn}(${keys.map((k, i) => `${k} => $${i + 1}::${t.get(k) ?? "text"}`).join(", ")}) as r`;
+      try {
+        const res = await asUser(db, uid, () => db.query<{ r: unknown }>(sql, values));
+        return { data: res.rows[0]?.r ?? null, error: null };
+      } catch (e) {
+        return { data: null, error: { code: (e as { code?: string }).code ?? "unknown", message: (e as Error).message } };
+      }
+    },
+  };
+}

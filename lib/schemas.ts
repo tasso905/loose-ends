@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { ItemType, Item } from "@/lib/ai/schema";
+import { ItemType } from "@/lib/ai/schema";
 
 /** Shared domain schemas and types for rows in PRD "Database Schema". */
 
@@ -81,7 +81,8 @@ export const ExtractionItemRow = z.object({
   id: z.uuid(),
   user_id: z.uuid(),
   extraction_id: z.uuid(),
-  payload: Item,
+  /** Versioned proposal payload (A11); parse with ProposalPayload from lib/extraction/payload.ts. */
+  payload: z.record(z.string(), z.unknown()),
   confidence: z.number().min(0).max(1),
   band: Band,
   review_status: ReviewStatus,
