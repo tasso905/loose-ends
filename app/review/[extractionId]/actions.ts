@@ -2,6 +2,7 @@
 import { after } from "next/server";
 import { z } from "zod";
 import { apiError, type ApiError } from "@/lib/errors";
+import { extractionCompletedTracker } from "@/lib/extraction/analytics";
 import { retryExtraction, runExtraction } from "@/lib/extraction/service";
 import { rpcDb } from "@/lib/extraction/supabaseDb";
 import { createClient } from "@/lib/supabase/server";
@@ -21,6 +22,7 @@ export async function retryExtractionAction(extractionId: string): Promise<Retry
   const db = rpcDb(supabase);
   const res = await retryExtraction(db, extractionId);
   if (!res.ok) return { ok: false, error: res.notFound ? apiError("not_found").error : res.error.error };
-  after(() => runExtraction(db, res.extractionId).then(() => undefined));
+  const onComplete = extractionCompletedTracker(auth.user.id);
+  after(() => runExtraction(db, res.extractionId, { onComplete }).then(() => undefined));
   return { ok: true, extractionId: res.extractionId };
 }

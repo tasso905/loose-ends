@@ -128,6 +128,21 @@ export interface RunDeps {
   /** Label recorded as `extractions.model` for an injected model. */
   modelLabel?: string;
   logger?: Logger;
+  /**
+   * Called once when this attempt ends as succeeded or failed (not when skipped), with counts and
+   * enums only; the caller sends `extraction_completed` (S1 track()). Must not throw.
+   */
+  onComplete?: (result: CompletedExtraction) => void | Promise<unknown>;
+}
+
+export interface CompletedExtraction {
+  extractionId: string;
+  status: "succeeded" | "failed";
+  /** Wall time of this attempt in the pipeline, from context read to the final write. */
+  latencyMs: number;
+  /** Stored items, every band including Ignore, after suppression. */
+  itemCount: number;
+  bandCounts: Partial<Record<Band, number>>;
 }
 
 export type RunOutcome = "succeeded" | "failed" | "skipped";
@@ -138,8 +153,22 @@ export type RunOutcome = "succeeded" | "failed" | "skipped";
  */
 export async function runExtraction(db: RpcDb, extractionId: string, deps: RunDeps = {}): Promise<RunOutcome> {
   const logger = deps.logger ?? defaultLog;
+  const started = performance.now();
+  const report = async (status: CompletedExtraction["status"], bandCounts: CompletedExtraction["bandCounts"] = {}) => {
+    try {
+      await deps.onComplete?.({
+        extractionId,
+        status,
+        latencyMs: Math.round(performance.now() - started),
+        itemCount: Object.values(bandCounts).reduce((n, c) => n + (c ?? 0), 0),
+        bandCounts,
+      });
+    } catch {
+      // Analytics never affects the extraction.
+    }
+  };
   const fail = async (code: string, extra: { model?: string | null; latencyMs?: number | null; raw?: string | null } = {}) => {
-    const { error } = await db.rpc("fail_extraction", {
+    const { data, error } = await db.rpc("fail_extraction", {
       p_extraction_id: extractionId,
       p_error: code,
       p_model: extra.model ?? null,
@@ -148,6 +177,8 @@ export async function runExtraction(db: RpcDb, extractionId: string, deps: RunDe
       p_raw_output: extra.raw ?? null,
     });
     if (error) logger("extraction_persist_failed", { extraction_id: extractionId, step: "fail", code: errCode(error) });
+    // Reported only if this call marked the row failed (a timed-out row was already failed by a poll).
+    else if (data === true) await report("failed");
     return "failed" as const;
   };
 
@@ -216,8 +247,11 @@ export async function runExtraction(db: RpcDb, extractionId: string, deps: RunDe
       p_brief: processed.brief,
       p_items: items,
     });
-    const res = done.data as { ok?: boolean; reason?: string } | null;
-    if (!done.error && res?.ok) return "succeeded";
+    const res = done.data as { ok?: boolean; reason?: string; band_counts?: Partial<Record<Band, number>> } | null;
+    if (!done.error && res?.ok) {
+      await report("succeeded", res.band_counts ?? {});
+      return "succeeded";
+    }
     if (res?.reason === "not_running") return "skipped";
     logger("extraction_persist_failed", { extraction_id: extractionId, step: "complete", code: errCode(done.error) ?? res?.reason ?? null });
     return await fail("persist_failed", { model: run.model, latencyMs: run.latencyMs });

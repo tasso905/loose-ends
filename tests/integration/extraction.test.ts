@@ -5,7 +5,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createRecordedModel, Recording } from "@/lib/ai/fake";
 import type { LogEvent, LogProps } from "@/lib/log";
 import { ProposalPayload } from "@/lib/extraction/payload";
-import { readExtraction, retryExtraction, runExtraction, startExtraction, type RpcDb } from "@/lib/extraction/service";
+import { charCountBucket, validateEvent } from "@/lib/analytics/events";
+import { readExtraction, retryExtraction, runExtraction, startExtraction, type CompletedExtraction, type RpcDb } from "@/lib/extraction/service";
 import { migratedDb, rpcAs } from "./pglite";
 
 /**
@@ -267,5 +268,62 @@ describe("rate limit, suppression, staleness, isolation", () => {
     expect(done.data).toEqual({ ok: false, reason: "not_found" });
     const [ex] = await q<{ status: string }>(`select status from extractions where id = '${extractionId}'`);
     expect(ex!.status).toBe("running");
+  });
+});
+
+describe("extraction_completed (S1 analytics)", () => {
+  const asEvent = (r: CompletedExtraction) => ({
+    extraction_id: r.extractionId,
+    status: r.status,
+    latency_ms: r.latencyMs,
+    item_count: r.itemCount,
+    band_counts: r.bandCounts,
+  });
+
+  it("reports stored items by band on success, and the payload passes the allow-list", async () => {
+    const { extractionId } = await submit(dbA, MIKE.input!);
+    const onComplete = vi.fn<(r: CompletedExtraction) => void>();
+    await runExtraction(dbA, extractionId, { model: model(MIKE), logger, onComplete });
+    expect(onComplete).toHaveBeenCalledTimes(1);
+    const r = onComplete.mock.calls[0]![0];
+    expect(r).toMatchObject({ extractionId, status: "succeeded", itemCount: 2, bandCounts: { high: 1, low: 1 } });
+    expect(r.latencyMs).toBeGreaterThanOrEqual(0);
+    expect(validateEvent("extraction_completed", asEvent(r)).ok).toBe(true);
+    expect(validateEvent("source_submitted", { kind: "paste", char_count_bucket: charCountBucket(MIKE.input!.length) }).ok).toBe(true);
+  });
+
+  it("reports failure with zero items; suppressed items are not counted; a timed-out attempt reports nothing", async () => {
+    const failed = await submit(dbA, MALFORMED.input!);
+    const onFail = vi.fn<(r: CompletedExtraction) => void>();
+    await runExtraction(dbA, failed.extractionId, { model: model(MALFORMED), logger, onComplete: onFail });
+    expect(onFail.mock.calls.map(([r]) => [r.status, r.itemCount, r.bandCounts])).toEqual([["failed", 0, {}]]);
+    expect(validateEvent("extraction_completed", asEvent(onFail.mock.calls[0]![0])).ok).toBe(true);
+
+    const first = await submit(dbA, MIKE.input!);
+    await runExtraction(dbA, first.extractionId, { model: model(MIKE), logger });
+    const [hit] = await q<{ h: string }>(`select suppression_hash as h from extraction_items where band = 'high'`);
+    await pg.exec(`insert into suppressions (user_id, suppression_hash, reason) values ('${A}', '${hit!.h}', 'rejected')`);
+    const again = await submit(dbA, MIKE.input!);
+    const onAgain = vi.fn<(r: CompletedExtraction) => void>();
+    await runExtraction(dbA, again.extractionId, { model: model(MIKE), logger, onComplete: onAgain });
+    expect(onAgain.mock.calls[0]![0]).toMatchObject({ status: "succeeded", itemCount: 1, bandCounts: { low: 1 } });
+
+    const stale = await submit(dbA, MIKE.input!);
+    await readExtraction(dbA, stale.extractionId, { now: new Date(Date.now() + 91_000) });
+    const onStale = vi.fn<(r: CompletedExtraction) => void>();
+    expect(await runExtraction(dbA, stale.extractionId, { model: model(MIKE), logger, onComplete: onStale })).toBe("skipped");
+    expect(onStale).not.toHaveBeenCalled();
+  });
+
+  it("a throwing analytics callback never changes the outcome", async () => {
+    const { extractionId } = await submit(dbA, MIKE.input!);
+    const outcome = await runExtraction(dbA, extractionId, {
+      model: model(MIKE),
+      logger,
+      onComplete: () => {
+        throw new Error("boom");
+      },
+    });
+    expect(outcome).toBe("succeeded");
   });
 });

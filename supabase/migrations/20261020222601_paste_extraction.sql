@@ -164,6 +164,7 @@ declare
   v_reason text;
   v_inserted int := 0;
   v_suppressed int := 0;
+  v_bands jsonb := '{}'::jsonb;
   v_raw jsonb := p_raw_output;
   v_brief jsonb := p_brief;
   v_forgot_quotes text[] := '{}';
@@ -208,6 +209,7 @@ begin
               (v_ev ->> 'page')::int, v_ev ->> 'match_kind', v_ev ->> 'quote_hash');
     end loop;
     v_inserted := v_inserted + 1;
+    v_bands := jsonb_set(v_bands, array[v_item ->> 'band'], to_jsonb(coalesce((v_bands ->> (v_item ->> 'band'))::int, 0) + 1));
   end loop;
 
   -- A forgotten item stays forgotten in the new Explain card too (D35).
@@ -224,7 +226,7 @@ begin
     raw_output = v_raw, brief = v_brief, error = null
   where e.id = p_extraction_id;
 
-  return jsonb_build_object('ok', true, 'inserted', v_inserted, 'suppressed', v_suppressed);
+  return jsonb_build_object('ok', true, 'inserted', v_inserted, 'suppressed', v_suppressed, 'band_counts', v_bands);
 end;
 $$;
 

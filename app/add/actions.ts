@@ -2,6 +2,7 @@
 import { after } from "next/server";
 import { parsePasteForm } from "@/lib/capture/pasteInput";
 import { apiError, type ApiError } from "@/lib/errors";
+import { extractionCompletedTracker, trackSourceSubmitted } from "@/lib/extraction/analytics";
 import { runExtraction, startExtraction } from "@/lib/extraction/service";
 import { rpcDb } from "@/lib/extraction/supabaseDb";
 import { createClient } from "@/lib/supabase/server";
@@ -43,6 +44,8 @@ export async function submitPaste(formData: FormData): Promise<SubmitPasteResult
   const started = await startExtraction(db, parsed.data, { now: getNow({ demoNow }) });
   if (!started.ok) return { ok: false, error: started.error.error };
 
-  after(() => runExtraction(db, started.extractionId).then(() => undefined));
+  trackSourceSubmitted(auth.user.id, parsed.data.text.length);
+  const onComplete = extractionCompletedTracker(auth.user.id);
+  after(() => runExtraction(db, started.extractionId, { onComplete }).then(() => undefined));
   return { ok: true, extractionId: started.extractionId };
 }
