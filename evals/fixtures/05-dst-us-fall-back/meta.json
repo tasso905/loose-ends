@@ -1,0 +1,10 @@
+{
+  "description": "Written Thu Oct 29, 2026 in New York. US clocks fall back Sun Nov 1, 2026. Saturday 6 PM is EDT (UTC-4), Monday 9 AM is EST (UTC-5). Golden due_at values check the offset on both sides of the change.",
+  "covers": ["message", "request_to_user", "commitment_by_other", "dst_fall_back_us", "stated_times", "month_day_no_year"],
+  "reference_date": "2026-10-29",
+  "reference_date_source": "user",
+  "timezone": "America/New_York",
+  "source_kind": "paste",
+  "user": { "display_name": "Morgan Lee", "aliases": ["morgan.lee@example.com", "Morgan"] },
+  "ambiguous": false
+}

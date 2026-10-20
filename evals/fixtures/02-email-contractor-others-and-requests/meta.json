@@ -1,0 +1,10 @@
+{
+  "description": "Email from a contractor to the user: two promises by others (waiting on), one request to the user, one payment deadline with an amount. 'this morning' is a past event, not a due date.",
+  "covers": ["email", "commitment_by_other", "request_to_user", "deadline_with_amount", "vague_period_end_of_month", "next_friday", "month_day_no_year", "owner_from_alias"],
+  "reference_date": "2026-10-12",
+  "reference_date_source": "detected",
+  "timezone": "America/New_York",
+  "source_kind": "paste",
+  "user": { "display_name": "Alex Moreno", "aliases": ["alex.moreno@example.com", "Alex"] },
+  "ambiguous": false
+}

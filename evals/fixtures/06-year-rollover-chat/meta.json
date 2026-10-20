@@ -1,0 +1,10 @@
+{
+  "description": "Roommate chat written Mon Dec 28, 2026. Every date falls in 2027: 'this Friday' (Jan 1), 'Jan 4', 'the 1st', 'next Friday' (Jan 8). A model that keeps 2026 must lose to chrono.",
+  "covers": ["chat", "commitment_by_user", "commitment_by_other", "year_rollover", "this_friday_vs_next_friday", "day_of_month", "deadline"],
+  "reference_date": "2026-12-28",
+  "reference_date_source": "detected",
+  "timezone": "America/Chicago",
+  "source_kind": "paste",
+  "user": { "display_name": "Chris Adeyemi", "aliases": ["chris@adeyemi.example.com", "Chris"] },
+  "ambiguous": false
+}

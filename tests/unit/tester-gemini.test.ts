@@ -231,13 +231,13 @@ describe("tester D42: rule 9, no source/question/key text in errors or logs (rea
     for (const s of ["marker-QQ9", "marker-RR3", KEY, "bad request near"]) expect(all).not.toContain(s);
   });
 
-  it("askWhy(): request count on a provider 429 (records the SDK-level retry; maxRetries: 1)", async () => {
+  it("askWhy(): request count on a provider 429 (S0: maxRetries 0, no retry on quota; D43 parity)", async () => {
     const seen = stubFetch(() => geminiErr(429, "quota"));
     const { model, label } = google();
     const err = await askWhy(QUESTION, [{ id: "d", thread_id: "t", thread_title: "x", counterparty: null, choice: "c", reason_user: null, decided_at: "2026-10-10T00:00:00.000Z", context_facts: [] }], { model, modelLabel: label, logger: () => {} }).catch((e) => e);
     expect(err).toMatchObject({ kind: "quota", status: 429 });
-    // Fact for the report: Ask why repeats a quota-exhausted call once; extract() does not.
-    expect(seen).toHaveLength(2);
+    // Updated in S0 (D43 parity): Ask why no longer repeats a quota-exhausted call, like extract().
+    expect(seen).toHaveLength(1);
   }, 20_000);
 });
 
@@ -263,13 +263,7 @@ describe("tester D42: key and model ID handling", () => {
     expect(() => getModel({ AI_PROVIDER: "google", AI_MODEL: m, AI_API_KEY: KEY })).toThrow(AiConfigError);
   });
 
-  it("documents current behaviour for an upper-case alias (regex is case-sensitive)", () => {
-    let refused = false;
-    try {
-      getModel({ AI_PROVIDER: "google", AI_MODEL: "gemini-flash-LATEST", AI_API_KEY: KEY });
-    } catch {
-      refused = true;
-    }
-    expect(refused).toBe(false); // reported as a non-blocking gap, not asserted as desired behaviour
+  it("refuses an upper-case alias too (gap closed in S0: the check is case-insensitive)", () => {
+    expect(() => getModel({ AI_PROVIDER: "google", AI_MODEL: "gemini-flash-LATEST", AI_API_KEY: KEY })).toThrow(AiConfigError);
   });
 });

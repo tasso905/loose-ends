@@ -1,0 +1,10 @@
+{
+  "description": "Email written by the user (Avery) on Fri Oct 16, 2026. Uncertainty eval (F19): a conditional promise, a hedged offer, a hedged plan with vague timing, sarcasm, and one plain dated commitment as the control (must not score Low).",
+  "covers": ["email", "conditional_promise", "hedged_offer", "hedged_intention", "vague_timing_after_the_holidays", "sarcasm", "explicit_dated_commitment_control"],
+  "reference_date": "2026-10-16",
+  "reference_date_source": "user",
+  "timezone": "America/New_York",
+  "source_kind": "paste",
+  "user": { "display_name": "Avery Quinn", "aliases": ["avery.quinn@example.com", "Avery"] },
+  "ambiguous": true
+}

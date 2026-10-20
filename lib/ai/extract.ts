@@ -1,6 +1,6 @@
 import { NoObjectGeneratedError, generateObject, type LanguageModel } from "ai";
 import { log as defaultLog, type Logger } from "@/lib/log";
-import { classifyAiError, type AiFailureKind } from "./errors";
+import { classifyAiError, safeErrorName, type AiFailureKind } from "./errors";
 import { EXTRACTION_SCHEMA_VERSION, ExtractionModelSchema, type Extraction, type ItemType } from "./schema";
 import { EXTRACT_PROMPT_VERSION, block, loadPrompt } from "./prompts";
 import { getModel } from "./provider";
@@ -123,7 +123,7 @@ export async function extract(input: ExtractInput, deps: ExtractDeps = {}): Prom
     } catch (err) {
       // Rule 9: only the error class name and the classification are kept; provider errors carry
       // the request body (source text) and must not be logged or rethrown.
-      lastError = err instanceof Error ? err.name : "non_error_thrown";
+      lastError = safeErrorName(err);
       lastRawText = NoObjectGeneratedError.isInstance(err) ? (err.text ?? null) : null;
       lastFailure = classifyAiError(err);
       if (!lastFailure.retryable) break;

@@ -1,0 +1,10 @@
+{
+  "description": "The demo fixture (PRD AI Extraction Schema example, F19, D36). input.txt is byte-identical to tests/fixtures/llm/mike-email.extract.json so the recorded fake response also replays here.",
+  "covers": ["email", "commitment_by_user", "weekday_date", "hedged_intention", "d36_lunch_low"],
+  "reference_date": "2026-10-05",
+  "reference_date_source": "user",
+  "timezone": "America/New_York",
+  "source_kind": "paste",
+  "user": { "display_name": "Sam", "aliases": ["sam@example.com"] },
+  "ambiguous": true
+}

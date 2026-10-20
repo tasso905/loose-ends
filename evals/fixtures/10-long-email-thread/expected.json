@@ -1,0 +1,75 @@
+{
+  "notes": "Marco's quoted request for the logo files is answered by Elena's commitment; it is the same loop, so the golden item is the commitment (a model may cite both quotes as evidence). Not golden: the palette PDF (done), business cards (deferred), 'What do we still owe you?' (answered), the disclaimer's 'delete it'. 'last Thursday' must never become a due date.",
+  "items": [
+    {
+      "type": "commitment",
+      "title": "Send Marco the final logo files",
+      "owner": "user",
+      "quote": "I'll send the final logo files by Tuesday",
+      "date_text": "by Tuesday",
+      "due_date": "2026-10-20",
+      "due_certainty": "explicit",
+      "certainty": "explicit",
+      "counterparty": "Marco",
+      "amount_text": null,
+      "band": "high",
+      "note": "Written Wed Oct 14: the coming Tuesday is Oct 20."
+    },
+    {
+      "type": "commitment",
+      "title": "Send Marco the invoice for the remaining balance",
+      "owner": "user",
+      "quote": "I'll send the invoice for it by Friday",
+      "date_text": "by Friday",
+      "due_date": "2026-10-16",
+      "due_certainty": "explicit",
+      "certainty": "explicit",
+      "counterparty": "Marco",
+      "amount_text": "$1,470",
+      "band": "high",
+      "note": "The amount is in the preceding sentence; a model may quote both sentences."
+    },
+    {
+      "type": "waiting_on",
+      "title": "Confirm the cup sleeve wording (from Marco)",
+      "owner": "other",
+      "quote": "please confirm the cup sleeve wording",
+      "date_text": null,
+      "due_date": null,
+      "due_certainty": "none",
+      "certainty": "explicit",
+      "counterparty": "Marco",
+      "amount_text": null,
+      "band": "high",
+      "note": "The user asks the client: the user is waiting on Marco. No date."
+    },
+    {
+      "type": "waiting_on",
+      "title": "Signed usage agreement from Harborlight",
+      "owner": "other",
+      "quote": "We'll get you the signed usage agreement by Oct 23.",
+      "date_text": "by Oct 23",
+      "due_date": "2026-10-23",
+      "due_certainty": "explicit",
+      "certainty": "explicit",
+      "counterparty": "Marco Bianchi",
+      "amount_text": null,
+      "band": "high",
+      "note": "In the quoted message from Marco: 'We'll' is Harborlight, not the user."
+    },
+    {
+      "type": "waiting_on",
+      "title": "Brand guidelines notes from Priya",
+      "owner": "other",
+      "quote": "Priya from our team will review the brand guidelines doc by Monday and send any notes.",
+      "date_text": "by Monday",
+      "due_date": "2026-10-19",
+      "due_certainty": "explicit",
+      "certainty": "explicit",
+      "counterparty": "Priya",
+      "amount_text": null,
+      "band": "high",
+      "note": "Third party in the quoted message."
+    }
+  ]
+}

@@ -1,0 +1,10 @@
+{
+  "description": "Long email thread (about 2,200 characters) written by the user (Elena) on Wed Oct 14, 2026, with the client's quoted message below. Commitments by the user, promises by others in the quoted part, an amount, an undated request from the user to the client. Decoys: an item already done ('sent ... last Thursday'), a deferred topic, questions already answered, a signature and a legal disclaimer that says 'delete it'.",
+  "covers": ["long_email", "quoted_reply", "commitment_by_user", "commitment_by_other", "amount", "past_done_decoy", "answered_questions_decoy", "disclaimer_decoy", "signature_noise"],
+  "reference_date": "2026-10-14",
+  "reference_date_source": "detected",
+  "timezone": "America/Denver",
+  "source_kind": "paste",
+  "user": { "display_name": "Elena Vasquez", "aliases": ["elena@vasquez-studio.example.com", "Elena", "EV"] },
+  "ambiguous": false
+}

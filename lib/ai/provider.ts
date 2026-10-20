@@ -11,7 +11,7 @@ import { createRecordedModel } from "./fake";
  *  - `google`: Google Gemini via `@ai-sdk/google` (D42). The key comes from our generic
  *    `AI_API_KEY` and is passed explicitly, so `GOOGLE_GENERATIVE_AI_API_KEY` is never read.
  *    `AI_MODEL` must be an exact model ID (e.g. `gemini-3.5-flash`); moving aliases such as
- *    `gemini-flash-latest` are refused so eval results stay reproducible.
+ *    `gemini-flash-latest` are refused (case-insensitively) so eval results stay reproducible.
  *
  * Model IDs are never passed as bare strings to the AI SDK, so nothing is routed to a gateway
  * implicitly. The API key is never logged or included in an error message.
@@ -27,7 +27,7 @@ export class AiConfigError extends Error {
 }
 
 function googleModel(modelId: string, env: Record<string, string | undefined>): LanguageModel {
-  if (/(^|-)latest$/.test(modelId)) {
+  if (/(^|-)latest$/i.test(modelId)) {
     throw new AiConfigError(`AI_MODEL "${modelId}" is a moving alias. Pin an exact model ID, e.g. gemini-3.5-flash.`);
   }
   const apiKey = env.AI_API_KEY?.trim();

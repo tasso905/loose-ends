@@ -1,0 +1,10 @@
+{
+  "description": "Friendly chat with no open loops. Time idioms that chrono would read as dates if the model put them in date_text ('in a month of Sundays' -> Nov 14, 'one day at a time' -> Oct 18, 'a mile a minute' -> today, 'last Saturday' -> next Saturday Oct 24). Expected: zero items; anything shown counts against precision.",
+  "covers": ["chat", "no_actionable_items", "idioms_not_dates", "first_person_modal_idiom", "past_event"],
+  "reference_date": "2026-10-17",
+  "reference_date_source": "user",
+  "timezone": "America/New_York",
+  "source_kind": "paste",
+  "user": { "display_name": "Robin Castillo", "aliases": ["robin@example.test", "Robin"] },
+  "ambiguous": false
+}
