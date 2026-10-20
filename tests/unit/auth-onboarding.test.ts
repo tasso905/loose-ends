@@ -75,8 +75,8 @@ describe("sign-in request", () => {
   });
 
   it("maps Supabase errors", () => {
-    expect(classifyOtpError({ status: 429, code: "over_email_send_rate_limit" })).toBe("rate_limited");
-    expect(classifyOtpError({ code: "over_request_rate_limit" })).toBe("rate_limited");
+    expect(classifyOtpError({ status: 429, code: "over_email_send_rate_limit" })).toBe("sign_in_rate_limited");
+    expect(classifyOtpError({ code: "over_request_rate_limit" })).toBe("sign_in_rate_limited");
     expect(classifyOtpError({ status: 400, code: "email_address_invalid" })).toBe("invalid_email");
     expect(classifyOtpError({ status: 500, code: "unexpected_failure" })).toBe("send_failed");
   });

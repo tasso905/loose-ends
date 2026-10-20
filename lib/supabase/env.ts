@@ -21,7 +21,7 @@ export function isGoogleSignInEnabled(): boolean {
 const SETTINGS_ANALYTICS_TOGGLE_SHIPPED = false;
 
 /**
- * Analytics notice stays hidden until events ship (D22 proposed; rule 9): it needs the explicit
+ * Analytics notice stays hidden until events ship (D40; rule 9): it needs the explicit
  * ANALYTICS_ENABLED flag, a PostHog key, and the Settings toggle to exist.
  */
 export function isAnalyticsEnabled(env: Record<string, string | undefined> = process.env): boolean {

@@ -41,7 +41,7 @@ export const SIGN_IN_COPY = {
   linkOtherBrowser:
     "That link was opened in a different browser. Enter your email to get a new one, and open it in this browser.",
 
-  // PROPOSED — hidden until analytics events ship (D22 proposed; rule 9). Pending user sign-off.
+  // PROPOSED — hidden until analytics events ship (D40; rule 9). Wording pending user sign-off when the first event ships.
   analyticsNotice: "Loose Ends counts which features you use. Analytics never include what you paste.",
   analyticsOptOut: "Turn off analytics",
 } as const;

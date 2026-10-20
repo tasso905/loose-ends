@@ -69,8 +69,8 @@ Field-level content, constraints and copy are defined in the content model v1.1;
 | Divider | `or`, between the email form and `Continue with Google` (D39) |
 | `Continue with Google` | Identity scopes only (`openid email profile`) |
 | No JavaScript | `Signing in needs JavaScript. Turn it on in your browser, then reload this page.` (D39) |
-| Aliases question | `What name and emails do people use for you?` Field label `Names and emails`. Hint `Separate them with commas. I use these to tell which tasks are yours.` Below it, `Your sign-in email, {email}, is always included.` Actions `Save` and `Skip`. Skippable; signed-in email always saved as alias. Field errors per §2.13 (D39) |
-| Notices | "Don't paste passwords or full account numbers.", shown on the sign-in page and in onboarding. Analytics notice with opt-out link; its wording is not approved (D39) and is pending with D22 (*Proposed*) |
+| Aliases question | `What name and emails do people use for you?` Field label `Names and emails`. Hint `Separate them with commas. I use these to tell which tasks are yours.` Below it, `Your sign-in email, {email}, is always included.` Actions `Save` and `Skip`. Skippable; signed-in email always saved as alias. At most 20 names and emails, each up to 100 characters (D40). Field errors per §2.13 (D39) |
+| Notices | "Don't paste passwords or full account numbers.", shown on the sign-in page and in onboarding. Analytics notice with opt-out link, shown in onboarding. It ships with the first PostHog event and stays hidden until then (D40, rule 9). Proposed wording (*Proposed*, the user approves it when it ships): `Loose Ends counts which features you use. Analytics never include what you paste.` with the opt-out link `Turn off analytics` |
 
 ### 2.1 App shell and navigation
 
@@ -99,9 +99,9 @@ Field-level content, constraints and copy are defined in the content model v1.1;
 | Field | Constraints |
 |---|---|
 | Progress steps | `Reading…`, `Finding commitments…`, `Checking dates…`, shown only as the server reports each step |
-| Slow state | After 45 s: `Still working — we'll show results here.`; the page polls and can be left and revisited |
+| Slow state | After 45 s: `Still working. I'll show results here.` (D40); the page polls and can be left and revisited |
 | Success | Transitions straight into the Review Tray heading `I found N things in this` |
-| Failure | Error copy from §2.12; source is kept; `Try again` and `Back to Add` |
+| Failure | Error copy from §2.13; source is kept; `Try again` and `Back to Add` |
 
 ### 2.4 Review Tray
 
@@ -189,7 +189,7 @@ Field-level content, constraints and copy are defined in the content model v1.1;
 
 | Field | Constraints |
 |---|---|
-| Profile | Display name, aliases (add/remove), timezone (IANA select), analytics toggle |
+| Profile | Display name, aliases (add/remove), timezone (IANA select), analytics toggle (ships with the first PostHog event, hidden until then; D40) |
 | Data | Retention toggle; sources list with two delete options; `Export data (JSON)`; `Delete account…` (D14) |
 | Privacy explanation | Matches PRIVACY.md |
 | SHOULD fields | Digest and type toggles only if F15/F17 ship |
@@ -205,18 +205,18 @@ Field-level content, constraints and copy are defined in the content model v1.1;
 | `too_many_pages` | `This document has {n} pages. The limit is 30.` | `Choose another file` | No |
 | `unsupported_scan` | `This looks like a scan. I can't read scans yet.` | `Paste the text instead` | No |
 | `extraction_failed` | `Something went wrong reading this. Your text is saved.` | `Try again`, `Back to Add` | Yes |
-| `extraction_slow` | `Still working — we'll show results here.` | Page polls | — |
+| `extraction_slow` | `Still working. I'll show results here.` (D40) | Page polls | — |
 | `rate_limited` | `You've reached today's limit of {limit} {sources/questions}. It resets at midnight (UTC).` (the limit counts per UTC day, so the reset is always shown in UTC, not the user's timezone; D30) | None | No |
 | `invalid_transition` | `That change isn't possible any more. Refresh to see the latest.` | `Refresh` | No |
 | Network / offline | `You're offline. Nothing was saved.` | `Try again` | Yes |
 | Any other save failure | `That didn't save. Try again.` | `Try again` | Yes |
 
-**Sign in and onboarding (D39).** Sign-in errors appear under the email field, except offline, which is a page banner with `Try again`. The `?error=` codes come from `/auth/callback`; an unknown `?error=` code shows nothing. The sign-in `rate_limited` message below is Supabase Auth's link-request limit and is separate from the app `rate_limited` code above (sources/questions per UTC day).
+**Sign in and onboarding (D39).** Sign-in errors appear under the email field, except offline, which is a page banner with `Try again`. The `?error=` codes come from `/auth/callback`; an unknown `?error=` code shows nothing. The `sign_in_rate_limited` code below is Supabase Auth's link-request limit and is separate from the app `rate_limited` code above (sources/questions per UTC day).
 
 | Code | Message | Action | Retry? |
 |---|---|---|---|
 | Sign-in `invalid_email` | `Enter an email address, like name@example.com.` | Inline under the email field | No |
-| Sign-in `rate_limited` | `Too many sign-in links were requested. Wait a few minutes, then try again.` | Inline under the email field | Later |
+| `sign_in_rate_limited` | `Too many sign-in links were requested. Wait a few minutes, then try again.` | Inline under the email field | Later |
 | Sign-in `send_failed` | `I couldn't send the link. Try again.` | Inline under the email field; `Email me a sign-in link` stays available | Yes |
 | `?error=link_expired` | `That sign-in link has expired or was already used. Enter your email to get a new one.` | Email field | No; request a new link |
 | `?error=link_other_browser` | `That link was opened in a different browser. Enter your email to get a new one, and open it in this browser.` | Email field | No; request a new link |

@@ -65,7 +65,7 @@ const COPY: { [K in ErrorCode]: { retryable: boolean; status: number; message: (
 };
 
 /** `extraction_slow` is a status, not an error (PRD API Requirements). */
-export const EXTRACTION_SLOW_MESSAGE = "Still working — we'll show results here.";
+export const EXTRACTION_SLOW_MESSAGE = "Still working. I'll show results here.";
 
 export function apiError<K extends ErrorCode>(
   code: K,

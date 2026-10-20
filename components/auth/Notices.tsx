@@ -8,7 +8,7 @@ export function AuthNotices() {
   return (
     <section className="mt-8 space-y-3" aria-label="Before you start">
       <InfoNotice>{C.sensitiveNote}</InfoNotice>
-      {/* Hidden until analytics events ship: the notice must describe what is implemented (D22, rule 9). */}
+      {/* Hidden until analytics events ship: the notice must describe what is implemented (D40, rule 9). */}
       {isAnalyticsEnabled() ? (
         <InfoNotice>
           {C.analyticsNotice}{" "}

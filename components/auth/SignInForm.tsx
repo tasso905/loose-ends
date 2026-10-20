@@ -17,7 +17,7 @@ type State = { failure: SendLinkFailure | null; email: string };
 /** Failures shown under the field. Offline is a banner with the §2.13 "Try again" action. */
 const FIELD_MESSAGES: Partial<Record<SendLinkFailure, string>> = {
   invalid_email: C.invalidEmail,
-  rate_limited: C.rateLimited,
+  sign_in_rate_limited: C.rateLimited,
   send_failed: C.sendFailed,
 };
 

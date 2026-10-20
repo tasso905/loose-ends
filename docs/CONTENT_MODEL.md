@@ -20,9 +20,9 @@
 | Google button | Identity-only Google sign-in | Label `Continue with Google`; no mailbox scopes |
 | Check-your-email state | Confirms the link was sent | Heading `Check your email`. Body `I sent a sign-in link to {email}. Open it in this browser to sign in.` then `The link works for 1 hour.` (D39; tied to Supabase `otp_expiry = 3600`, so the setting and this line change together). Offers `Use a different email`; never claims sign-in succeeded |
 | No-JavaScript message | Explains why sign-in can't work | `Signing in needs JavaScript. Turn it on in your browser, then reload this page.` (D39) |
-| Aliases question | Helps tell "you" from others in pasted threads | "What name and emails do people use for you?"; field label `Names and emails`; hint `Separate them with commas. I use these to tell which tasks are yours.`; below it `Your sign-in email, {email}, is always included.`; actions `Save` and `Skip`. Up to 20 names and emails, each up to 100 characters, with the errors in SITE_CONTRACT §2.13 (D39). Skippable; signed-in email always saved as an alias |
+| Aliases question | Helps tell "you" from others in pasted threads | "What name and emails do people use for you?"; field label `Names and emails`; hint `Separate them with commas. I use these to tell which tasks are yours.`; below it `Your sign-in email, {email}, is always included.`; actions `Save` and `Skip`. Up to 20 names and emails, each up to 100 characters (limits decided, D40), with the errors in SITE_CONTRACT §2.13 (D39). Skippable; signed-in email always saved as an alias |
 | Sensitive-data note | Sets expectations before first paste | "Don't paste passwords or full account numbers."; shown on the sign-in page and in onboarding |
-| Analytics notice | Explains event-only analytics | Plain statement + opt-out link; no content is ever sent. Wording not yet approved (excluded from D39); pending with D22 (*Proposed*) |
+| Analytics notice | Explains event-only analytics | Plain statement + opt-out link; no content is ever sent. Ships with the first PostHog event and stays hidden until then (D40, rule 9). Proposed wording (*Proposed*, approved by the user when it ships): `Loose Ends counts which features you use. Analytics never include what you paste.` Opt-out link: `Turn off analytics` |
 
 ### 1. App shell and navigation
 
@@ -161,7 +161,7 @@
 |---|---|---|
 | Display name / aliases | Helps resolve references such as "you" | User-controlled list; add/remove |
 | Timezone | Correct interpretation of dates and reminders | User-selectable; IANA identifier internally |
-| Analytics | Event-only analytics | Toggle, on by default (opt-out); explains that no content is sent |
+| Analytics | Event-only analytics | Toggle, on by default (opt-out); explains that no content is sent. Ships with the first PostHog event and stays hidden until then (D40) |
 | Retain original source | Controls source retention | Toggle, on by default; explain effect before changing |
 | Sources list | Every source the user added | Title, kind, date, derived thread count |
 | Delete source | Per-source deletion | Two options: `Delete source only` (threads keep quotes) or `Delete source and everything from it`; confirmation lists what is deleted and what remains |

@@ -13,13 +13,13 @@ export const SignInInput = z.object({
   next: z.string().max(2048).optional(),
 });
 
-export type SendLinkFailure = "invalid_email" | "rate_limited" | "offline" | "send_failed";
+export type SendLinkFailure = "invalid_email" | "sign_in_rate_limited" | "offline" | "send_failed";
 export type SendLinkResult = { ok: true; redirectTo: string } | { ok: false; code: SendLinkFailure };
 
 /** Maps a Supabase Auth error to the sign-in failure shown next to the form. */
 export function classifyOtpError(err: { status?: number; code?: string } | null | undefined): SendLinkFailure {
   if (!err) return "send_failed";
-  if (err.status === 429 || err.code?.startsWith("over_")) return "rate_limited";
+  if (err.status === 429 || err.code?.startsWith("over_")) return "sign_in_rate_limited";
   if (err.code === "email_address_invalid" || err.code === "validation_failed") return "invalid_email";
   return "send_failed";
 }
