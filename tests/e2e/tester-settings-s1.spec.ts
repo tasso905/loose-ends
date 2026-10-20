@@ -67,10 +67,8 @@ test.describe("gate off (S1 as committed)", () => {
     await expect(page.getByText("Analytics", { exact: true })).toHaveCount(0);
   });
 
-  // DEFECT (pinned): app/settings/loading.tsx makes the route stream, so notFound() in the page runs
-  // after the 200 status is sent: a soft 404 (HTTP 200 + not-found UI + robots noindex), in dev and
-  // in `next build && next start`. Unknown routes return a real 404. Remove test.fail() once fixed
-  // (for example, gate in app/settings/layout.tsx, which sits outside the loading boundary).
+  // Regression guard (D1, fixed in 8092143): notFound() in the page ran after loading.tsx had streamed
+  // a 200, a soft 404. The gate now lives in app/settings/layout.tsx.
   test("signed in: /settings returns HTTP 404 while gated", async ({ page }) => {
     await signIn(page);
     const res = await page.goto("/settings");
@@ -111,15 +109,25 @@ test.describe("gate flipped locally (LE_S1_GATE_ON=1)", () => {
       if (route.request().method() === "POST") await gate;
       await route.continue();
     });
+    let posts = 0;
+    page.on("request", (r) => void (r.method() === "POST" && new URL(r.url()).pathname === "/settings" && posts++));
     await sw.focus();
     await page.keyboard.press("Space");
     await expect(sw).toHaveAttribute("aria-busy", "true");
+    await expect(sw).toHaveAttribute("aria-disabled", "true");
+    await expect(sw).toHaveAttribute("aria-checked", "true");
+    await expect(sw).toBeFocused();
+    // Presses while the save is pending are ignored (one request, no double toggle).
+    await page.keyboard.press("Space");
+    // force: Playwright treats aria-disabled as not actionable and would wait; a real pointer can still press it.
+    await sw.click({ force: true });
     await expect(sw).toHaveAttribute("aria-checked", "true");
     release();
     await expect(sw).toHaveAttribute("aria-checked", "false");
+    await expect(sw).not.toHaveAttribute("aria-busy", "true");
+    await expect(sw).toBeFocused();
+    expect(posts).toBe(1);
     await page.unroute("**/settings**");
-    // Keyboard users keep their place: focus stays on the switch after the save. Checked separately
-    // (pinned) below, because the switch is disabled while pending and drops focus to <body>.
 
     // Persisted: reload shows the saved state.
     await page.reload();
@@ -147,9 +155,7 @@ test.describe("gate flipped locally (LE_S1_GATE_ON=1)", () => {
     expect(t.property === "none" || t.duration.split(",").every((d) => parseFloat(d) === 0), JSON.stringify(t)).toBe(true);
   });
 
-  // DEFECT (pinned): AnalyticsToggle sets disabled={pending}; disabling the focused switch moves focus
-  // to <body>, so a keyboard user loses their place after every toggle (WCAG 2.4.3 / 2.1.1 usability).
-  // aria-busy alone (or aria-disabled + ignoring clicks while pending) keeps focus.
+  // Regression guard (D2, fixed in 8092143): disabled={pending} dropped focus to <body> after each save.
   test("keyboard: focus stays on the switch after a save", async ({ page }) => {
     await signIn(page);
     await page.goto("/settings#profile");

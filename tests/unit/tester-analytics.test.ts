@@ -167,15 +167,12 @@ describe("rule 9: content cannot reach a PostHog request", () => {
     ["cascade with content", "source_deleted", () => ({ cascade: true, source_title: SECRET })],
   ];
 
-  const KEY_LOG_LEAK = new Set(["count map: content key", "count map: inherited key"]);
-
   it.each(attempts)("%s (%s)", async (_label, event, make) => {
     const { t, logs } = tracker();
     const outcome = await t.trackAndWait(UID, event, make());
     expect(["rejected", "sent", "failed"]).toContain(outcome);
     expect(leaks(sent), "request body").toEqual([]);
-    // Identifier-shaped content keys reach the log by name: pinned separately below (it.fails).
-    if (!KEY_LOG_LEAK.has(_label)) expect(leaks(logs), "server logs").toEqual([]);
+    expect(leaks(logs), "server logs").toEqual([]);
     for (const req of sent) {
       for (const e of req.body.batch) {
         expect(e.distinct_id).toBe(UID);
@@ -267,15 +264,17 @@ describe("rule 9: content cannot reach the server logs", () => {
     expect(logs[0]!.props.fields).toBe("(invalid_key)");
   });
 
-  // DEFECT (non-blocking, pinned): validateEvent() logs any unrecognized key matching /^[\w.[\]-]{1,64}$/
-  // verbatim, so content shaped as an identifier ("Pay_Dana_1470_for_the_roof_by_Friday") reaches the
-  // log line. The code comment claims "a key can never smuggle text either". Only reachable if a caller
-  // builds a key from content, which the TS types forbid, so it is not a release blocker.
+  // Regression guard (D3, fixed in 8092143): identifier-shaped content keys used to be logged verbatim.
   it("a content-bearing identifier-shaped key does not reach the log line", async () => {
     const { t, logs } = tracker();
     await t.trackAndWait(UID, "undo_used", { action: "done", [SECRET_KEY]: 1 });
     await t.trackAndWait(UID, "proposals_shown", { extraction_id: TID, band_counts: { [SECRET_KEY]: 1 } });
     await t.trackAndWait(UID, "undo_used", Object.assign(Object.create({ [SECRET_KEY]: 1 }), { action: "done" }));
+    for (const k of ["Dana", "roof_1470", "Friday", "x".repeat(64), "1470a", "__proto__", "constructor", "toString", "$set"])
+      await t.trackAndWait(UID, "undo_used", JSON.parse(JSON.stringify({ action: "done", [k]: 1 })));
+    await t.trackAndWait(UID, "proposal_reviewed", { item_id: TID, band: "high", action: "edited", fields_edited: ["title", SECRET_KEY] });
+    await t.trackAndWait(UID, "ask_submitted", { answer_found: true, parts_by_kind: { [SECRET_KEY]: { [SECRET_KEY]: 1 } } });
+    expect(logs.length).toBeGreaterThan(10);
     expect(leaks(logs)).toEqual([]);
   });
 
@@ -456,9 +455,49 @@ describe("failure isolation: capture cannot throw into or delay the request", ()
     const outcome = await scheduled[0];
     const ms = performance.now() - start;
     expect(["sent", "failed"]).toContain(outcome);
-    // requestTimeout 3000 x (fetchRetryCount 1 + 1 attempts) + retry delay 3000 ≈ 9 s worst case.
-    expect(ms).toBeLessThan(12_000);
+    // S1 fix: requestTimeout 2500, fetchRetryCount 0, so one attempt of about 2.5 s.
+    expect(ms).toBeLessThan(4_000);
   }, 20_000);
+
+  async function consoleLinesFor(run: () => Promise<unknown>): Promise<string[]> {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      await run();
+      return [...warn.mock.calls, ...error.mock.calls].map((c) => c.map(String).join(" "));
+    } finally {
+      warn.mockRestore();
+      error.mockRestore();
+    }
+  }
+  const failingCapture = () => {
+    fetchImpl = async () => {
+      throw Object.assign(new Error(`connect ECONNREFUSED ${SECRET}`), { name: "FetchError" });
+    };
+    const t = createTracker({ env: { POSTHOG_KEY: freshKey(), ANALYTICS_ENABLED: "true" }, shipped: true, isOptedIn: async () => true, schedule: () => {} });
+    return t.trackAndWait(UID, "trust_rating", { score: 2 });
+  };
+
+  it("an SDK-swallowed network error is logged by class name only (S1 fix: error emitter)", async () => {
+    const lines = await consoleLinesFor(failingCapture);
+    expect(lines.map((l) => JSON.parse(l).error)).toContain("PostHogFetchNetworkError");
+    expect(leaks(lines)).toEqual([]);
+  });
+
+  // DEFECT D4 (pinned): lib/log.ts writes JSON.stringify({ event, ...props }), and every analytics log
+  // call passes a prop named `event` (the analytics event name or null). The prop overwrites the log
+  // event, so production lines read {"event":null,"error":"PostHogFetchNetworkError"} with no
+  // "analytics_capture_failed" / "analytics_rejected" name to search or alert on.
+  it.fails("analytics log lines keep their log event name", async () => {
+    const lines = await consoleLinesFor(async () => {
+      await failingCapture();
+      const t = createTracker({ env: {}, shipped: true, isOptedIn: async () => true, schedule: () => {} });
+      await t.trackAndWait(UID, "undo_used", { action: "done", title: 1 });
+    });
+    const names = lines.map((l) => JSON.parse(l).event);
+    expect(names).toContain("analytics_capture_failed");
+    expect(names).toContain("analytics_rejected");
+  });
 
   it("produces no unhandled rejection when everything fails at once", async () => {
     const unhandled: unknown[] = [];
