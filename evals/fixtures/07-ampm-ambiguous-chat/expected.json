@@ -1,0 +1,33 @@
+{
+  "notes": "'someone needs to be home' for the plumber is superseded in the thread (Taylor can't, Jamie will arrange cover); a separate unknown-owner item for it counts against precision. due_at is deliberately not asserted for 'tomorrow at 5': the PRD fixes only the date and the Assumed marking for AM/PM-ambiguous times.",
+  "items": [
+    {
+      "type": "request",
+      "title": "Pick up Mia from soccer",
+      "owner": "user",
+      "quote": "can you grab Mia from soccer tomorrow at 5?",
+      "date_text": "tomorrow at 5",
+      "due_date": "2026-10-21",
+      "due_certainty": "inferred",
+      "certainty": "explicit",
+      "counterparty": "Jamie",
+      "amount_text": null,
+      "band": "high",
+      "note": "AM/PM not stated: due date Wed Oct 21, marked Assumed (inferred) with a Not sure about line."
+    },
+    {
+      "type": "waiting_on",
+      "title": "Jamie to arrange cover for the plumber visit",
+      "owner": "other",
+      "quote": "I'll ask my mom to cover the plumber",
+      "date_text": null,
+      "due_date": null,
+      "due_certainty": "none",
+      "certainty": "explicit",
+      "counterparty": "Jamie",
+      "amount_text": null,
+      "band": "high",
+      "note": "Written by Jamie, not the user. A model may attach 'Thursday at 10:30' (Oct 22); evals/run.ts does not score dates on golden items with no due date."
+    }
+  ]
+}

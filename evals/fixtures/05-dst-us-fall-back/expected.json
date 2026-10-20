@@ -1,0 +1,48 @@
+{
+  "items": [
+    {
+      "type": "request",
+      "title": "Drop spare keys at the front office",
+      "owner": "user",
+      "quote": "please drop your spare keys at the front office Saturday at 6pm at the latest",
+      "date_text": "Saturday at 6pm",
+      "due_date": "2026-10-31",
+      "due_at": "2026-10-31T22:00:00.000Z",
+      "due_certainty": "explicit",
+      "certainty": "explicit",
+      "counterparty": "Theo",
+      "amount_text": null,
+      "band": "high",
+      "note": "Before the change: 6 PM EDT = 22:00 UTC."
+    },
+    {
+      "type": "request",
+      "title": "Call Theo about the inspection",
+      "owner": "user",
+      "quote": "Can you call me Monday at 9am about the inspection?",
+      "date_text": "Monday at 9am",
+      "due_date": "2026-11-02",
+      "due_at": "2026-11-02T14:00:00.000Z",
+      "due_certainty": "explicit",
+      "certainty": "explicit",
+      "counterparty": "Theo",
+      "amount_text": null,
+      "band": "high",
+      "note": "After the change: 9 AM EST = 14:00 UTC (13:00 would mean the old offset was used)."
+    },
+    {
+      "type": "waiting_on",
+      "title": "Inspection report from the inspector",
+      "owner": "other",
+      "quote": "The inspector will send her report by Nov 6.",
+      "date_text": "by Nov 6",
+      "due_date": "2026-11-06",
+      "due_certainty": "explicit",
+      "certainty": "explicit",
+      "counterparty": null,
+      "amount_text": null,
+      "band": "high",
+      "note": "No name for the inspector in the source: counterparty must stay null (rule 3, never fill a name)."
+    }
+  ]
+}

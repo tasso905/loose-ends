@@ -1,0 +1,10 @@
+{
+  "description": "Letter-style renewal notice: one decision for the user with a deadline and a stated consequence. Document-like, so a brief is expected (not scored by evals/run.ts). Expiry date and fees are key facts, not loops.",
+  "covers": ["notice_letter", "decision", "deadline_with_consequence", "month_day_no_year", "amounts_as_key_facts", "brief_expected"],
+  "reference_date": "2026-10-07",
+  "reference_date_source": "detected",
+  "timezone": "America/Los_Angeles",
+  "source_kind": "paste",
+  "user": { "display_name": "Priya Nair", "aliases": ["priya.nair@example.test", "Priya"] },
+  "ambiguous": false
+}

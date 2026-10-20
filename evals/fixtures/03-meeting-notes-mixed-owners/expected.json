@@ -1,0 +1,61 @@
+{
+  "notes": "Not golden (precision traps): 'Tomoko already sent the flyer' (done), 'raffle tickets will be $2 each' (a decision already made, not one to make), the budget line (key_fact, which evals/run.ts excludes).",
+  "items": [
+    {
+      "type": "waiting_on",
+      "title": "Lena to draft the volunteer sign-up sheet",
+      "owner": "other",
+      "quote": "Lena to draft the volunteer sign-up sheet by Friday.",
+      "date_text": "by Friday",
+      "due_date": "2026-10-16",
+      "due_certainty": "explicit",
+      "certainty": "explicit",
+      "counterparty": "Lena",
+      "amount_text": null,
+      "band": "high",
+      "note": "Someone else's action item; a commitment with owner other maps to waiting_on (D5)."
+    },
+    {
+      "type": "commitment",
+      "title": "Book the bouncy castle vendor",
+      "owner": "user",
+      "quote": "JE will book the bouncy castle vendor by Monday.",
+      "date_text": "by Monday",
+      "due_date": "2026-10-19",
+      "due_certainty": "explicit",
+      "certainty": "explicit",
+      "counterparty": null,
+      "amount_text": null,
+      "band": "high",
+      "note": "Owner is the user only through the 'JE' alias. No first-person modal: 0.80 + 0.05 + 0.05 = 0.90."
+    },
+    {
+      "type": "waiting_on",
+      "title": "Marcus to ask the principal about the parking lot",
+      "owner": "other",
+      "quote": "Marcus: ask the principal about using the parking lot.",
+      "date_text": null,
+      "due_date": null,
+      "due_certainty": "none",
+      "certainty": "explicit",
+      "counterparty": "Marcus",
+      "amount_text": null,
+      "band": "high",
+      "note": "No date; must not get one."
+    },
+    {
+      "type": "commitment",
+      "title": "Call the bakery about the cake order",
+      "owner": "unknown",
+      "quote": "Need someone to call the bakery about the cake order by Oct 23.",
+      "date_text": "by Oct 23",
+      "due_date": "2026-10-23",
+      "due_certainty": "explicit",
+      "certainty": "explicit",
+      "counterparty": null,
+      "amount_text": null,
+      "band": "medium",
+      "note": "Ambiguous: nobody owns it. Owner must be unknown, not user. 0.80 + 0.05 + 0.05 - 0.25 = 0.65, Maybe."
+    }
+  ]
+}
