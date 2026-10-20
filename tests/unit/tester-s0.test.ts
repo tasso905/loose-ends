@@ -3,12 +3,14 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { APICallError, RetryError } from "ai";
 import { MockLanguageModelV4 } from "ai/test";
-import { afterEach, describe, expect, it, vi } from "vitest";
-import { createThrottle, evalRpm, NO_THROTTLE, renderScorecard, runEval, throttledModel } from "@/evals/harness";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { createThrottle, EvalRpmError, evalRpm, failedGates, NO_THROTTLE, renderScorecard, runEval, throttledModel } from "@/evals/harness";
 import { askWhy, NO_RECORD_MESSAGE, type RetrievedDecision } from "@/lib/ai/askWhy";
 import { AskWhyFailedError } from "@/lib/ai/errors";
 import { ExtractionFailedError } from "@/lib/ai/extract";
+import { createRecordedModel } from "@/lib/ai/fake";
 import { safeErrorFields } from "@/lib/ai/safeError";
+import { Extraction, type Item } from "@/lib/ai/schema";
 
 /**
  * Lead-tester, slice S0 (independent of tests/unit/ai-hardening.test.ts). Synthetic data only.
@@ -85,23 +87,25 @@ describe("S0 safeErrorFields adversarial (rule 9)", () => {
     }
   });
 
-  it("FINDING probe: a name getter that throws (does safeErrorFields itself throw?)", () => {
+  it("N1 fixed: a name getter that throws does not make safeErrorFields throw, and its message never escapes", () => {
     const e = new Error("x");
     Object.defineProperty(e, "name", {
       get() {
         throw new Error(`getter ${MK}`);
       },
     });
-    let threw: unknown = null;
-    let out: unknown = null;
-    try {
-      out = safeErrorFields(e);
-    } catch (x) {
-      threw = x;
-    }
-    // Observed in S0: it throws (the getter's own error escapes). Recorded, not desired behaviour.
-    expect(out).toBeNull();
-    expect(threw).toBeInstanceOf(Error);
+    const f = safeErrorFields(e);
+    expect(f).toMatchObject({ error: "Error", kind: "unknown" });
+    assertClean(f);
+    // Same hostile getter on an ExtractionFailedError (the subclass path reads more fields).
+    const efe = new ExtractionFailedError(1, "fake:recorded", "X", 1, null, "malformed", null);
+    Object.defineProperty(efe, "kind", {
+      get() {
+        throw new Error(`kind ${MK}`);
+      },
+    });
+    expect(() => safeErrorFields(efe)).not.toThrow();
+    assertClean(safeErrorFields(efe));
   });
 
   it("FINDING probe: an Error subclass whose name is a valid identifier passes through verbatim (shape allow-list, not value allow-list)", () => {
@@ -198,36 +202,39 @@ describe("S0 askWhy: rule 7 and D43 retry parity", () => {
     expect(m2.calls()).toBe(1);
   });
 
-  it("FINDING probe: askWhy logs err.name raw (not via safeName) on retry/failure", async () => {
+  it("N3 fixed: askWhy logs a content-like err.name as \"Error\" on retry and on failure", async () => {
     const e = new Error("x");
     e.name = `name ${MK}`;
     const m = seq([throwing(e)]);
-    const logs: unknown[] = [];
+    const logs: Array<[string, unknown]> = [];
     await askWhy("q", DEC, { model: m.model, logger: (ev, f) => logs.push([ev, f]) }).catch(() => {});
-    // Recorded: current behaviour copies the raw name into the log fields.
-    expect(JSON.stringify(logs)).toContain("MK-7Q");
+    expect(logs.map((l) => l[0])).toContain("ask_why_retry");
+    expect(JSON.stringify(logs)).not.toContain("MK-7Q");
+    for (const [, f] of logs) if (f && typeof f === "object" && "error" in f) expect((f as { error: unknown }).error).toBe("Error");
   });
 });
 
 describe("S0 throttle and EVAL_RPM", () => {
   afterEach(() => vi.useRealTimers());
 
-  it("EVAL_RPM bad and edge values", () => {
+  it("EVAL_RPM bad and edge values (N5: strict decimal)", () => {
     const g = (v: string | undefined) => () => evalRpm({ AI_PROVIDER: "google", EVAL_RPM: v });
-    for (const bad of ["abc", "-1", "-0", "NaN", "Infinity", "-Infinity", "5rpm", "1,5"]) expect(g(bad)).toThrow(RangeError);
+    for (const bad of ["abc", "-1", "-0", "NaN", "Infinity", "-Infinity", "5rpm", "1,5", "0x10", "1e1", "0.5e1", "1_000", "５", "5\n6"]) {
+      expect(g(bad), JSON.stringify(bad)).toThrow(EvalRpmError);
+    }
     expect(g("  off ")()).toBeNull();
     expect(g("OFF")()).toBeNull();
     expect(g(" 0 ")()).toBeNull();
+    expect(g("00")()).toBeNull();
+    expect(g("0.000")()).toBeNull();
     expect(g("")()).toBe(5);
     expect(g("   ")()).toBe(5);
     expect(g("0.5")()).toBe(0.5);
-    expect(g("1e1")()).toBe(10);
-    // Quirks recorded (not asserted as desired): Number() accepts hex and "00" is not treated as off.
-    expect(g("0x10")()).toBe(16);
-    expect(g("00")).toThrow(RangeError);
-    // Unset EVAL_RPM and a provider with whitespace
     expect(evalRpm({ AI_PROVIDER: " fake " })).toBeNull();
+    expect(evalRpm({ AI_PROVIDER: "fake", EVAL_RPM: "3" })).toBe(3);
     expect(evalRpm({})).toBe(5);
+    // A tiny positive rate is accepted and still produces a valid throttle (no 0-division).
+    expect(() => createThrottle(g("0.001")() as number)).not.toThrow();
   });
 
   it("createThrottle rejects 0, negative, NaN, Infinity", () => {
@@ -278,40 +285,167 @@ describe("S0 throttle and EVAL_RPM", () => {
   });
 });
 
-describe("S0 eval scoring integrity (defect pinned with it.fails; flip to it() once fixed)", () => {
-  const mkFixture = (dir: string, name: string, items: unknown[]) => {
+describe("S0 eval scoring integrity (B1 fixed; adversarial probes)", () => {
+  const RUN_AT = "2026-10-20T00:00:00.000Z";
+  // Reference Mon 2026-10-05, America/New_York. Friday = 2026-10-09.
+  const TEXT = `Synthetic ${MK}. I'll send Dana the invoice on Friday. Ravi will fix the gate. We should grab lunch sometime. Let us repaint the shed.`;
+  const Q = { invoice: "I'll send Dana the invoice on Friday.", gate: "Ravi will fix the gate.", lunch: "We should grab lunch sometime.", shed: "Let us repaint the shed." };
+  const G = {
+    invoice: { type: "commitment", owner: "user", quote: Q.invoice, due_date: "2026-10-09", band: "high", due_certainty: "explicit", certainty: "explicit" },
+    gate: { type: "commitment", owner: "other", quote: Q.gate, due_date: null, band: "high", due_certainty: "none", certainty: "explicit" },
+    lunch: { type: "intention", owner: "user", quote: Q.lunch, due_date: null, band: "low", due_certainty: "none", certainty: "speculative" },
+    shed: { type: "intention", owner: "user", quote: Q.shed, due_date: null, band: "low", due_certainty: "none", certainty: "speculative" },
+  };
+  const it_ = (quote: string, o: Partial<Item> = {}): Item => ({
+    type: "commitment", title: "Synthetic item", owner: "user", counterparty: null, action: null, date_text: null, date_iso: null,
+    amount_text: null, certainty: "explicit", uncertainty_notes: [], matches_thread_id: null, evidence: [{ quote, speaker: null }], ...o,
+  });
+  const invoiceOk = () => it_(Q.invoice, { date_text: "on Friday", date_iso: "2026-10-09" });
+  const perfect = () => [invoiceOk(), it_(Q.gate, { owner: "other" }), it_(Q.lunch, { type: "intention", certainty: "speculative" })];
+  const recorded = (byText: Record<string, Item[]>) =>
+    createRecordedModel({
+      recordings: Object.entries(byText).map(([input, items], i) => ({
+        name: `r${i}`, task: "extract" as const, input, responses: [Extraction.parse({ source_summary: "Synthetic", participants: [], items, brief: null })],
+      })),
+    });
+  let dir: string;
+  beforeEach(() => {
+    dir = mkdtempSync(join(tmpdir(), "le-s0t-"));
+  });
+  afterEach(() => rmSync(dir, { recursive: true, force: true }));
+  const fixture = (name: string, items: unknown[], o: { text?: string; ambiguous?: boolean } = {}) => {
     mkdirSync(join(dir, name));
-    writeFileSync(join(dir, name, "input.txt"), `Synthetic ${name}: Dana will send the invoice Monday.`);
-    writeFileSync(join(dir, name, "meta.json"), JSON.stringify({ reference_date: "2026-10-05" }));
+    writeFileSync(join(dir, name, "input.txt"), o.text ?? TEXT);
+    writeFileSync(join(dir, name, "meta.json"), JSON.stringify({ reference_date: "2026-10-05", timezone: "America/New_York", user: { display_name: "Sam", aliases: [] }, ambiguous: o.ambiguous ?? true }));
     writeFileSync(join(dir, name, "expected.json"), JSON.stringify({ items }));
   };
-  const item = { type: "commitment", owner: "other", quote: "Dana will send the invoice Monday", due_date: "2026-10-12", band: "high" };
+  const run = (model: Parameters<typeof runEval>[0]["model"]) => runEval({ fixturesDir: dir, model, modelLabel: "fake:t", runAt: RUN_AT });
+  const clean = (r: Awaited<ReturnType<typeof runEval>>) => {
+    const out = JSON.stringify(r) + renderScorecard(r);
+    expect(out).not.toMatch(/MK-7Q|invoice|Dana|Ravi|the gate|lunch|\{broken/);
+    for (const q of Object.values(Q)) expect(out).not.toContain(q);
+  };
 
-  it("observed: every fixture fails (malformed) → pass true, complete true, all scores null", async () => {
-    const dir = mkdtempSync(join(tmpdir(), "le-s0-"));
-    try {
-      for (const n of ["a", "b", "c"]) mkFixture(dir, n, [item]);
-      const m = seq([() => textResult("{broken")]);
-      const r = await runEval({ fixturesDir: dir, model: m.model, modelLabel: "fake:t", runAt: "2026-10-20T00:00:00.000Z" });
-      expect(r.scores.extraction_failures).toBe(3);
-      expect(r.scores.recall).toBeNull();
-      expect(r.pass).toBe(true);
-      expect(r.complete).toBe(true);
-      expect(renderScorecard(r)).toContain("Result: PASS");
-    } finally {
-      rmSync(dir, { recursive: true, force: true });
-    }
+  it("B1 fixed: every fixture fails (malformed) → fail, incomplete, recall 0, scorecard says FAIL", async () => {
+    for (const n of ["a", "b", "c"]) fixture(n, [G.invoice]);
+    const m = seq([() => textResult("{broken")]);
+    const r = await run(m.model);
+    expect(r.scores.extraction_failures).toBe(3);
+    expect(r.scores.recall).toBe(0);
+    expect(r).toMatchObject({ result: "fail", pass: false, complete: false });
+    expect(renderScorecard(r)).toContain("Result: FAIL");
+    expect(renderScorecard(r)).not.toContain("Result: PASS");
+    clean(r);
   });
 
-  it("desired: a failed fixture's expected items count as missed (recall), so an all-failure run cannot PASS", async () => {
-    const dir = mkdtempSync(join(tmpdir(), "le-s0-"));
-    try {
-      for (const n of ["a", "b", "c"]) mkFixture(dir, n, [item]);
-      const m = seq([() => textResult("{broken")]);
-      const r = await runEval({ fixturesDir: dir, model: m.model, modelLabel: "fake:t", runAt: "2026-10-20T00:00:00.000Z" });
-      expect(r.pass).toBe(false);
-    } finally {
-      rmSync(dir, { recursive: true, force: true });
-    }
+  it("sanity: the perfect model passes on this fixture", async () => {
+    fixture("a", [G.invoice, G.gate, G.lunch]);
+    const r = await run(recorded({ [TEXT]: perfect() }));
+    expect(r.scores).toMatchObject({ recall: 1, precision: 1, date: 1, owner: 1, band: 1, speculative_scored_high: 0, explicit_dated_scored_low: 0 });
+    expect(r.pass).toBe(true);
+    clean(r);
+  });
+
+  it("partial failure cannot inflate: 1 perfect + 1 failed fixture → recall counts the failed goldens as missed", async () => {
+    const T2 = `Synthetic second ${MK}. Ravi will fix the gate.`;
+    fixture("a", [G.invoice, G.gate, G.lunch]);
+    fixture("b", [G.gate], { text: T2 });
+    const r = await run(recorded({ [TEXT]: perfect() })); // no recording for T2 → config failure
+    expect(r.scores.recall).toBe(3 / 4);
+    expect(r.scores.precision).toBe(1);
+    expect(r.result).toBe("fail");
+    expect(failedGates(r.fixtures, r.scores)).toEqual(expect.arrayContaining(["recall", "extraction_failures"]));
+  });
+
+  it("rule 3: a model that invents a date on a dateless golden fails the run", async () => {
+    fixture("a", [G.invoice, G.gate, G.lunch]);
+    const r = await run(recorded({ [TEXT]: [invoiceOk(), it_(Q.gate, { owner: "other", date_text: "Friday", date_iso: "2026-10-09" }), perfect()[2]!] }));
+    // date_text "Friday" must be in the source for verifyFields to keep it; it is (in the invoice line).
+    const gate = r.perFixture[0]!.items.find((i) => i.golden_index === 1)!;
+    expect(gate.diffs).toContainEqual({ field: "due_date", error: "invented" });
+    expect(r.scores.date).toBe(0.5);
+    expect(r.pass).toBe(false);
+    clean(r);
+  });
+
+  it("F19: a speculative golden (hedge-free) scored High fails the run", async () => {
+    fixture("a", [G.invoice, G.gate, G.lunch, G.shed]);
+    const r = await run(recorded({ [TEXT]: [...perfect(), it_(Q.shed, { certainty: "explicit" })] }));
+    expect(r.perFixture[0]!.items[3]!.band).toBe("high");
+    expect(r.scores.speculative_scored_high).toBe(1);
+    expect(r.pass).toBe(false);
+    expect(failedGates(r.fixtures, r.scores)).toContain("speculative_scored_high");
+  });
+
+  it("F19: an Ignore golden shown as High counts as speculative_scored_high", async () => {
+    fixture("a", [G.invoice, G.gate, G.lunch, { ...G.shed, band: "ignore", certainty: undefined }]);
+    const r = await run(recorded({ [TEXT]: [...perfect(), it_(Q.shed)] }));
+    expect(r.perFixture[0]!.items[3]!.status).toBe("ignore_shown");
+    expect(r.scores.speculative_scored_high).toBe(1);
+    expect(r.pass).toBe(false);
+  });
+
+  it("F19: an explicit dated commitment the model drops into Ignore counts as explicit_dated_scored_low", async () => {
+    fixture("a", [G.invoice, G.gate, G.lunch]);
+    // speculative + exact quote + agreeing date: does it land Low? Either way (Low/Ignore) it must count.
+    const r = await run(recorded({ [TEXT]: [invoiceOk(), it_(Q.gate, { owner: "other" }), perfect()[2]!].map((x, i) => (i === 0 ? { ...x, certainty: "speculative" as const, type: "intention" as const } : x)) }));
+    expect(r.scores.explicit_dated_scored_low).toBe(1);
+    expect(r.pass).toBe(false);
+  });
+
+  // DEFECT D-S0-1: matching is many-to-one. One shown item whose quote spans several golden
+  // sentences matches every one of them, so a single blob item scores recall 1 and precision 1.
+  it.fails("DEFECT: one shown item spanning every golden quote must not match all of them (recall should be ≤ 1/2)", async () => {
+    fixture("a", [G.invoice, G.gate], { ambiguous: false });
+    const blob = `${Q.invoice} ${Q.gate}`;
+    const r = await run(recorded({ [TEXT]: [it_(blob, { date_text: "on Friday", date_iso: "2026-10-09" })] }));
+    expect(r.perFixture[0]!.shown).toBe(1);
+    expect(r.scores.recall).toBeLessThanOrEqual(0.5);
+  });
+
+  it("observed (D-S0-1): the blob item currently yields recall 1 and precision 1", async () => {
+    fixture("a", [G.invoice, G.gate], { ambiguous: false });
+    const blob = `${Q.invoice} ${Q.gate}`;
+    const r = await run(recorded({ [TEXT]: [it_(blob, { date_text: "on Friday", date_iso: "2026-10-09" })] }));
+    expect(r.perFixture[0]!.shown).toBe(1);
+    expect(r.scores.recall).toBe(1);
+    expect(r.scores.precision).toBe(1);
+  });
+
+  // DEFECT D-S0-2: a short fragment contained in a golden quote matches it ("contains" in either
+  // direction, no minimum overlap). A 3-character quote like "the" or "ll " can match goldens.
+  it.fails("DEFECT: a 4-character fragment quote must not count as matching a golden item", async () => {
+    fixture("a", [G.gate], { ambiguous: false, text: `Synthetic ${MK}. Ravi will fix the gate.` });
+    const r = await run(recorded({ [`Synthetic ${MK}. Ravi will fix the gate.`]: [it_("Ravi", { owner: "other" })] }));
+    expect(r.scores.recall).toBe(0);
+  });
+
+  // DEFECT D-S0-3: duplicates of one golden all count as true positives (precision not penalised).
+  it.fails("DEFECT: the same golden item shown three times should count two extras (precision ≤ 1/3)", async () => {
+    fixture("a", [G.gate], { ambiguous: false, text: `Synthetic ${MK}. Ravi will fix the gate.` });
+    const g = it_(Q.gate, { owner: "other" });
+    const r = await run(recorded({ [`Synthetic ${MK}. Ravi will fix the gate.`]: [g, g, g] }));
+    expect(r.perFixture[0]!.shown).toBe(3);
+    expect(r.scores.precision).toBeLessThanOrEqual(1 / 3);
+  });
+
+  // FINDING F-S0-4 (for PM): one quota failure turns a run with a hard F19 violation into
+  // "incomplete_quota" (exit 3) instead of "fail" (exit 1). Not a pass, but the violation is not judged.
+  it("observed: quota failure + F19 violation elsewhere → incomplete_quota, not fail", async () => {
+    const T2 = `Synthetic quota ${MK}.`;
+    fixture("a", [G.invoice, G.gate, G.lunch]);
+    fixture("b", [G.gate], { text: T2 });
+    fixture("c", [G.invoice, G.gate, G.lunch, G.shed], { text: `${TEXT} C` });
+    const rec = recorded({ [TEXT]: perfect(), [`${TEXT} C`]: [...perfect(), it_(Q.shed)] });
+    const model = new MockLanguageModelV4({
+      doGenerate: async (opts) => {
+        if (JSON.stringify(opts.prompt).includes("Synthetic quota")) throw apiErr(429);
+        return (rec as unknown as { doGenerate: (o: unknown) => Promise<ReturnType<typeof textResult>> }).doGenerate(opts);
+      },
+    });
+    const r = await run(model);
+    expect(r.scores.speculative_scored_high).toBe(1);
+    expect(r.pass).toBe(false);
+    expect(r.result).toBe("incomplete_quota");
   });
 });
