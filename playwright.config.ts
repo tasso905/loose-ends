@@ -28,6 +28,9 @@ export default defineConfig({
       NEXT_PUBLIC_SUPABASE_URL: sb.url,
       NEXT_PUBLIC_SUPABASE_ANON_KEY: sb.anonKey,
       SITE_URL: BASE_URL,
+      // Pinned to the shipping configuration (D41) so E2E does not depend on .env.local. Rendering the
+      // button needs no Google credentials; the test intercepts the authorize request.
+      NEXT_PUBLIC_AUTH_GOOGLE_ENABLED: "true",
     },
   },
 });
