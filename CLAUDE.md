@@ -6,7 +6,7 @@ Loose Ends turns messages and documents the user pastes in into a short list of 
 
 Read the relevant document before changing behaviour, copy or visuals. When they conflict, the order below wins, and the conflict is raised with the lead-program-manager agent rather than resolved silently.
 
-1. `docs/PRD.md` (v1.1) — product, scope, schema, API, AI behaviour. Its **Decisions Log (D1–D41)** overrides older text anywhere. Entries marked *Proposed* take effect only after the user confirms them.
+1. `docs/PRD.md` (v1.1) — product, scope, schema, API, AI behaviour. Its **Decisions Log (D1–D43)** overrides older text anywhere. Entries marked *Proposed* take effect only after the user confirms them.
 2. `docs/SITE_CONTRACT.md` (v1.1) — pages, routes, states, error copy, behaviour.
 3. `docs/CONTENT_MODEL.md` (v1.1) — fields, constraints, user-facing glossary.
 4. `docs/DESIGN_STANDARD.md` — visual standard: tokens, type, spacing, components, motion, microcopy.
@@ -114,7 +114,7 @@ Three project subagents live in `.claude/agents/`. Delegate to them by name ("us
 
 **Build order (D26):** MUST and never-cut work first. Then SHOULD work in reverse cut order: "Worth considering" → DOCX → F14 dedupe → F17 toggles → F15 digest → F16 forwarding last. F18 redaction goes in with the F5 pipeline work where it fits. SHOULD work never displaces a MUST block.
 
-**LLM provider (D27):** not chosen yet, due Oct 21 (needed for the first live `pnpm eval`). Build against the provider-agnostic AI SDK layer, with a fake recorded-fixture provider for tests. **License:** MIT (D23).
+**LLM provider (D42):** Google Gemini via `@ai-sdk/google` (`AI_PROVIDER=google`, model pinned in `AI_MODEL`), chosen Oct 20. Free tier during development and eval, with synthetic fixtures only; free vs. paid for the public demo is decided at deployment (Gemini's free tier may use prompts to improve Google's products, so the privacy copy must say so if it stays). Tests and E2E use the fake recorded-fixture provider. **License:** MIT (D23).
 
 **Cut order (applied at the Oct 25 review):** F16 forwarding → F15 digest → F17 toggles → F14 dedupe → DOCX → Explain card "Worth considering", then the D20 items. Anything beyond that touches a MUST and goes to the user. **Never cut:** quote verification, date re-resolution, review tray, Why panel, delete.
 

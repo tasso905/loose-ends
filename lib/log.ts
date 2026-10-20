@@ -7,6 +7,7 @@ export type LogEvent =
   | "field_unverified"
   | "extraction_retry"
   | "ask_why_ref_rejected"
+  | "ask_why_failed"
   | "account_delete_late_objects"
   | "account_delete_sweep_failed"
   | "sign_in_link_failed"
