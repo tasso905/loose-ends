@@ -16,12 +16,15 @@ export type LogEvent =
   | "account_delete_sweep_failed"
   | "sign_in_link_failed"
   | "auth_callback_failed"
-  | "onboarding_save_failed";
+  | "onboarding_save_failed"
+  | "analytics_rejected"
+  | "analytics_capture_failed"
+  | "analytics_setting_save_failed";
 
 export type LogProps = Record<string, string | number | boolean | null>;
 
 export type Logger = (event: LogEvent, props: LogProps) => void;
 
 export const log: Logger = (event, props) => {
-  console.warn(JSON.stringify({ event, ...props }));
+  console.warn(JSON.stringify({ ...props, event }));
 };
