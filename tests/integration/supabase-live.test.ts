@@ -450,3 +450,101 @@ describe.skipIf(!env)("real local Supabase: account deletion vs a still-valid se
     expect(up.error).not.toBeNull();
   });
 });
+
+describe.skipIf(!env)("real local Supabase: user_settings.analytics_enabled (S1, D40)", () => {
+  // Lead-tester. Through real PostgREST + RLS with real auth sessions. Read-only against other
+  // accounts in the shared local stack: it only counts null values, never reads or changes them.
+  let svc: SupabaseClient;
+  let A: User;
+  let B: User;
+  const mine: string[] = [];
+
+  async function liveUser(tag: string): Promise<User> {
+    const email = `le-test-analytics-${tag}-${randomUUID().slice(0, 6)}@example.com`;
+    const password = `pw-${randomUUID()}`;
+    const { data, error } = await svc.auth.admin.createUser({ email, password, email_confirm: true });
+    if (error || !data.user) throw error ?? new Error("createUser failed");
+    mine.push(data.user.id);
+    const client = createClient(env!.url, env!.anon, opts);
+    const s = await client.auth.signInWithPassword({ email, password });
+    if (s.error) throw s.error;
+    return { id: data.user.id, email, client };
+  }
+  const valueOf = async (uid: string) =>
+    (await svc.from("user_settings").select("analytics_enabled").eq("user_id", uid).single()).data?.analytics_enabled;
+
+  beforeAll(async () => {
+    await assertReachable(env!);
+    svc = createClient(env!.url, env!.service, opts);
+    A = await liveUser("a");
+    B = await liveUser("b");
+  }, 60_000);
+  afterAll(async () => {
+    for (const id of mine) await svc.auth.admin.deleteUser(id).catch(() => {});
+  });
+
+  it("the column exists on every row and no row is null (migration applied; not null default true)", async () => {
+    const all = await svc.from("user_settings").select("user_id", { count: "exact", head: true });
+    expect(all.error).toBeNull();
+    expect(all.count).toBeGreaterThan(0);
+    const nulls = await svc.from("user_settings").select("user_id", { count: "exact", head: true }).is("analytics_enabled", null);
+    expect(nulls.error).toBeNull();
+    expect(nulls.count).toBe(0);
+  });
+
+  it("a new sign-up gets analytics_enabled = true from the default", async () => {
+    expect(await valueOf(A.id)).toBe(true);
+    expect(await valueOf(B.id)).toBe(true);
+    const own = await A.client.from("user_settings").select("user_id, analytics_enabled");
+    expect(own.error).toBeNull();
+    expect(own.data).toEqual([{ user_id: A.id, analytics_enabled: true }]);
+  });
+
+  it("A cannot read B's row, by filter or unfiltered", async () => {
+    const byId = await A.client.from("user_settings").select("analytics_enabled").eq("user_id", B.id);
+    expect(byId.error).toBeNull();
+    expect(byId.data).toEqual([]);
+    const all = await A.client.from("user_settings").select("user_id");
+    expect(all.data?.map((r) => r.user_id)).toEqual([A.id]);
+  });
+
+  it("A cannot update B's analytics_enabled, or move their own row onto B, or insert/upsert B's row", async () => {
+    const upd = await A.client.from("user_settings").update({ analytics_enabled: false }).eq("user_id", B.id).select();
+    expect(upd.data ?? []).toEqual([]);
+    expect(await valueOf(B.id)).toBe(true);
+
+    const unfiltered = await A.client.from("user_settings").update({ analytics_enabled: false }).neq("user_id", A.id).select();
+    expect(unfiltered.data ?? []).toEqual([]);
+    expect(await valueOf(B.id)).toBe(true);
+
+    const move = await A.client.from("user_settings").update({ user_id: B.id }).eq("user_id", A.id).select();
+    expect(move.error).not.toBeNull();
+
+    const ups = await A.client.from("user_settings").upsert({ user_id: B.id, analytics_enabled: false }).select();
+    expect(ups.error).not.toBeNull();
+    expect(await valueOf(B.id)).toBe(true);
+  });
+
+  it("anon can neither read nor update any analytics_enabled", async () => {
+    const a = createClient(env!.url, env!.anon, opts);
+    expect((await a.from("user_settings").select("user_id")).data ?? []).toEqual([]);
+    const upd = await a.from("user_settings").update({ analytics_enabled: false }).eq("user_id", B.id).select();
+    expect(upd.data ?? []).toEqual([]);
+    expect(await valueOf(B.id)).toBe(true);
+  });
+
+  it("A can turn their own analytics off and on, and the update returns exactly one row (what the server action relies on)", async () => {
+    const off = await A.client.from("user_settings").update({ analytics_enabled: false }).eq("user_id", A.id).select("analytics_enabled");
+    expect(off.error).toBeNull();
+    expect(off.data).toEqual([{ analytics_enabled: false }]);
+    expect(await valueOf(A.id)).toBe(false);
+    expect(await valueOf(B.id)).toBe(true);
+    const on = await A.client.from("user_settings").update({ analytics_enabled: true }).eq("user_id", A.id).select("analytics_enabled");
+    expect(on.data).toEqual([{ analytics_enabled: true }]);
+  });
+
+  it("null is refused", async () => {
+    const r = await A.client.from("user_settings").update({ analytics_enabled: null }).eq("user_id", A.id).select();
+    expect(r.error?.code).toBe("23502");
+  });
+});
