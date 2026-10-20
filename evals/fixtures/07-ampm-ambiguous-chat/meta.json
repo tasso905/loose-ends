@@ -1,0 +1,10 @@
+{
+  "description": "Household chat written Tue Oct 20, 2026 in Chicago. 'tomorrow at 5' has no AM/PM: the date is kept and marked Assumed (D32). The plumber visit is handed to someone else in the thread, so the user is waiting on Jamie.",
+  "covers": ["chat", "request_to_user", "commitment_by_other", "ampm_ambiguous", "resolved_in_thread"],
+  "reference_date": "2026-10-20",
+  "reference_date_source": "user",
+  "timezone": "America/Chicago",
+  "source_kind": "paste",
+  "user": { "display_name": "Taylor Brooks", "aliases": ["taylor.brooks@example.com", "Taylor", "Tay"] },
+  "ambiguous": true
+}

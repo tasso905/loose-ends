@@ -1,0 +1,10 @@
+{
+  "description": "Meeting notes with action items for the user (by initials), for others, and one with no owner. Decoys: a finished task, a decision already made, key facts (budget).",
+  "covers": ["meeting_notes", "commitment_by_user", "commitment_by_other", "owner_from_initials_alias", "unclear_speaker", "past_done_decoy", "made_decision_decoy"],
+  "reference_date": "2026-10-14",
+  "reference_date_source": "detected",
+  "timezone": "America/Los_Angeles",
+  "source_kind": "paste",
+  "user": { "display_name": "Jordan Ellis", "aliases": ["jordan@example.com", "Jordan", "JE"] },
+  "ambiguous": true
+}

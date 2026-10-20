@@ -1,0 +1,60 @@
+{
+  "items": [
+    {
+      "type": "waiting_on",
+      "title": "Revised floor plan from Dana",
+      "owner": "other",
+      "quote": "I'll have the revised floor plan to you by the end of the month",
+      "date_text": "by the end of the month",
+      "due_date": "2026-10-31",
+      "due_certainty": "inferred",
+      "certainty": "explicit",
+      "counterparty": "Dana",
+      "amount_text": null,
+      "band": "high",
+      "note": "Written by Dana, not the user: 'I'll' belongs to the sender. 'end of the month' names a period, so the date is Assumed (inferred)."
+    },
+    {
+      "type": "request",
+      "title": "Confirm the tile color",
+      "owner": "user",
+      "quote": "Could you confirm the tile color by next Friday?",
+      "date_text": "by next Friday",
+      "due_date": "2026-10-23",
+      "due_certainty": "explicit",
+      "certainty": "explicit",
+      "counterparty": "Dana",
+      "amount_text": null,
+      "band": "high",
+      "note": "Project rule (tests/unit/resolveDates.test.ts): 'next Friday' is the Friday after the coming one. Written Mon Oct 12, so Fri Oct 23, not Oct 16."
+    },
+    {
+      "type": "deadline",
+      "title": "Pay the cabinet deposit",
+      "owner": "user",
+      "quote": "the cabinet deposit of $1,850 is due Thursday",
+      "date_text": "Thursday",
+      "due_date": "2026-10-15",
+      "due_certainty": "explicit",
+      "certainty": "explicit",
+      "counterparty": null,
+      "amount_text": "$1,850",
+      "band": "high",
+      "note": "Amount copied exactly as written. Could also be typed request; evals/run.ts does not score type."
+    },
+    {
+      "type": "waiting_on",
+      "title": "Ruth to check the electrical panel",
+      "owner": "other",
+      "quote": "Ruth Kamau, said she'll stop by to check the panel on Oct 16",
+      "date_text": "Oct 16",
+      "due_date": "2026-10-16",
+      "due_certainty": "explicit",
+      "certainty": "explicit",
+      "counterparty": "Ruth Kamau",
+      "amount_text": null,
+      "band": "high",
+      "note": "Month-day with no year, 4 days ahead of the written-on date: this year (D28)."
+    }
+  ]
+}

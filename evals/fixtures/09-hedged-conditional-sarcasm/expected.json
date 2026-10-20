@@ -1,0 +1,72 @@
+{
+  "notes": "Bands follow the PRD weights with the certainty the prompt asks for (hedged, conditional or sarcastic = speculative). The sarcasm golden is 'ignore' (must not be shown); prompt rule 7 asks for sarcasm as speculative, which the weights put in Low (0.40). Open question for the PM: should sarcasm be dropped or shown under Also noticed?",
+  "items": [
+    {
+      "type": "commitment",
+      "title": "Order replacement chairs if the budget is approved",
+      "owner": "user",
+      "quote": "If the board approves the new budget on Tuesday, I'll order the replacement chairs for the studio.",
+      "date_text": null,
+      "due_date": null,
+      "due_certainty": "none",
+      "certainty": "speculative",
+      "counterparty": null,
+      "amount_text": null,
+      "band": "low",
+      "note": "Conditional promise. 'Tuesday' dates the board vote, not the order, so no due date. 0.30 + 0.05 exact + 0.05 modal = 0.40, Also noticed."
+    },
+    {
+      "type": "intention",
+      "title": "Maybe cover Felix's Saturday shift",
+      "owner": "user",
+      "quote": "I might be able to cover your Saturday shift.",
+      "date_text": "Saturday",
+      "due_date": "2026-10-17",
+      "due_certainty": "explicit",
+      "certainty": "speculative",
+      "counterparty": "Felix",
+      "amount_text": null,
+      "band": "low",
+      "note": "Hedged offer. As an intention: 0.30 + 0.05 + 0.05 = 0.40, Low. If typed commitment the 'might' penalty gives 0.25 (Ignore), a recall miss; that sensitivity to type is what this item measures."
+    },
+    {
+      "type": "intention",
+      "title": "Repaint the lobby",
+      "owner": "user",
+      "quote": "We should probably repaint the lobby sometime after the holidays.",
+      "date_text": null,
+      "due_date": null,
+      "due_certainty": "none",
+      "certainty": "speculative",
+      "counterparty": null,
+      "amount_text": null,
+      "band": "low",
+      "note": "Vague timing: 'after the holidays' has no date (prompt rule 3). 0.30 + 0.05 = 0.35, Also noticed."
+    },
+    {
+      "type": "commitment",
+      "title": "Alphabetize the supply closet",
+      "owner": "user",
+      "quote": "I'll definitely get right on alphabetizing the supply closet, right after I win the lottery.",
+      "date_text": null,
+      "due_date": null,
+      "due_certainty": "none",
+      "band": "ignore",
+      "note": "Sarcasm: not a real commitment. Pass if the model leaves it out or it scores Ignore."
+    },
+    {
+      "type": "commitment",
+      "title": "Send Felix the October timesheet",
+      "owner": "user",
+      "quote": "I'll send you the October timesheet on Monday.",
+      "date_text": "on Monday",
+      "due_date": "2026-10-19",
+      "due_certainty": "explicit",
+      "certainty": "explicit",
+      "counterparty": "Felix",
+      "amount_text": null,
+      "band": "high",
+      "note": "Control: explicit dated commitment among hedges. Must not score Low (F19 uncertainty eval)."
+    }
+  ]
+}

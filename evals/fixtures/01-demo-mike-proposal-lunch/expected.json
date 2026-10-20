@@ -1,0 +1,32 @@
+{
+  "items": [
+    {
+      "type": "commitment",
+      "title": "Send revised proposal to Mike",
+      "owner": "user",
+      "quote": "I'll send you the revised proposal Friday",
+      "date_text": "Friday",
+      "due_date": "2026-10-09",
+      "due_certainty": "explicit",
+      "certainty": "explicit",
+      "counterparty": "Mike",
+      "amount_text": null,
+      "band": "high",
+      "note": "F19/D36: the proposal example lands in Likely (0.80 + 0.05 exact + 0.05 date agrees + 0.05 first-person modal = 0.95)."
+    },
+    {
+      "type": "intention",
+      "title": "Lunch with Mike",
+      "owner": "user",
+      "quote": "We should grab lunch sometime",
+      "date_text": null,
+      "due_date": null,
+      "due_certainty": "none",
+      "certainty": "speculative",
+      "counterparty": "Mike",
+      "amount_text": null,
+      "band": "low",
+      "note": "D36: hedged intention, no hedge penalty on intentions, 0.30 + 0.05 exact = 0.35, Also noticed. 'sometime' must not become a date."
+    }
+  ]
+}

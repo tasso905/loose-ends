@@ -1,0 +1,60 @@
+{
+  "items": [
+    {
+      "type": "waiting_on",
+      "title": "Kai to bring the ladder back",
+      "owner": "other",
+      "quote": "I'll bring the ladder back this Friday, promise.",
+      "date_text": "this Friday",
+      "due_date": "2027-01-01",
+      "due_certainty": "explicit",
+      "certainty": "explicit",
+      "counterparty": "Kai",
+      "amount_text": null,
+      "band": "high",
+      "note": "Written by Kai: 'I'll' is not the user. 'this Friday' from Mon Dec 28 is Fri Jan 1, 2027."
+    },
+    {
+      "type": "commitment",
+      "title": "Send Kai the utility split receipts",
+      "owner": "user",
+      "quote": "I'll get you the receipts for the utility split on Jan 4.",
+      "date_text": "on Jan 4",
+      "due_date": "2027-01-04",
+      "due_certainty": "explicit",
+      "certainty": "explicit",
+      "counterparty": "Kai",
+      "amount_text": null,
+      "band": "high",
+      "note": "Month-day with no year after the written-on date: next year."
+    },
+    {
+      "type": "deadline",
+      "title": "Pay January rent",
+      "owner": "user",
+      "quote": "January rent is due the 1st",
+      "date_text": "the 1st",
+      "due_date": "2027-01-01",
+      "due_certainty": "explicit",
+      "certainty": "explicit",
+      "counterparty": null,
+      "amount_text": null,
+      "band": "high",
+      "note": "No amount in the source: amount_text must stay null."
+    },
+    {
+      "type": "deadline",
+      "title": "Sign the new lease",
+      "owner": "user",
+      "quote": "the landlord wants the new lease signed by next Friday",
+      "date_text": "by next Friday",
+      "due_date": "2027-01-08",
+      "due_certainty": "explicit",
+      "certainty": "explicit",
+      "counterparty": null,
+      "amount_text": null,
+      "band": "high",
+      "note": "'next Friday' is the Friday after 'this Friday': Jan 8, 2027. Could be typed request."
+    }
+  ]
+}
