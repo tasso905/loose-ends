@@ -20,14 +20,32 @@ export function isGoogleSignInEnabled(): boolean {
 
 /**
  * The Settings analytics toggle the notice's opt-out link points at. Flip to true in the change that
- * ships it, so the link can never 404 (CONTENT_MODEL §11 Analytics).
+ * ships the first PostHog event (S2), so the notice, the toggle and capture go live together and the
+ * opt-out link can never 404 (CONTENT_MODEL §11 Analytics; D40, rule 9). While false, `track()` sends
+ * nothing.
  */
-const SETTINGS_ANALYTICS_TOGGLE_SHIPPED = false;
+export const SETTINGS_ANALYTICS_TOGGLE_SHIPPED = false;
+
+/** PostHog US cloud ingestion host (D40: US region). Override with POSTHOG_HOST. */
+export const DEFAULT_POSTHOG_HOST = "https://us.i.posthog.com";
 
 /**
- * Analytics notice stays hidden until events ship (D40; rule 9): it needs the explicit
- * ANALYTICS_ENABLED flag, a PostHog key, and the Settings toggle to exist.
+ * PostHog settings when analytics is configured for this deployment: ANALYTICS_ENABLED is exactly
+ * "true" and POSTHOG_KEY is set. Does not check the shipped flag or the user's opt-out.
  */
-export function isAnalyticsEnabled(env: Record<string, string | undefined> = process.env): boolean {
-  return SETTINGS_ANALYTICS_TOGGLE_SHIPPED && env.ANALYTICS_ENABLED === "true" && Boolean(env.POSTHOG_KEY);
+export function posthogSettings(env: Record<string, string | undefined> = process.env): { key: string; host: string } | null {
+  const key = env.POSTHOG_KEY?.trim();
+  if (env.ANALYTICS_ENABLED !== "true" || !key) return null;
+  return { key, host: env.POSTHOG_HOST?.trim() || DEFAULT_POSTHOG_HOST };
+}
+
+/**
+ * Analytics notice, Settings toggle and capture stay off until events ship (D40; rule 9): they need
+ * the explicit ANALYTICS_ENABLED flag, a PostHog key, and the Settings toggle to exist.
+ */
+export function isAnalyticsEnabled(
+  env: Record<string, string | undefined> = process.env,
+  shipped: boolean = SETTINGS_ANALYTICS_TOGGLE_SHIPPED,
+): boolean {
+  return shipped && posthogSettings(env) !== null;
 }

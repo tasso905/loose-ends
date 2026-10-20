@@ -42,8 +42,25 @@ export const SIGN_IN_COPY = {
     "That link was opened in a different browser. Enter your email to get a new one, and open it in this browser.",
 
   // PROPOSED — hidden until analytics events ship (D40; rule 9). Wording pending user sign-off when the first event ships.
+  // Built in S1 behind SETTINGS_ANALYTICS_TOGGLE_SHIPPED; shown in onboarding only (SITE_CONTRACT §2.0).
   analyticsNotice: "Loose Ends counts which features you use. Analytics never include what you paste.",
   analyticsOptOut: "Turn off analytics",
+} as const;
+
+/**
+ * Settings → Profile analytics toggle (SITE_CONTRACT §2.12, CONTENT_MODEL §11 Analytics).
+ * PROPOSED — hidden with the notice until the first event ships (D40); same sign-off as the notice.
+ */
+export const ANALYTICS_SETTINGS_COPY = {
+  // PROPOSED
+  heading: "Profile",
+  toggleLabel: "Analytics",
+  toggleDescription: SIGN_IN_COPY.analyticsNotice,
+  loadFailed: "Settings didn't load. Try again.",
+  tryAgain: SIGN_IN_COPY.tryAgain,
+  // DOCUMENTED (SITE_CONTRACT §2.13)
+  saveFailed: "That didn't save. Try again.",
+  offline: SIGN_IN_COPY.offline,
 } as const;
 
 export const ONBOARDING_COPY = {
