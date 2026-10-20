@@ -105,6 +105,18 @@ describe("event allow-list (PRD event taxonomy, rule 9)", () => {
     expect(validateEvent("ask_submitted", { answer_found: true, parts_by_kind: { inference: 1, text: 2 } }).ok).toBe(false);
   });
 
+  it("logs only allow-listed property names: an identifier-shaped content key is masked", () => {
+    const KEY = "Pay_Dana_1470_for_the_roof_by_Friday";
+    expect(validateEvent("undo_used", { action: "done", [KEY]: 1 })).toMatchObject({ fields: ["(invalid_key)"] });
+    expect(validateEvent("proposals_shown", { extraction_id: TID, band_counts: { [KEY]: 1 } })).toMatchObject({
+      fields: ["band_counts.(invalid_key)"],
+    });
+    expect(validateEvent("proposal_reviewed", { ...VALID.proposal_reviewed, fields_edited: ["title", KEY] })).toMatchObject({
+      fields: ["fields_edited.1"],
+    });
+    expect(validateEvent("undo_used", { action: "done", title: 1 })).toMatchObject({ fields: ["title"] });
+  });
+
   it("rejects non-UUID IDs, non-integer counts and unknown events", () => {
     expect(validateEvent("why_opened", { thread_id: "dana@example.com", surface: "today" }).ok).toBe(false);
     expect(validateEvent("trust_rating", { score: 4.5 }).ok).toBe(false);
@@ -255,7 +267,7 @@ describe("PostHog client and settings", () => {
     expect(posthog.instances).toEqual([
       {
         key: "phc_default_client",
-        options: expect.objectContaining({ host: DEFAULT_POSTHOG_HOST, flushAt: 1, flushInterval: 0, disableGeoip: true }),
+        options: expect.objectContaining({ host: DEFAULT_POSTHOG_HOST, flushAt: 1, flushInterval: 0, disableGeoip: true, requestTimeout: 2500, fetchRetryCount: 0 }),
       },
     ]);
     expect(posthog.captureImmediate).toHaveBeenCalledTimes(1);

@@ -102,12 +102,34 @@ export function validateEvent(event: string, props: unknown): ValidatedEvent {
   if (parsed.success) return { ok: true, event: name, props: parsed.data as Record<string, unknown> };
   const fields = new Set<string>();
   for (const issue of parsed.error.issues) {
-    // Unknown keys come back as `unrecognized_keys` with the key names; those names are caller
-    // code, not user content, but cap their length so a key can never smuggle text either.
-    const keys = issue.code === "unrecognized_keys" ? issue.keys : [issue.path.map(String).join(".") || "(root)"];
-    for (const k of keys) fields.add(/^[\w.[\]-]{1,64}$/.test(k) ? k : "(invalid_key)");
+    const base = issue.path.map(String);
+    const paths = issue.code === "unrecognized_keys" ? issue.keys.map((k) => [...base, k]) : [base];
+    for (const path of paths) fields.add(path.length ? path.map(loggableSegment).join(".") : "(root)");
   }
   return { ok: false, reason: "invalid_props", event: name, fields: [...fields].sort() };
+}
+
+/**
+ * Property-name segments that may appear in a rejection log line: a closed list, so a key built
+ * from content (even an identifier-shaped one like `Pay_Dana_1470_for_the_roof_by_Friday`) can
+ * never reach the log. Any other segment is logged as `(invalid_key)`; array indices as numbers.
+ */
+const LOGGABLE_KEYS: ReadonlySet<string> = new Set([
+  // Every taxonomy property name.
+  ...Object.values(ANALYTICS_EVENTS).flatMap((schema) => Object.keys(schema.shape)),
+  // Count-map keys.
+  ...Band.options,
+  ...AnswerPartKind.options,
+  // Domain field names a caller might wrongly pass (thread and proposal columns, common content
+  // fields), named so the log says which mistake was made. Names only; never their values.
+  ...["title", "quote", "reason", "name", "email", "text", "note", "content", "source_text"],
+  ...["counterparty", "next_action", "action_text", "consequence", "waiting_on", "date_text", "amount_text"],
+  ...["evidence", "speaker", "summary", "question", "answer", "display_name", "aliases"],
+]);
+
+function loggableSegment(segment: string): string {
+  if (/^\d{1,6}$/.test(segment)) return segment;
+  return LOGGABLE_KEYS.has(segment) ? segment : "(invalid_key)";
 }
 
 /** Bucket a character count for `source_submitted.char_count_bucket`. */

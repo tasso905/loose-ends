@@ -46,13 +46,37 @@ const ERROR_NAME = /^[A-Za-z_$][\w$.]{0,63}$/;
 /** An error's class name only: messages can echo request bodies, so they are never logged. */
 const errorName = (err: unknown) => (err instanceof Error && ERROR_NAME.test(err.name) ? err.name : "non_error_thrown");
 
+/** Upper bound on one PostHog request; no retries (see posthogClient). */
+export const POSTHOG_REQUEST_TIMEOUT_MS = 2500;
+
 const clients = new Map<string, CaptureClient>();
 function posthogClient({ key, host }: { key: string; host: string }): CaptureClient {
   const cacheKey = `${host}\n${key}`;
   let client = clients.get(cacheKey);
   if (!client) {
     // Serverless: no batching or timers; each event is sent by captureImmediate and awaited in after().
-    client = new PostHog(key, { host, flushAt: 1, flushInterval: 0, disableGeoip: true, requestTimeout: 3000, fetchRetryCount: 1 });
+    // One attempt with a 2.5 s timeout and no retry, so a hung PostHog holds after() for at most
+    // about 2.5 s (the SDK default is 10 s x 4 attempts). A dropped event is acceptable; a slow
+    // function is not.
+    const ph = new PostHog(key, {
+      host,
+      flushAt: 1,
+      flushInterval: 0,
+      disableGeoip: true,
+      requestTimeout: POSTHOG_REQUEST_TIMEOUT_MS,
+      fetchRetryCount: 0,
+    });
+    // captureImmediate swallows network errors and emits them here; log the class name only.
+    if (typeof ph.on === "function") {
+      ph.on("error", (err: unknown) => {
+        try {
+          defaultLog("analytics_capture_failed", { event: null, error: errorName(err) });
+        } catch {
+          // Never throw from the SDK's emitter.
+        }
+      });
+    }
+    client = ph;
     clients.set(cacheKey, client);
   }
   return client;

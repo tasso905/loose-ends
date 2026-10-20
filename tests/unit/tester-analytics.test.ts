@@ -271,7 +271,7 @@ describe("rule 9: content cannot reach the server logs", () => {
   // verbatim, so content shaped as an identifier ("Pay_Dana_1470_for_the_roof_by_Friday") reaches the
   // log line. The code comment claims "a key can never smuggle text either". Only reachable if a caller
   // builds a key from content, which the TS types forbid, so it is not a release blocker.
-  it.fails("a content-bearing identifier-shaped key does not reach the log line", async () => {
+  it("a content-bearing identifier-shaped key does not reach the log line", async () => {
     const { t, logs } = tracker();
     await t.trackAndWait(UID, "undo_used", { action: "done", [SECRET_KEY]: 1 });
     await t.trackAndWait(UID, "proposals_shown", { extraction_id: TID, band_counts: { [SECRET_KEY]: 1 } });

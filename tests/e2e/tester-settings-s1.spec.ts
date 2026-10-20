@@ -72,7 +72,6 @@ test.describe("gate off (S1 as committed)", () => {
   // in `next build && next start`. Unknown routes return a real 404. Remove test.fail() once fixed
   // (for example, gate in app/settings/layout.tsx, which sits outside the loading boundary).
   test("signed in: /settings returns HTTP 404 while gated", async ({ page }) => {
-    test.fail();
     await signIn(page);
     const res = await page.goto("/settings");
     expect(res?.status()).toBe(404);
@@ -152,7 +151,6 @@ test.describe("gate flipped locally (LE_S1_GATE_ON=1)", () => {
   // to <body>, so a keyboard user loses their place after every toggle (WCAG 2.4.3 / 2.1.1 usability).
   // aria-busy alone (or aria-disabled + ignoring clicks while pending) keeps focus.
   test("keyboard: focus stays on the switch after a save", async ({ page }) => {
-    test.fail();
     await signIn(page);
     await page.goto("/settings#profile");
     const sw = page.getByRole("switch", { name: "Analytics" });

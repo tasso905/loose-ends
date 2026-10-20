@@ -1,5 +1,5 @@
 "use client";
-import { useId, useState, useTransition } from "react";
+import { useId, useRef, useState, useTransition } from "react";
 import { setAnalyticsEnabled } from "@/app/settings/actions";
 import { useHydrated } from "@/components/auth/useHydrated";
 import { FieldError } from "@/components/Notice";
@@ -9,6 +9,8 @@ import { cn } from "@/lib/utils";
 /**
  * Settings → Profile analytics toggle (DESIGN_STANDARD "Toggle"; D40). The switch moves only after
  * the server confirms the save (rule 10); a failed save keeps the old state and shows the §2.13 error.
+ * While saving it is aria-disabled and ignores presses rather than `disabled`, so keyboard focus stays
+ * on the switch (WCAG 2.4.3).
  */
 export function AnalyticsToggle({ initialEnabled }: { initialEnabled: boolean }) {
   const [enabled, setEnabled] = useState(initialEnabled);
@@ -18,8 +20,11 @@ export function AnalyticsToggle({ initialEnabled }: { initialEnabled: boolean })
   const labelId = useId();
   const descId = useId();
   const errorId = useId();
+  const inFlight = useRef(false);
 
   function toggle() {
+    if (inFlight.current) return;
+    inFlight.current = true;
     setError(null);
     const next = !enabled;
     startTransition(async () => {
@@ -29,6 +34,8 @@ export function AnalyticsToggle({ initialEnabled }: { initialEnabled: boolean })
         else setError(C.saveFailed);
       } catch {
         setError(navigator.onLine ? C.saveFailed : C.offline);
+      } finally {
+        inFlight.current = false;
       }
     });
   }
@@ -46,9 +53,10 @@ export function AnalyticsToggle({ initialEnabled }: { initialEnabled: boolean })
           aria-labelledby={labelId}
           aria-describedby={error ? `${descId} ${errorId}` : descId}
           aria-busy={pending || undefined}
-          disabled={pending || !hydrated}
+          aria-disabled={pending || undefined}
+          disabled={!hydrated}
           onClick={toggle}
-          className="focus-ring group inline-flex h-10 w-11 shrink-0 items-center justify-center rounded-control disabled:cursor-not-allowed disabled:opacity-50 max-md:h-11"
+          className="focus-ring group inline-flex h-10 w-11 shrink-0 items-center justify-center rounded-control disabled:cursor-not-allowed disabled:opacity-50 aria-disabled:cursor-wait aria-disabled:opacity-50 max-md:h-11"
         >
           <span
             aria-hidden
