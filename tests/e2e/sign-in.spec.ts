@@ -63,7 +63,9 @@ test("expired or invalid links return to sign-in with the documented notice", as
   // A code with no PKCE verifier cookie: the link was opened in another browser.
   await page.goto("/auth/callback?code=not-a-real-code&next=%2Fthreads");
   await expect(page).toHaveURL(/\/sign-in\?error=link_other_browser&next=%2Fthreads/);
-  await expect(page.locator("main").getByRole("alert")).toContainText("opened in a different browser");
+  await expect(page.locator("main").getByRole("alert")).toHaveText(
+    "That link was opened in a different browser. Enter your email to get a new one, and open it in this browser.",
+  );
 
   await page.goto("/auth/callback");
   await expect(page).toHaveURL(/\/sign-in\?error=link_expired$/);
@@ -85,6 +87,10 @@ test("magic link → onboarding → skip → /today → sign out → deep link �
   await page.goto("/sign-in");
   const since1 = await requestLink(page, email);
   await expect(page).toHaveURL(/\/sign-in\?sent=1/);
+  // The sent state names the link lifetime after the sent-to sentence (otp_expiry, tests/unit/auth-copy).
+  const sentState = page.getByRole("status").filter({ hasText: "Check your email" });
+  await expect(sentState.getByText(/^I sent a sign-in link to /)).toBeVisible();
+  await expect(sentState.getByText("The link works for 1 hour.", { exact: true })).toBeVisible();
   await expect(page.getByRole("link", { name: "Use a different email" })).toBeVisible();
   await page.goto(await magicLinkFor(email, since1));
 

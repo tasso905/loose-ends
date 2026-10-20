@@ -2,10 +2,18 @@
  * User-facing copy for sign-in and onboarding.
  *
  * DOCUMENTED strings are exact text from PRD F1 / D38, SITE_CONTRACT §2.0 and §2.13, and
- * CONTENT_MODEL §0. PROPOSED strings fill gaps those documents leave (sign-in has no row in the
+ * CONTENT_MODEL §0. APPROVED strings fill gaps those documents leave (sign-in has no row in the
  * SITE_CONTRACT §2.14 state matrix and no auth codes in §2.13); they follow DESIGN_STANDARD
- * Microcopy and are reported to the lead-program-manager for sign-off.
+ * Microcopy and were signed off by the user on Oct 20. PROPOSED strings still await sign-off and
+ * are not rendered.
  */
+
+/**
+ * Lifetime of a magic link, in seconds. Must equal `otp_expiry` in supabase/config.toml and in the
+ * production Supabase project's auth settings; tests/unit/auth-copy.test.ts enforces the former.
+ */
+export const MAGIC_LINK_LIFETIME_SECONDS = 3600;
+const LINK_HOURS = MAGIC_LINK_LIFETIME_SECONDS / 3600;
 export const SIGN_IN_COPY = {
   // DOCUMENTED
   wordmark: "Loose Ends",
@@ -18,10 +26,11 @@ export const SIGN_IN_COPY = {
   offline: "You're offline. Nothing was saved.", // §2.13 Network / offline
   tryAgain: "Try again",
 
-  // PROPOSED
+  // APPROVED (user sign-off Oct 20)
   emailLabel: "Email",
   sentHeading: "Check your email",
   sentTo: (email: string) => `I sent a sign-in link to ${email}. Open it in this browser to sign in.`,
+  linkLifetime: `The link works for ${LINK_HOURS} ${LINK_HOURS === 1 ? "hour" : "hours"}.`,
   orDivider: "or",
   invalidEmail: "Enter an email address, like name@example.com.",
   rateLimited: "Too many sign-in links were requested. Wait a few minutes, then try again.",
@@ -29,8 +38,10 @@ export const SIGN_IN_COPY = {
   linkExpired: "That sign-in link has expired or was already used. Enter your email to get a new one.",
   oauthFailed: "Google sign-in didn't finish. Try again, or use your email.",
   noScript: "Signing in needs JavaScript. Turn it on in your browser, then reload this page.",
-  linkOtherBrowser: "That sign-in link was opened in a different browser. Request a new one here, then open it in this browser.",
-  // Hidden until analytics events ship (D22 proposed; rule 9). Pending user sign-off.
+  linkOtherBrowser:
+    "That link was opened in a different browser. Enter your email to get a new one, and open it in this browser.",
+
+  // PROPOSED — hidden until analytics events ship (D22 proposed; rule 9). Pending user sign-off.
   analyticsNotice: "Loose Ends counts which features you use. Analytics never include what you paste.",
   analyticsOptOut: "Turn off analytics",
 } as const;
@@ -43,8 +54,8 @@ export const ONBOARDING_COPY = {
   saveFailed: "That didn't save. Try again.", // §2.13 Any other save failure
   offline: SIGN_IN_COPY.offline,
 
-  // PROPOSED
-  hint: "Separate them with commas. I use these to tell your messages apart from other people's.",
+  // APPROVED (user sign-off Oct 20)
+  hint: "Separate them with commas. I use these to tell which tasks are yours.",
   emailAlwaysIncluded: (email: string) => `Your sign-in email, ${email}, is always included.`,
   fieldLabel: "Names and emails",
   save: "Save",

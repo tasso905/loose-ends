@@ -33,6 +33,7 @@ export default async function SignInPage({ searchParams }: { searchParams: Searc
           <div role="status" className="rounded-card border border-le-border bg-le-surface p-5 max-sm:p-4">
             <h2 className="text-h3 text-le-text">{C.sentHeading}</h2>
             <p className="mt-3 text-body text-le-text">{C.sentTo(sentTo)}</p>
+            <p className="mt-3 text-body text-le-text">{C.linkLifetime}</p>
             <Link
               href={signInPath(next)}
               className="focus-ring mt-3 inline-flex min-h-11 items-center rounded-control text-body text-le-accent underline-offset-3 hover:underline md:min-h-0"

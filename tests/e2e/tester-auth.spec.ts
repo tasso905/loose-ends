@@ -582,3 +582,80 @@ test("an email typed before hydration survives hydration", async ({ page }) => {
   await expect(page.getByRole("button", { name: SEND })).toBeEnabled({ timeout: 30_000 });
   await expect(page.getByLabel("Email")).toHaveValue("early@example.com");
 });
+
+/** D39 (Oct 20) approved copy: exact strings, the lifetime line only after a confirmed send (rule 10). */
+test.describe("D39 sign-in and onboarding copy", () => {
+  const LIFETIME = "The link works for 1 hour.";
+  const OTHER_BROWSER =
+    "That link was opened in a different browser. Enter your email to get a new one, and open it in this browser.";
+  const HINT = "Separate them with commas. I use these to tell which tasks are yours.";
+  const lifetime = (page: Page) => page.getByText(/link works for/i);
+
+  test("the lifetime line never appears without a confirmed send", async ({ page, context }) => {
+    for (const url of ["/sign-in", "/sign-in?sent=1", "/sign-in?error=link_expired", "/sign-in?error=link_other_browser"]) {
+      await page.goto(url);
+      await expect(lifetime(page)).toHaveCount(0);
+    }
+    // Invalid email (validation failure).
+    await page.goto("/sign-in");
+    await page.getByLabel("Email").fill("not-an-email");
+    await page.getByRole("button", { name: SEND }).click();
+    await expect(page.locator("main").getByRole("alert")).toContainText("Enter an email address");
+    await expect(lifetime(page)).toHaveCount(0);
+    // Server failure.
+    await page.route("**/sign-in**", (r) => (r.request().method() === "POST" ? r.fulfill({ status: 500, body: "x" }) : r.continue()));
+    await page.goto("/sign-in");
+    await page.getByLabel("Email").fill(fresh());
+    await page.getByRole("button", { name: SEND }).click();
+    await expect(page.locator("main").getByRole("alert")).toHaveText("I couldn't send the link. Try again.");
+    await expect(lifetime(page)).toHaveCount(0);
+    await page.unroute("**/sign-in**");
+    // Offline.
+    await page.goto("/sign-in");
+    await context.setOffline(true);
+    await page.getByLabel("Email").fill(fresh());
+    await page.getByRole("button", { name: SEND }).click();
+    await expect(page.locator("main").getByRole("alert")).toHaveText("You're offline. Nothing was saved.");
+    await expect(lifetime(page)).toHaveCount(0);
+    await context.setOffline(false);
+  });
+
+  test("sent state: heading, sent-to, lifetime, then Use a different email; no analytics; axe", async ({ page }) => {
+    const email = fresh();
+    await page.goto("/sign-in");
+    await requestLink(page, email);
+    const status = page.getByRole("status").filter({ has: sentHeading(page) });
+    await expect(status.getByText(LIFETIME, { exact: true })).toHaveCount(1);
+    const text = (await status.innerText()).replace(/\s+/g, " ");
+    const order = [
+      "Check your email",
+      `I sent a sign-in link to ${email}. Open it in this browser to sign in.`,
+      LIFETIME,
+      "Use a different email",
+    ].map((s) => text.indexOf(s));
+    expect(order.every((i) => i >= 0)).toBe(true);
+    expect([...order].sort((a, b) => a - b)).toEqual(order);
+    await expect(page.getByText(/analytics/i)).toHaveCount(0);
+    await axe(page);
+    await page.setViewportSize({ width: 375, height: 800 });
+    expect(await smallTargets(page)).toEqual([]);
+    await axe(page);
+  });
+
+  test("different-browser error renders the approved string exactly", async ({ page }) => {
+    await page.goto("/sign-in?error=link_other_browser");
+    await expect(page.locator("main").getByRole("alert")).toHaveText(OTHER_BROWSER);
+    await expect(page.getByText(/Request a new one here/)).toHaveCount(0);
+    await axe(page);
+  });
+
+  test("onboarding shows the approved hint exactly, no analytics; axe", async ({ page }) => {
+    const email = await signInFresh(page);
+    await expect(page).toHaveURL(/\/onboarding$/);
+    // The hint and the always-included line share the field's description (aria-describedby).
+    await expect(page.locator("#answer-hint")).toHaveText(`${HINT} Your sign-in email, ${email}, is always included.`);
+    await expect(page.getByText(/tell your messages apart/)).toHaveCount(0);
+    await expect(page.getByText(/analytics/i)).toHaveCount(0);
+    await axe(page);
+  });
+});

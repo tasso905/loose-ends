@@ -64,10 +64,13 @@ Field-level content, constraints and copy are defined in the content model v1.1;
 |---|---|
 | Pitch headline (D38) | `Tie up your loose ends.` The page's only h1. Below the `Loose Ends` wordmark and above the subline. Exact text |
 | Pitch subline (D38) | `Paste in the mess. Get back what's still open, each with the sentence it came from.` Directly below the headline and above the sign-in form. Exact text; no added marketing copy, and no privacy or speed claims (rule 9) |
-| Email + `Email me a sign-in link` | Disabled while sending; check-your-email state names the address and offers `Use a different email` |
+| Email + `Email me a sign-in link` | Field label `Email`. Button disabled while sending. Field errors per §2.13 "Sign in and onboarding" |
+| Check-your-email state (D39) | Shown only after Supabase confirms the link was sent (rule 10). Heading `Check your email`. Body `I sent a sign-in link to {email}. Open it in this browser to sign in.` then `The link works for 1 hour.` Offers `Use a different email`. The lifetime line is tied to Supabase `otp_expiry = 3600`; the copy and the setting (local config and the production project) change together |
+| Divider | `or`, between the email form and `Continue with Google` (D39) |
 | `Continue with Google` | Identity scopes only (`openid email profile`) |
-| Aliases question | Skippable; signed-in email always saved as alias |
-| Notices | "Don't paste passwords or full account numbers.", shown on the sign-in page and in onboarding. Analytics notice with opt-out link |
+| No JavaScript | `Signing in needs JavaScript. Turn it on in your browser, then reload this page.` (D39) |
+| Aliases question | `What name and emails do people use for you?` Field label `Names and emails`. Hint `Separate them with commas. I use these to tell which tasks are yours.` Below it, `Your sign-in email, {email}, is always included.` Actions `Save` and `Skip`. Skippable; signed-in email always saved as alias. Field errors per §2.13 (D39) |
+| Notices | "Don't paste passwords or full account numbers.", shown on the sign-in page and in onboarding. Analytics notice with opt-out link; its wording is not approved (D39) and is pending with D22 (*Proposed*) |
 
 ### 2.1 App shell and navigation
 
@@ -190,7 +193,7 @@ Field-level content, constraints and copy are defined in the content model v1.1;
 | Data | Retention toggle; sources list with two delete options; `Export data (JSON)`; `Delete account…` (D14) |
 | Privacy explanation | Matches PRIVACY.md |
 | SHOULD fields | Digest and type toggles only if F15/F17 ship |
-| Sign out | Confirms only after the session has ended |
+| Sign out | Ends the session in this browser only; there is no "sign out everywhere" (D39). Confirms only after the session has ended |
 
 ### 2.13 Error copy (v1.1)
 
@@ -208,6 +211,20 @@ Field-level content, constraints and copy are defined in the content model v1.1;
 | Network / offline | `You're offline. Nothing was saved.` | `Try again` | Yes |
 | Any other save failure | `That didn't save. Try again.` | `Try again` | Yes |
 
+**Sign in and onboarding (D39).** Sign-in errors appear under the email field, except offline, which is a page banner with `Try again`. The `?error=` codes come from `/auth/callback`; an unknown `?error=` code shows nothing. The sign-in `rate_limited` message below is Supabase Auth's link-request limit and is separate from the app `rate_limited` code above (sources/questions per UTC day).
+
+| Code | Message | Action | Retry? |
+|---|---|---|---|
+| Sign-in `invalid_email` | `Enter an email address, like name@example.com.` | Inline under the email field | No |
+| Sign-in `rate_limited` | `Too many sign-in links were requested. Wait a few minutes, then try again.` | Inline under the email field | Later |
+| Sign-in `send_failed` | `I couldn't send the link. Try again.` | Inline under the email field; `Email me a sign-in link` stays available | Yes |
+| `?error=link_expired` | `That sign-in link has expired or was already used. Enter your email to get a new one.` | Email field | No; request a new link |
+| `?error=link_other_browser` | `That link was opened in a different browser. Enter your email to get a new one, and open it in this browser.` | Email field | No; request a new link |
+| `?error=oauth_failed` | `Google sign-in didn't finish. Try again, or use your email.` | `Continue with Google` or the email field | Yes |
+| Onboarding `too_many` | `That's more than 20 names and emails. Keep the ones people use most.` | Inline under the field | No |
+| Onboarding `too_long` | `Each name or email can be up to 100 characters.` | Inline under the field | No |
+| Onboarding save failure / offline | Generic rows above: `That didn't save. Try again.` / `You're offline. Nothing was saved.` | Page banner + `Try again` | Yes |
+
 Errors appear next to the control that caused them (forms) or as an error banner at the top of the content column (page-level). Toasts are never used for errors.
 
 ### 2.14 State matrix (v1.1)
@@ -222,6 +239,8 @@ Errors appear next to the control that caused them (forms) or as an error banner
 | Why panel | Inline spinner | — | `Couldn't load this explanation.` + retry | Source deleted |
 | Source viewer | Skeleton text | — | Not-found page | Deleted state |
 | Decisions | Skeleton list | Decision list empty state | Page banner | No match; no reason |
+| Sign in (D39) | Send button disabled while sending | — | Field errors and `?error=` messages per §2.13; offline banner | Check-your-email state (§2.0); no-JavaScript message |
+| Onboarding (D39) | — | — | Field errors per §2.13; save-failure and offline banners | Skip |
 | Settings | Skeleton form | No sources: `You haven't added anything yet.` | Field / banner errors | Export in progress; deletion in progress |
 
 ## 3. Behaviour Spec
@@ -286,4 +305,5 @@ All durations, easing and product-moment animations are defined in the Visual De
 - **Scanned PDFs:** out of MVP scope; `unsupported_scan` copy applies.
 - **SHOULD features** (dedupe, digest, forwarding, toggles, redaction) appear in the UI only if built after the day-14 checkpoint.
 - **Trust Scorecard:** README and demo materials only.
+- **Magic-link lifetime (release follow-up, D39):** the check-your-email copy says `The link works for 1 hour.` Before release, set the production Supabase project's email OTP expiry to 3600 seconds to match `supabase/config.toml`. The unit test checks only the local config.
 - **Accessibility:** automated axe checks run in the Playwright suite on Today, Review Tray, Thread detail, Why panel and Settings; VoiceOver pass on the Review Tray weekly.
