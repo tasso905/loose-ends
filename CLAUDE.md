@@ -6,7 +6,7 @@ Loose Ends turns messages and documents the user pastes in into a short list of 
 
 Read the relevant document before changing behaviour, copy or visuals. When they conflict, the order below wins, and the conflict is raised with the lead-program-manager agent rather than resolved silently.
 
-1. `docs/PRD.md` (v1.1) — product, scope, schema, API, AI behaviour. Its **Decisions Log (D1–D43)** overrides older text anywhere. Entries marked *Proposed* take effect only after the user confirms them.
+1. `docs/PRD.md` (v1.1) — product, scope, schema, API, AI behaviour. Its **Decisions Log (D1–D48)** overrides older text anywhere. Entries marked *Proposed* take effect only after the user confirms them.
 2. `docs/SITE_CONTRACT.md` (v1.1) — pages, routes, states, error copy, behaviour.
 3. `docs/CONTENT_MODEL.md` (v1.1) — fields, constraints, user-facing glossary.
 4. `docs/DESIGN_STANDARD.md` — visual standard: tokens, type, spacing, components, motion, microcopy.
@@ -99,7 +99,7 @@ Three project subagents live in `.claude/agents/`. Delegate to them by name ("us
 
 ## Schedule and gates
 
-**Re-planned Oct 18 (day 17).** The day-14 checkpoint (Oct 15) was not met because nothing had been built. Plan, assumptions and block owners: PRD "Re-plan, Oct 18" (D15–D27). The gate dates below are *proposed* (D19) until the user confirms them. Days count from Oct 2 = day 1.
+**Re-planned Oct 18 (day 17).** The day-14 checkpoint (Oct 15) was not met because nothing had been built. Plan, assumptions and block owners: PRD "Re-plan, Oct 18" (D15–D27). The user confirmed the gate dates below on Oct 21 (D19, D45). Days count from Oct 2 = day 1.
 
 | Gate | Date | Exit criteria |
 | --- | --- | --- |
@@ -110,7 +110,7 @@ Three project subagents live in `.claude/agents/`. Delegate to them by name ("us
 
 **Cuts applied: none yet.** The user overrode the day-14 rule on Oct 18 (D24; D16 suspended), so F14–F18 stay in scope. The proposed cuts DOCX (D17), Explain card "Worth considering" (D18) and the MUST trims (D20: "Which of these is you?", "Still relevant?") are deferred, not decided. Google sign-in (D20(a)) is settled by D41: kept behind a flag and switched on only if the user's OAuth setup and a manual check pass by Oct 24; otherwise email link only. A SHOULD feature's UI stays hidden and unclaimed (including redaction) until the lead-tester verifies it.
 
-**Scope review: Sat Oct 25 (day 24, D25).** The user decides cuts from one week of progress, applying the cut order and never-cut list below unchanged. The same review decides D17, D18 and D20(b)–(c), records the Google outcome (D41) and reconsiders the proposed Oct 26 freeze date, which falls the next day.
+**Scope review: Sat Oct 25 (day 24, D25).** The user decides cuts from one week of progress, applying the cut order and never-cut list below unchanged. The same review decides D17, D18 and D20(b)–(c), records the Google outcome (D41) and may reconsider the Oct 26 freeze date (confirmed Oct 21, D45), which falls the next day.
 
 **Build order (D26):** MUST and never-cut work first. Then SHOULD work in reverse cut order: "Worth considering" → DOCX → F14 dedupe → F17 toggles → F15 digest → F16 forwarding last. F18 redaction goes in with the F5 pipeline work where it fits. SHOULD work never displaces a MUST block.
 

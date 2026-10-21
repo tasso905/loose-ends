@@ -22,7 +22,7 @@
 | No-JavaScript message | Explains why sign-in can't work | `Signing in needs JavaScript. Turn it on in your browser, then reload this page.` (D39) |
 | Aliases question | Helps tell "you" from others in pasted threads | "What name and emails do people use for you?"; field label `Names and emails`; hint `Separate them with commas. I use these to tell which tasks are yours.`; below it `Your sign-in email, {email}, is always included.`; actions `Save` and `Skip`. Up to 20 names and emails, each up to 100 characters (limits decided, D40), with the errors in SITE_CONTRACT §2.13 (D39). Skippable; signed-in email always saved as an alias |
 | Sensitive-data note | Sets expectations before first paste | "Don't paste passwords or full account numbers."; shown on the sign-in page and in onboarding |
-| Analytics notice | Explains event-only analytics | Plain statement + opt-out link; no content is ever sent. Ships with the first PostHog event and stays hidden until then (D40, rule 9). Proposed wording (*Proposed*, approved by the user when it ships): `Loose Ends counts which features you use. Analytics never include what you paste.` Opt-out link: `Turn off analytics` |
+| Analytics notice | Explains event-only analytics | Plain statement + opt-out link; no content is ever sent. Ships with the first PostHog event and stays hidden until then (D40, rule 9). Approved wording (D46, Oct 21): `Loose Ends counts which features you use. Analytics never include what you paste.` Opt-out link: `Turn off analytics` |
 
 ### 1. App shell and navigation
 
@@ -39,12 +39,12 @@
 
 | Field | Description | Constraints |
 |---|---|---|
-| Page heading | Invites the user to capture source material | Short, calm, action-oriented |
+| Page heading | Invites the user to capture source material | `Drop something in` (D47) |
 | Mode tabs | Choose input type | `Paste`, `Upload`, `Quick add` |
-| Text input | Pasted source text | Max 30,000 characters; live count near the limit; preserve original text; validate rather than silently truncate |
+| Text input | Pasted source text | Label `Paste a message or document`, hint `Up to 30,000 characters.` (D47). Max 30,000 characters; live count near the limit; preserve original text; validate rather than silently truncate |
 | File picker | Upload source documents | PDF, TXT, MD, DOCX; max 10 MB and 30 pages; one file at a time; text-layer files only for MVP |
-| Source title | Optional human-readable source name | Optional; max 120 characters; user-editable |
-| Written-on date | Date associated with the source | Optional; default to today only when visibly labelled `Assumed`; ISO date internally |
+| Source title | Optional human-readable source name | Optional, under the disclosure `Add a title`, field label `Title (optional)` (D47); max 120 characters; user-editable |
+| Written-on date | Date associated with the source | Optional; default to today only when visibly labelled `Assumed`; ISO date internally. Field label `I assumed this was written today. Change it if it wasn't.` until the user sets a date, then `Written on` (D47); valid range 1900–2100 |
 | Quick-add text | A brief note or commitment entered directly | Single line; max 2,000 characters; preserve user wording |
 | AI provider notice | Tells the user where their text goes before they send it | Conditional (D42, PRD Question #12): required on Paste, Upload and Quick add if the deployment uses the Gemini free tier; plain words that the text goes to Google, which may use it to improve its products, and that people at Google may read it. Wording pending user approval. Never claim the data is not used or not read |
 | Submit / progress / error | Starts extraction and communicates state | `Review source` (paste/upload) or `Add` (quick add); progress tied to real pipeline steps; errors from the error copy table (site contract §2.13) |
@@ -62,9 +62,9 @@
 | Due date | Candidate date or deadline | Explicit dates plain; inferred dates carry an `Assumed` chip with the resolution explained; never invent a precise date. A month-day with no year is in the past only if it falls within 30 days before the written-on date, otherwise the next occurrence (D28) |
 | Confidence label | Strength of extraction | Dot + word + reason, e.g. `Likely · Clear commitment with a date`; colour never the only signal |
 | Evidence quote | Verbatim source excerpt supporting the proposal | Must match source exactly; include page/location when available; if no verifiable quote, the item is not shown |
-| Review choice | User disposition of proposal | `Accept`, `Edit`, or `Reject`; `Accept selected` and `Reject all` at tray level |
+| Review choice | User disposition of proposal | `Accept`, `Edit`, or `Reject`; `Accept selected` and `Reject all` at tray level. Disabled reasons (D47): `Nothing selected.` (Accept selected, nothing checked); `I can't tell who this is waiting on, so it can't be added yet.` (a waiting-on card with no counterparty) |
 | Clarification | Resolve ambiguous roles (e.g. "Which of these is you?") | Ask only when a high-value item has an unknown owner; list detected names + `None of them`; offer `Remember "{name}" as you?` afterwards |
-| Review result | Outcome of review | Accepted/edited proposals become threads; rejected proposals are stored for suppression and never treated as commitments; summary line `2 threads added · View in Today` |
+| Review result | Outcome of review | Accepted/edited proposals become threads; rejected proposals are stored for suppression and never treated as commitments; summary line `2 threads added · View in Today`; singular `1 thread added` (D47) |
 | Zero-proposal state | Nothing found | `Nothing here needs your attention`, plus the document brief if one exists |
 
 ### 4. Today
@@ -100,16 +100,17 @@
 | Thread title | Name of the real-world situation | User-editable; concise |
 | Loop type | Classification | Same allowed values as Review Tray |
 | Status | Current lifecycle state | `Open`, `Waiting`, `Snoozed`, `Resolved`, `Dismissed`; overdue is derived, never a status (D2) |
+| Section headings | Labels on Thread detail | `Next action`, `Evidence`, `History` (D47) |
 | Next action | Next unresolved action | Specific; user-editable; `Suggested` label until the user edits or accepts it |
 | Due date and certainty | When action is due, if known | Explicit, assumed (inferred), or none; never fabricate |
 | Counterparty / waiting-on | Person or entity involved | Optional; grounded in source or user correction; `expected by` date when waiting |
 | Confidence label | Origin confidence | Same dot + word + reason as the tray |
 | Explain card | Brief explanation of the situation | Sections: What this is · What you need to do · By when · If you don't · Worth considering · Not sure about; each line is a source fact (quote) or labelled `Interpretation`; quick-add threads show only What to do and By when |
-| Evidence | Traceability to original source | Verified quote, source name, page/date; `Open source` link |
+| Evidence | Traceability to original source | Verified quote, source name, page/date; `Open source` link. Source line reads `Source deleted` once the source is deleted (D47) |
 | Why? entry | Opens the Why panel | Present on Thread detail and every Today row |
-| Thread history | Chronological updates and actions | Timestamped; append-only; corrections read `You changed the date from Oct 9 to Oct 12` |
+| Thread history | Chronological updates and actions | Timestamped; append-only; corrections read `You changed the date from Oct 9 to Oct 12`. Event lines (D47): `You accepted this from your source.`, `Added from quick add.`, `You marked this done.` / `Loose Ends marked this done.`, `You resolved this.` / `Loose Ends resolved this.`, `You undid the last change.`, `You reopened this.`, `You snoozed this.`, `You edited this.`, `Status changed to {status}.`; fallback `Updated.` |
 | Decision | If resolved as Decided | Choice, `You wrote` reason, date |
-| Actions | Manage thread | `Done`, `Resolve…`, `Mark waiting`, `Snooze`, `Edit`, `Dismiss`, `Reopen`, `Forget permanently`; only Forget is confirmed (D8) |
+| Actions | Manage thread | `Done`, `Resolve…`, `Mark waiting`, `Snooze`, `Edit`, `Dismiss`, `Reopen`, `Forget permanently`; only Forget is confirmed (D8). Done shows the toast `Marked done: "{title}"` + `Undo` (D47). Undo restores the state before the action and adds an `undone` history line; the toast lasts 8 s and the server accepts the undo up to 12 s (D44). Until F11 ships, `Resolve…` is disabled with `Resolving with a decision isn't available yet.` (D47) |
 
 ### 7. Why panel (v1.1, F8)
 
@@ -162,7 +163,7 @@
 |---|---|---|
 | Display name / aliases | Helps resolve references such as "you" | User-controlled list; add/remove |
 | Timezone | Correct interpretation of dates and reminders | User-selectable; IANA identifier internally |
-| Analytics | Event-only analytics | Toggle, on by default (opt-out); explains that no content is sent. Ships with the first PostHog event and stays hidden until then (D40) |
+| Analytics | Event-only analytics | Toggle labelled `Analytics` in the `Profile` section, on by default (opt-out); its description is the notice sentence `Loose Ends counts which features you use. Analytics never include what you paste.` Load failure: `Settings didn't load. Try again.` (D46). Ships with the first PostHog event and stays hidden until then (D40) |
 | Retain original source | Controls source retention | Toggle, on by default; explain effect before changing |
 | Sources list | Every source the user added | Title, kind, date, derived thread count |
 | Delete source | Per-source deletion | Two options: `Delete source only` (threads keep quotes) or `Delete source and everything from it`; confirmation lists what is deleted and what remains |
