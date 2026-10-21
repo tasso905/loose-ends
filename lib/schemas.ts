@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { ItemType, Item } from "@/lib/ai/schema";
+import { ItemType } from "@/lib/ai/schema";
 
 /** Shared domain schemas and types for rows in PRD "Database Schema". */
 
@@ -35,6 +35,8 @@ export const ThreadEventType = z.enum([
   "reopened",
   "digest_sent",
   "marked_not_useful",
+  // Proposed D44 (a): an 8 s undo of the latest event appends this; history is never rewritten.
+  "undone",
 ]);
 export type ThreadEventType = z.infer<typeof ThreadEventType>;
 
@@ -81,7 +83,8 @@ export const ExtractionItemRow = z.object({
   id: z.uuid(),
   user_id: z.uuid(),
   extraction_id: z.uuid(),
-  payload: Item,
+  /** Versioned proposal payload (A11); parse with ProposalPayload from lib/extraction/payload.ts. */
+  payload: z.record(z.string(), z.unknown()),
   confidence: z.number().min(0).max(1),
   band: Band,
   review_status: ReviewStatus,

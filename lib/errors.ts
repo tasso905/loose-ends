@@ -13,7 +13,11 @@ export type ErrorCode =
   | "rate_limited"
   | "invalid_transition"
   | "offline"
-  | "save_failed";
+  | "save_failed"
+  | "not_found"
+  | "unauthenticated"
+  | "invalid_input"
+  | "retry_limit";
 
 export interface ApiError {
   error: { code: ErrorCode; message: string; retryable: boolean };
@@ -30,7 +34,14 @@ type Params = {
   invalid_transition: undefined;
   offline: undefined;
   save_failed: undefined;
+  not_found: undefined;
+  unauthenticated: undefined;
+  invalid_input: { field: InputField };
+  retry_limit: { n: number };
 };
+
+/** Fields that can carry an `invalid_input` error on the Add form. */
+export type InputField = "text" | "title" | "written_on";
 
 const num = (n: number) => n.toLocaleString("en-US");
 
@@ -62,6 +73,26 @@ const COPY: { [K in ErrorCode]: { retryable: boolean; status: number; message: (
   },
   offline: { retryable: true, status: 503, message: () => "You're offline. Nothing was saved." },
   save_failed: { retryable: true, status: 500, message: () => "That didn't save. Try again." },
+  // HTTP-only codes for route handlers (S2 poll route). Not in §2.13 yet: pages render the
+  // not-found page and the sign-in redirect instead, so users do not normally see these strings.
+  not_found: { retryable: false, status: 404, message: () => "This doesn't exist or was deleted." },
+  unauthenticated: { retryable: false, status: 401, message: () => "Sign in to continue." },
+  // PROPOSED copy (S2-4; not in §2.13 yet, pending user approval). Shown at the field, not as a
+  // retryable save failure, because resubmitting the same value can never succeed.
+  invalid_input: { retryable: false, status: 422, message: (p) => INVALID_INPUT_COPY[p.field] },
+  // PROPOSED copy for the pending Try again cap (MAX_RETRIES_PER_SOURCE; user decision pending).
+  retry_limit: {
+    retryable: false,
+    status: 429,
+    message: (p) => `I couldn't read this after ${num(p.n)} more tries. Your text is saved.`,
+  },
+};
+
+/** PROPOSED field copy (S2-4). */
+const INVALID_INPUT_COPY: Record<InputField, string> = {
+  text: "Paste some text first.",
+  title: "Titles can be up to 120 characters.",
+  written_on: "Enter a real date between 1900 and 2100.",
 };
 
 /** `extraction_slow` is a status, not an error (PRD API Requirements). */

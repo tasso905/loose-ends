@@ -6,6 +6,9 @@ export type LogEvent =
   | "quote_unverified"
   | "field_unverified"
   | "extraction_retry"
+  | "extraction_failed"
+  | "extraction_start_failed"
+  | "extraction_persist_failed"
   | "ask_why_ref_rejected"
   | "ask_why_retry"
   | "ask_why_failed"
@@ -16,7 +19,10 @@ export type LogEvent =
   | "onboarding_save_failed"
   | "analytics_rejected"
   | "analytics_capture_failed"
-  | "analytics_setting_save_failed";
+  | "analytics_setting_save_failed"
+  | "review_persist_failed"
+  | "thread_action_failed"
+  | "threads_load_failed";
 
 export type LogProps = Record<string, string | number | boolean | null>;
 

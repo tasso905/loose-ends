@@ -1251,6 +1251,21 @@ The day-14 checkpoint is the cut line: SHOULD features (digest, forwarding, dedu
 | Oct 30 (29) | Video support; fixes only | Final regression run | Video recorded; submission package |
 | Oct 31 (30) | Buffer | — | **Submission** |
 
+**Core-loop slices, Oct 21–23 (added Oct 20, day 19; planning note, no scope change).** The user approved starting the core loop on Oct 20. Built on `main` by then: sign-in and onboarding, schema with RLS, `lib/pipeline`, `lib/threads` (`transition()`, mapping), `lib/ai` (extract, askWhy, Gemini and fake providers), account deletion; `/today` is a placeholder and `evals/fixtures` is empty. PR-sized slices, in merge order:
+
+| # | Slice | Target | Size | PostHog events |
+| --- | --- | --- | --- | --- |
+| S0 | AI hardening from the Gemini PR: `pnpm eval` throttle and per-fixture failure kind + prompt/schema versions; Ask why retry per D43; `-latest` check case-insensitive | Oct 21 AM | S | — |
+| S1 | Analytics plumbing: server-side capture with an event/property allowlist, opt-out setting, notice and toggle built but hidden (no events yet) | Oct 21 AM | S | — |
+| S2 | F2 paste → `sources` + `extractions` → pipeline → `extraction_items`; `/review/[id]` progress, slow and failure states; rate limit; `rawText` never logged | Oct 21 | L | `source_submitted`, `extraction_completed` (notice and toggle go live) |
+| S3 | F6 review tray: groups, F19 labels, accept → threads + evidence + `thread_events`, reject + suppression, zero state | Oct 22 | L | `proposals_shown`, `proposal_reviewed` |
+| S4 | Threads index (Active/Closed), Thread detail (header, evidence, history), Done with 8 s undo; interim Today list | Oct 22 | M | `thread_action`, `undo_used` |
+| S5 | Production deploy: Vercel, hosted Supabase, release checklists (D39, D41) | First deploy as soon as accounts exist; final Oct 23 AM | M | — |
+| S6 | F3 upload: PDF, TXT, MD (DOCX if cheap), type sniffing, limits, scan detection, private storage, page offsets | Oct 23 | M | `source_submitted` (`kind = upload`) |
+| S7 | F7 Explain card from the stored brief; compact card for sources without a brief | Oct 23 | M | — |
+
+Not in these three days, moved to Oct 24 onward: F4 quick add (was Oct 20–21), review-tray inline edit and "Which of these is you?" (D20(b) still pending), F9 actions beyond Done, F18 redaction (was "if it fits" Oct 20–21) and Sentry. The Oct 24–25 block is overloaded as a result; the Oct 25 scope review must account for it. Tripwire: if S2–S4 are not verified by the lead-tester by the end of Oct 22, or no hosted accounts exist by noon Oct 22, the checkpoint is at risk and goes to the user.
+
 **If the team is bigger:** with 2 developers, one owns the pipeline and evals full-time (Q9). The remaining D20 trims ("Which of these is you?", "Still relevant?"; Google sign-in is settled by D41) are restored and built Oct 24–26, and DOCX (D17) can be reconsidered at the core-loop checkpoint. With 3 or more, add one day of buffer before the eval gate. *Superseded Oct 18:* "SHOULD features stay out either way unless the user overrides D16." The user has overridden D16 (D24); SHOULD features are in scope until the Oct 25 review.
 
 ## Hackathon Demo Plan

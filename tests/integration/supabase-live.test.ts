@@ -94,12 +94,16 @@ async function makeUser(tag: string): Promise<User> {
   return { id: data.user.id, email, client };
 }
 
-/** A full graph owned by `u`, written with the user's own session (so it also proves writes work under RLS). */
+/**
+ * A full graph owned by `u`. Rows are written with the service role: users have no direct writes
+ * to the trust tables (migration 20261021115926; they go through definer functions). The file is
+ * uploaded with the user's own session, so storage RLS is still exercised.
+ */
 async function seed(u: User, tag: string): Promise<Graph> {
   const c = u.client;
   const quote = `I'll send the ${TOKEN} proposal ${tag} Friday`;
   const ins = async (table: string, row: Record<string, unknown>) => {
-    const { data, error } = await c.from(table).insert(row).select().single();
+    const { data, error } = await admin.from(table).insert(row).select().single();
     if (error) throw new Error(`${table}: ${error.message}`);
     return data as { id: string };
   };
@@ -113,7 +117,8 @@ async function seed(u: User, tag: string): Promise<Graph> {
   const path = `${u.id}/${source.id}.txt`;
   const up = await c.storage.from("sources").upload(path, new Blob([`${quote}`], { type: "text/plain" }));
   if (up.error) throw new Error(`upload: ${up.error.message}`);
-  await c.from("sources").update({ storage_path: path }).eq("id", source.id);
+  const sp = await admin.from("sources").update({ storage_path: path }).eq("id", source.id);
+  if (sp.error) throw new Error(`sources.storage_path: ${sp.error.message}`);
   const brief = {
     what_this_is: [{ text: "A note about a proposal", basis: "interpretation", quote: null }],
     what_to_do: [
@@ -242,6 +247,29 @@ describe.skipIf(!env)("real local Supabase: RLS, rate limit, deletion", () => {
     expect(del.data ?? []).toEqual([]);
   });
 
+  it("S4: threads cannot be updated directly; Done and Undo go through the definer functions, owner only", async () => {
+    // No direct UPDATE, even of one's own thread (status changes need a thread_events row).
+    const direct = await A.client.from("threads").update({ status: "resolved" }).eq("id", gA.thread).select();
+    expect(direct.error?.code).toBe("42501");
+    expect((await admin.from("threads").select("status").eq("id", gA.thread).single()).data).toEqual({ status: "open" });
+
+    // B cannot Done A's thread.
+    const now = new Date();
+    const foreign = await B.client.rpc("thread_done", { p_thread_id: gA.thread, p_from_status: "open", p_now: now.toISOString() });
+    expect(foreign.data).toEqual({ ok: false, error: "not_found" });
+    // anon cannot call it at all.
+    expect((await anon.rpc("thread_done", { p_thread_id: gA.thread, p_from_status: "open", p_now: now.toISOString() })).error).not.toBeNull();
+
+    const done = await A.client.rpc("thread_done", { p_thread_id: gA.thread, p_from_status: "open", p_now: now.toISOString() });
+    expect(done.data).toMatchObject({ ok: true, from_status: "open", to_status: "resolved" });
+    expect((await B.client.rpc("thread_undo", { p_thread_id: gA.thread, p_event_id: done.data.event_id, p_now: now.toISOString() })).data).toEqual({ ok: false, error: "not_found" });
+    const undo = await A.client.rpc("thread_undo", { p_thread_id: gA.thread, p_event_id: done.data.event_id, p_now: new Date(now.getTime() + 2000).toISOString() });
+    expect(undo.data).toMatchObject({ ok: true, to_status: "open", undone_event_id: done.data.event_id });
+    expect((await admin.from("threads").select("status, resolution").eq("id", gA.thread).single()).data).toEqual({ status: "open", resolution: null });
+    const { data: ev } = await admin.from("thread_events").select("type").eq("thread_id", gA.thread).order("id");
+    expect(ev!.map((e) => e.type)).toEqual(["created", "resolved", "undone"]);
+  });
+
   it("profiles and user_settings cannot be deleted by the owner; invalid timezone is refused", async () => {
     expect((await A.client.from("profiles").delete().eq("id", A.id).select()).data ?? []).toEqual([]);
     expect((await A.client.from("user_settings").delete().eq("user_id", A.id).select()).data ?? []).toEqual([]);
@@ -286,15 +314,19 @@ describe.skipIf(!env)("real local Supabase: RLS, rate limit, deletion", () => {
   it("F13 delete source only: thread and its quote stay; proposal and source-only evidence go; file removable", async () => {
     const D = await makeUser("d");
     const g = await seed(D, "d");
-    // pending proposal with evidence, and a source-only evidence row
-    const item2 = await D.client
+    // pending proposal with evidence, and a source-only evidence row (seeded with the service role;
+    // quotes must be in the source text, which every writer's quote trigger checks)
+    const item2 = await admin
       .from("extraction_items")
       .insert({ user_id: D.id, extraction_id: g.extraction, payload: {}, confidence: 0.6, band: "medium", item_index: 1 })
       .select()
       .single();
     expect(item2.error).toBeNull();
-    await D.client.from("evidence").insert({ user_id: D.id, source_id: g.source, extraction_item_id: item2.data!.id, quote: `pending ${TOKEN}`, match_kind: "exact" });
-    await D.client.from("evidence").insert({ user_id: D.id, source_id: g.source, quote: `source only ${TOKEN}`, match_kind: "exact" });
+    const e1 = await admin.from("evidence").insert({ user_id: D.id, source_id: g.source, extraction_item_id: item2.data!.id, quote: "Also the parrot memo", match_kind: "exact" });
+    expect(e1.error).toBeNull();
+    const e2 = await admin.from("evidence").insert({ user_id: D.id, source_id: g.source, quote: `the ${TOKEN} proposal d`, match_kind: "exact" });
+    expect(e2.error).toBeNull();
+    expect((await admin.from("evidence").select("id").eq("user_id", D.id)).data).toHaveLength(3);
 
     const del = await D.client.from("sources").delete().eq("id", g.source).select();
     expect(del.error).toBeNull();

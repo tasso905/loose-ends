@@ -24,6 +24,8 @@ export function isGoogleSignInEnabled(): boolean {
  * opt-out link can never 404 (CONTENT_MODEL §11 Analytics; D40, rule 9). While false, `track()` sends
  * nothing.
  */
+// SHIP SWITCH (D40): set to true once the user approves the analytics notice wording. S2's events
+// (source_submitted, extraction_completed) are wired and start sending with this one-line change.
 export const SETTINGS_ANALYTICS_TOGGLE_SHIPPED = false;
 
 /** PostHog US cloud ingestion host (D40: US region). Override with POSTHOG_HOST. */

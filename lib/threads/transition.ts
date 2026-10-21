@@ -4,7 +4,8 @@ import { getNow } from "@/lib/time";
 
 /**
  * The single place thread status changes happen (CLAUDE.md engineering conventions).
- * Implements exactly the PRD "Lifecycle transitions" table (v1.1, incl. D6). Anything else
+ * Implements exactly the PRD "Lifecycle transitions" table (v1.1, incl. D6), plus the 8 s `undo`
+ * of proposed D44 option (a), kept in its own branch so it can change. Anything else
  * returns `invalid_transition`. Pure: the caller persists the new state, appends the
  * returned `thread_events` row and applies the effects.
  */
@@ -71,7 +72,54 @@ export type ThreadAction =
   | { type: "wake" }
   | { type: "reopen" }
   | { type: "edit"; fields: EditableFields }
-  | { type: "forget"; alsoDeleteSource?: boolean };
+  | { type: "forget"; alsoDeleteSource?: boolean }
+  | { type: "undo"; target: UndoTarget };
+
+/**
+ * The event an Undo reverses (proposed D44 option a, pending user confirmation). The caller reads it
+ * from `thread_events`; `latest` says whether it is the thread's newest event.
+ */
+export interface UndoTarget {
+  id: number;
+  type: ThreadEventType;
+  actor: Actor;
+  before: Record<string, unknown> | null;
+  after: Record<string, unknown> | null;
+  /** ISO instant the event was written (getNow() on the server). */
+  created_at: string;
+  latest: boolean;
+}
+
+/** D8: the undo toast lasts 8 s; the server refuses an undo after that. */
+export const UNDO_WINDOW_MS = 8_000;
+
+/**
+ * Event types an Undo may reverse. Only Done exists so far (S4); mirrored by public.thread_undo().
+ * Each reversible action joins this list when it ships, with its effects reversed too (Dismiss must
+ * delete its suppression; Resolve as Decided must delete its decision row).
+ */
+export const UNDOABLE_EVENT_TYPES: ReadonlyArray<ThreadEventType> = ["resolved"];
+
+/** Every ThreadState key; Undo restores only these. */
+export const THREAD_STATE_KEYS: ReadonlyArray<keyof ThreadState> = [
+  "title",
+  "kind",
+  "next_action",
+  "counterparty",
+  "due_at",
+  "due_certainty",
+  "due_time_known",
+  "consequence",
+  "consequence_basis",
+  "status",
+  "resolution",
+  "waiting_on",
+  "expected_by",
+  "snoozed_until",
+  "resolved_at",
+  "primary_source_id",
+  "confidence",
+];
 
 export type ThreadActionType = ThreadAction["type"];
 
@@ -109,6 +157,8 @@ export const ALLOWED_FROM: Record<ThreadActionType, ReadonlyArray<ThreadStatus |
   reopen: ["resolved", "dismissed"],
   edit: ["open", "waiting", "snoozed", "resolved", "dismissed"],
   forget: ["open", "waiting", "snoozed", "resolved", "dismissed"],
+  // Proposed D44 (a), not in the PRD table yet: what it restores depends on the undone event.
+  undo: ["open", "waiting", "snoozed", "resolved", "dismissed"],
 };
 
 /**
@@ -129,6 +179,7 @@ export const ALLOWED_ACTORS: Record<ThreadActionType, ReadonlyArray<Actor>> = {
   reopen: ["user"],
   edit: ["user", "ai"],
   forget: ["user"],
+  undo: ["user"],
 };
 
 const invalid = (): TransitionResult => ({ ok: false, ...apiError("invalid_transition") });
@@ -267,6 +318,9 @@ export function transition(thread: ThreadState | null, action: ThreadAction, ctx
     case "edit":
       return edit(t, action.fields, actor, now);
 
+    case "undo":
+      return undo(t, action.target, actor, now);
+
     case "forget":
       return {
         ok: true,
@@ -275,6 +329,34 @@ export function transition(thread: ThreadState | null, action: ThreadAction, ctx
         effects: [{ type: "delete_thread", alsoDeleteSource: action.alsoDeleteSource ?? false }],
       };
   }
+}
+
+/**
+ * Undo (proposed D44 option a): only the thread's latest event, only the user's own reversible
+ * action, only within UNDO_WINDOW_MS of it. Restores that event's `before` values exactly (a Done
+ * from waiting goes back to waiting) and returns an `undone` event; nothing earlier is rewritten.
+ */
+function undo(t: ThreadState, target: UndoTarget, actor: Actor, now: Date): TransitionResult {
+  if (!target.latest || target.actor !== "user" || !UNDOABLE_EVENT_TYPES.includes(target.type)) return invalid();
+  if (!validInstant(target.created_at)) return invalid();
+  const elapsed = now.getTime() - new Date(target.created_at).getTime();
+  if (elapsed < 0 || elapsed > UNDO_WINDOW_MS) return invalid();
+
+  const before = target.before ?? {};
+  const after = target.after ?? {};
+  const isStateKey = (k: string): k is keyof ThreadState => (THREAD_STATE_KEYS as ReadonlyArray<string>).includes(k);
+  if (![...Object.keys(before), ...Object.keys(after)].every(isStateKey)) return invalid();
+  // The thread must still hold the event's `after` values; otherwise refuse rather than clobber.
+  for (const k of Object.keys(after) as (keyof ThreadState)[]) if (t[k] !== after[k]) return invalid();
+
+  const restored: ThreadState = { ...t, ...(before as Partial<ThreadState>) };
+  const d = diff(t, restored);
+  return {
+    ok: true,
+    thread: restored,
+    event: { type: "undone", actor, before: d.before, after: { ...d.after, undone_event_id: target.id } },
+    effects: [],
+  };
 }
 
 function closeAs(t: ThreadState, status: "resolved" | "dismissed", resolution: Resolution | null, nowIso: string): ThreadState {

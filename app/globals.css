@@ -91,6 +91,7 @@
   --text-body-strong: 16px; --text-body-strong--line-height: 24px; --text-body-strong--font-weight: 500;
   --text-small: 14px; --text-small--line-height: 20px;
   --text-label: 13px; --text-label--line-height: 16px; --text-label--letter-spacing: 0.01em; --text-label--font-weight: 500;
+  --text-eyebrow: 12px; --text-eyebrow--line-height: 16px; --text-eyebrow--letter-spacing: 0.06em; --text-eyebrow--font-weight: 600;
   --text-wordmark: 17px; --text-wordmark--letter-spacing: -0.01em; --text-wordmark--font-weight: 600;
 
   /* Layout widths: the 720px content column and the 480px dialog/form measure. */
@@ -101,6 +102,19 @@
 
   /* Saving/submitting spinner: Loader2 rotating 900ms linear (DESIGN_STANDARD Product moments). */
   --animate-spin-status: spin 900ms linear infinite;
+  /* Extraction in progress: skeleton cards pulse 1 → 0.6 → 1 over 1.6s (DESIGN_STANDARD Product moments). */
+  --animate-skeleton: le-skeleton 1.6s ease-in-out infinite;
+  /* A new pipeline step fades in at --dur-base. */
+  --animate-fade-in: le-fade-in var(--le-dur-base) var(--le-ease-out);
+
+  @keyframes le-skeleton {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.6; }
+  }
+  @keyframes le-fade-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
 }
 
 /* Focus-visible ring for buttons and links: 2px --le-accent, 2px offset (DESIGN_STANDARD Interactions). */
@@ -122,5 +136,10 @@ body {
   *:not(.animate-spin-status), *::before, *::after {
     animation-duration: 0.01ms !important;
     transition-duration: 0.01ms !important;
+  }
+  /* The skeleton pulse stops and holds at 0.8 opacity. */
+  .animate-skeleton {
+    animation: none !important;
+    opacity: 0.8;
   }
 }
