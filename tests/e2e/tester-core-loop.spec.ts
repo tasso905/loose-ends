@@ -285,21 +285,21 @@ test("an Undo the toast still offers after a paused 8 s works", async () => {
   await expect(page.locator("#thread-status")).toHaveText("Open");
 });
 
-// Adapted for D44 (a): the grace period makes a 9 s Undo work (previous test), so this test makes
-// its own refused Undo by holding the toast open past the server's 12 s.
-test("after a refused late Undo (toast held past 12 s): the page says so with §2.13 copy and Refresh, and the thread stays Done", async () => {
+// Updated for user decision (a), Oct 21: the toast closes 12 s after the action even while hover or
+// focus pauses it, so it never offers an Undo the server would refuse (was: held past 12 s, the
+// toast still offered Undo and the server answered invalid_transition).
+test("a toast held open (focused) still closes 12 s after Done: no late Undo offered, focus not lost, the thread stays Done", async () => {
   test.setTimeout(60_000);
   await page.goto(threadUrl);
   await page.getByRole("button", { name: "Done", exact: true }).click();
   const undo = page.getByRole("button", { name: `Undo done: ${TITLE}` });
   await expect(undo).toBeVisible();
   await undo.focus();
-  await page.waitForTimeout(13_000);
-  await expect(undo).toBeVisible(); // still paused, still offered
-  await page.keyboard.press("Enter");
-  await expect(page.getByRole("alert").filter({ hasText: INVALID })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Refresh" })).toBeVisible();
-  await expect(page.getByText(/Marked done.*Undo/)).toHaveCount(0);
+  await page.waitForTimeout(9_000);
+  await expect(undo).toBeVisible(); // paused past 8 s: still offered (the server accepts until 12 s)
+  await expect(undo).toHaveCount(0, { timeout: 4_500 }); // gone by 12 s after the action
+  await expect(page.locator("#thread-status")).toBeFocused();
+  await expect(page.getByRole("alert").filter({ hasText: INVALID })).toHaveCount(0);
   const [t] = await thread();
   expect(t).toMatchObject({ status: "resolved", resolution: "done" });
   const types = await eventTypes(t!.id);
