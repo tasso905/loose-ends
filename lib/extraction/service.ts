@@ -38,9 +38,9 @@ export const SLOW_AFTER_MS = 45_000;
 /** A running extraction older than this is marked failed by the next poll (A2). */
 export const STALE_AFTER_MS = 90_000;
 /**
- * `Try again` limit per source after the first attempt. PENDING USER DECISION (recommended, not yet
- * approved); defaults on. The database enforces the same value in private.max_retries_per_source()
- * (migration 20261020231312); change both together.
+ * `Try again` limit per source after the first attempt: 3, approved by the user Oct 21 (replaces
+ * "always offered" in SITE_CONTRACT §2.13). The database enforces the same value in
+ * private.max_retries_per_source() (migration 20261020231312); change both together.
  */
 export const MAX_RETRIES_PER_SOURCE = 3;
 

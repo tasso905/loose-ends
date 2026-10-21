@@ -76,7 +76,7 @@ describe("formatWrittenOn", () => {
   });
 });
 
-describe("S2-4 field errors (PROPOSED copy) are not retryable", () => {
+describe("S2-4 field errors (approved copy, Oct 21) are not retryable", () => {
   it("names the field's rule", () => {
     expect(apiError("invalid_input", { field: "title" }).error).toEqual({ code: "invalid_input", message: "Titles can be up to 120 characters.", retryable: false });
     expect(apiError("invalid_input", { field: "written_on" }).error.message).toBe("Enter a real date between 1900 and 2100.");

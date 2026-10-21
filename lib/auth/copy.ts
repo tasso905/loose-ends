@@ -4,8 +4,9 @@
  * DOCUMENTED strings are exact text from PRD F1 / D38, SITE_CONTRACT §2.0 and §2.13, and
  * CONTENT_MODEL §0. APPROVED strings fill gaps those documents leave (sign-in has no row in the
  * SITE_CONTRACT §2.14 state matrix and no auth codes in §2.13); they follow DESIGN_STANDARD
- * Microcopy and were signed off by the user on Oct 20. PROPOSED strings still await sign-off and
- * are not rendered.
+ * Microcopy and were signed off by the user on Oct 20 (the analytics notice and toggle on Oct 21).
+ * Approved is not shipped: the analytics strings stay hidden until SETTINGS_ANALYTICS_TOGGLE_SHIPPED
+ * flips with the first PostHog event (D40).
  */
 
 /**
@@ -41,7 +42,7 @@ export const SIGN_IN_COPY = {
   linkOtherBrowser:
     "That link was opened in a different browser. Enter your email to get a new one, and open it in this browser.",
 
-  // PROPOSED — hidden until analytics events ship (D40; rule 9). Wording pending user sign-off when the first event ships.
+  // APPROVED (user, Oct 21) but hidden until analytics events ship (D40; rule 9).
   // Built in S1 behind SETTINGS_ANALYTICS_TOGGLE_SHIPPED; shown in onboarding only (SITE_CONTRACT §2.0).
   analyticsNotice: "Loose Ends counts which features you use. Analytics never include what you paste.",
   analyticsOptOut: "Turn off analytics",
@@ -49,10 +50,10 @@ export const SIGN_IN_COPY = {
 
 /**
  * Settings → Profile analytics toggle (SITE_CONTRACT §2.12, CONTENT_MODEL §11 Analytics).
- * PROPOSED — hidden with the notice until the first event ships (D40); same sign-off as the notice.
+ * APPROVED (user, Oct 21) but hidden with the notice until the first event ships (D40).
  */
 export const ANALYTICS_SETTINGS_COPY = {
-  // PROPOSED
+  // APPROVED (Oct 21); hidden until D40
   heading: "Profile",
   toggleLabel: "Analytics",
   toggleDescription: SIGN_IN_COPY.analyticsNotice,

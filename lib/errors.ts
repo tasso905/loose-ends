@@ -77,10 +77,11 @@ const COPY: { [K in ErrorCode]: { retryable: boolean; status: number; message: (
   // not-found page and the sign-in redirect instead, so users do not normally see these strings.
   not_found: { retryable: false, status: 404, message: () => "This doesn't exist or was deleted." },
   unauthenticated: { retryable: false, status: 401, message: () => "Sign in to continue." },
-  // PROPOSED copy (S2-4; not in §2.13 yet, pending user approval). Shown at the field, not as a
-  // retryable save failure, because resubmitting the same value can never succeed.
+  // APPROVED copy (S2-4; user, Oct 21; not in §2.13 yet). Shown at the field, not as a retryable
+  // save failure, because resubmitting the same value can never succeed.
   invalid_input: { retryable: false, status: 422, message: (p) => INVALID_INPUT_COPY[p.field] },
-  // PROPOSED copy for the pending Try again cap (MAX_RETRIES_PER_SOURCE; user decision pending).
+  // APPROVED copy for the Try again cap (MAX_RETRIES_PER_SOURCE = 3 per source; user, Oct 21. It
+  // replaces "always offered" in SITE_CONTRACT §2.13).
   retry_limit: {
     retryable: false,
     status: 429,
@@ -88,7 +89,7 @@ const COPY: { [K in ErrorCode]: { retryable: boolean; status: number; message: (
   },
 };
 
-/** PROPOSED field copy (S2-4). */
+/** APPROVED field copy (S2-4; user, Oct 21). */
 const INVALID_INPUT_COPY: Record<InputField, string> = {
   text: "Paste some text first.",
   title: "Titles can be up to 120 characters.",

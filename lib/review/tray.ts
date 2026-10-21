@@ -110,8 +110,8 @@ export const TRAY_COPY = {
   suggested: "Suggested",
   assumed: "Assumed",
   notSureAbout: "Not sure about",
-  /** Proposed copy (not in SITE_CONTRACT): why a card's checkbox is disabled. */
+  /** Approved copy (user, Oct 21; not in SITE_CONTRACT yet): why a card's checkbox is disabled. */
   cannotAcceptWaiting: "I can't tell who this is waiting on, so it can't be added yet.",
-  /** Proposed copy (not in SITE_CONTRACT): why Accept selected is disabled. */
+  /** Approved copy (user, Oct 21; not in SITE_CONTRACT yet): why Accept selected is disabled. */
   nothingSelected: "Nothing selected.",
 } as const;
