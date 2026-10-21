@@ -211,8 +211,13 @@ test("an out-of-range written-on date is reported at the field, not as a retryab
   await page.goto("/add?mode=paste");
   await page.getByLabel("Paste a message or document").fill(MIKE);
   await page.getByText("When was this written?").click();
-  await page.locator("#written_on").focus();
-  await page.keyboard.type("10052026");
+  // Set the slip's result directly: typing "10052026" gives year 100520 only where the date field is
+  // year-first (en-CA); in an en-US browser it is a valid Oct 5, so typing made this test locale-dependent.
+  await page.locator("#written_on").evaluate((el: HTMLInputElement) => {
+    el.value = "100520-02-06";
+    el.dispatchEvent(new Event("input", { bubbles: true }));
+    el.dispatchEvent(new Event("change", { bubbles: true }));
+  });
   const before = await sourcesCount(emailA);
   await page.getByRole("button", { name: "Review source" }).click();
   await page.waitForTimeout(1_500);

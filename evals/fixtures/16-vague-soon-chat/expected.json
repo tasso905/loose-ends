@@ -1,0 +1,61 @@
+{
+  "notes": "Bands follow the PRD weights with the certainty the prompt asks for. The cooler golden has a certainty so the replay asserts the pipeline puts it in Ignore; a model that leaves it out also passes. Open question for the PM (same family as fixture 09): a hedged offer with a date ('maybe ... this weekend') scores 0.25 and is never shown, while the undated hedged intention (camping) is shown as Also noticed.",
+  "items": [
+    {
+      "type": "waiting_on",
+      "title": "Priya to return the tent",
+      "owner": "other",
+      "quote": "I'll get it back to you soon, promise",
+      "date_text": null,
+      "due_date": null,
+      "due_certainty": "none",
+      "certainty": "explicit",
+      "counterparty": "Priya",
+      "amount_text": null,
+      "band": "high",
+      "note": "A plain promise with vague timing: 'soon' gives no date. 0.80 + 0.05 exact = 0.85. Inventing a date (e.g. 'this weekend' from the cooler line) is a date-accuracy error."
+    },
+    {
+      "type": "intention",
+      "title": "Another camping trip with Priya",
+      "owner": "user",
+      "quote": "we should do another camping trip sometime",
+      "date_text": null,
+      "due_date": null,
+      "due_certainty": "none",
+      "certainty": "speculative",
+      "counterparty": "Priya",
+      "amount_text": null,
+      "band": "low",
+      "note": "Hedged intention, like the D36 lunch: 0.30 + 0.05 = 0.35, Also noticed. Owner 'user' because 'we' includes the user, as in fixture 01."
+    },
+    {
+      "type": "waiting_on",
+      "title": "Lake photos from Priya",
+      "owner": "other",
+      "quote": "can you send me the photos from the lake when you get a chance?",
+      "date_text": null,
+      "due_date": null,
+      "due_certainty": "none",
+      "certainty": "explicit",
+      "counterparty": "Priya",
+      "amount_text": null,
+      "band": "high",
+      "note": "Sam (the user) asked and Priya agreed ('yes will do'), so the user is waiting on Priya. Typing it as a request to the user would be an owner error. 0.85."
+    },
+    {
+      "type": "waiting_on",
+      "title": "Priya to return the cooler",
+      "owner": "other",
+      "quote": "maybe I can return your cooler this weekend too",
+      "date_text": "this weekend",
+      "due_date": "2026-10-24",
+      "due_certainty": "inferred",
+      "certainty": "speculative",
+      "counterparty": "Priya",
+      "amount_text": null,
+      "band": "ignore",
+      "note": "Hedged offer: 0.30 + 0.05 exact + 0.05 date agrees - 0.15 hedge = 0.25, Ignore. 'this weekend' names a period, so chrono's Sat Oct 24 would be Assumed. Pass if left out or scored Ignore."
+    }
+  ]
+}

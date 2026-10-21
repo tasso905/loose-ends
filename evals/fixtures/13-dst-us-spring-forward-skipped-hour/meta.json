@@ -1,0 +1,10 @@
+{
+  "description": "Work email written Thu Mar 11, 2027 in New York. US clocks spring forward Sun Mar 14, 2027 at 02:00 EST to 03:00 EDT, so 2:30 AM that day does not exist. Saturday 7 PM is EST (UTC-5, midnight UTC on the next calendar day), Sunday 2:30 AM falls in the skipped hour and moves forward by the gap to 3:30 AM EDT, Monday 8 AM is EDT (UTC-4).",
+  "covers": ["email", "request_to_user", "commitment_by_other", "dst_spring_forward_us", "time_in_skipped_hour", "utc_date_differs_from_local_date", "stated_times", "year_2027"],
+  "reference_date": "2027-03-11",
+  "reference_date_source": "detected",
+  "timezone": "America/New_York",
+  "source_kind": "paste",
+  "user": { "display_name": "Jordan Pike", "aliases": ["jordan.pike@example.com", "Jordan"] },
+  "ambiguous": false
+}

@@ -1,0 +1,10 @@
+{
+  "description": "Friends' chat written Tue Oct 20, 2026 in Seattle; the user is Sam. Vague timing: 'soon' and 'when you get a chance' have no date and must not get one (prompt rule 3, rule 3). A hedged intention, and a hedged offer with a vague date that the PRD weights put in Ignore.",
+  "covers": ["chat", "vague_timing_soon", "no_date_when_you_get_a_chance", "commitment_by_other", "request_by_user_accepted", "hedged_intention", "hedged_offer_with_vague_date", "ignore_band"],
+  "reference_date": "2026-10-20",
+  "reference_date_source": "user",
+  "timezone": "America/Los_Angeles",
+  "source_kind": "paste",
+  "user": { "display_name": "Sam Rivera", "aliases": ["sam.rivera@example.com", "Sam"] },
+  "ambiguous": true
+}

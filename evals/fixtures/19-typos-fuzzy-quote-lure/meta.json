@@ -1,0 +1,10 @@
+{
+  "description": "Roommates' text chat written Mon Oct 19, 2026 in Los Angeles; the user is Elle. Misspellings outside the date phrases ('ill', 'replacment', 'dishwaser', 'shud probly') tempt a model to correct the quote, which then verifies only by fuzzy matching (>= 0.9). Dates are spelled correctly so the date path is not under test. Also a hedged intention written with misspelled hedge words that the hedge regex does not catch.",
+  "covers": ["chat", "typos", "fuzzy_quote_lure", "request_to_user_accepted", "commitment_by_user", "lowercase_weekday", "hedged_intention", "misspelled_hedge_words"],
+  "reference_date": "2026-10-19",
+  "reference_date_source": "user",
+  "timezone": "America/Los_Angeles",
+  "source_kind": "paste",
+  "user": { "display_name": "Elle Brandt", "aliases": ["elle.brandt@example.com", "Elle"] },
+  "ambiguous": true
+}

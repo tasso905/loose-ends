@@ -1,0 +1,10 @@
+{
+  "description": "Choir email written Thu Oct 22, 2026 in London. UK clocks go back Sun Oct 25, 2026 at 02:00 (BST, UTC+1, to GMT, UTC+0). Saturday 3 PM is BST, Monday 10 AM is GMT. Golden due_at values check the offset on both sides of the change. Also a day-before-month date ('30 October').",
+  "covers": ["email", "request_to_user", "commitment_by_other", "dst_fall_back_europe_london", "stated_times", "day_month_order", "month_day_no_year"],
+  "reference_date": "2026-10-22",
+  "reference_date_source": "user",
+  "timezone": "Europe/London",
+  "source_kind": "paste",
+  "user": { "display_name": "Oliver Grant", "aliases": ["oliver.grant@example.org", "Oliver", "Ollie"] },
+  "ambiguous": false
+}
