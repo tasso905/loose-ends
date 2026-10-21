@@ -35,7 +35,6 @@ const recording = (name: string) =>
 const MIKE = recording("mike-email");
 const MALFORMED = recording("always-malformed");
 const now = () => new Date(Date.now());
-const at = (base: string, deltaS: number) => new Date(new Date(base).getTime() + deltaS * 1000).toISOString();
 
 const ALL_FNS = [
   ["start_source_extraction", { p_kind: "paste", p_text: "x", p_title: null, p_reference_date: null, p_now: new Date(0).toISOString(), p_model: "m", p_prompt_version: "p", p_schema_version: "s" }],
