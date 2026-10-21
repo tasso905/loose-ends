@@ -203,12 +203,10 @@ test("slow network: an Undo sent at ~11 s arriving after 12 s finishes in place 
   expect((await eventTypes(t.id)).filter((x) => x === "undone")).toHaveLength(0);
 });
 
-// OPEN DEFECT T-U1 (pre-existing path, not covered by 6b18cfd): when an Undo settles with an error
-// the toast unmounts with focus on its Undo button and focus falls to <body>; ThreadActions.undo()
-// sets the error but moves focus nowhere. Expected: focus on the error banner or the status line.
-// test.fail(): turns red when fixed; then remove the marker and relabel REGRESSION GUARD.
-test("DEFECT: after a refused Undo, focus is not left on <body>", async () => {
-  test.fail();
+// REGRESSION GUARD (was OPEN DEFECT T-U1, pre-existing path): when an Undo settled with an error
+// the toast unmounted with focus on its Undo button and focus fell to <body>. Fixed: focus moves to
+// the error banner (or the status line without one).
+test("after a refused Undo, focus is not left on <body>", async () => {
   test.setTimeout(60_000);
   await slowLateUndo();
   await expect(page.getByRole("button", { name: "Refresh" })).toBeVisible();

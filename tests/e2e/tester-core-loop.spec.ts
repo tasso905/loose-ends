@@ -291,13 +291,34 @@ test("an Undo the toast still offers after a paused 8 s works", async () => {
 test("a toast held open (focused) still closes 12 s after Done: no late Undo offered, focus not lost, the thread stays Done", async () => {
   test.setTimeout(60_000);
   await page.goto(threadUrl);
+  // Timed in the page (performance.now), on the same clock as the toast's hard limit.
+  const clickedAt = await page.evaluate(() => performance.now());
   await page.getByRole("button", { name: "Done", exact: true }).click();
   const undo = page.getByRole("button", { name: `Undo done: ${TITLE}` });
   await expect(undo).toBeVisible();
   await undo.focus();
   await page.waitForTimeout(9_000);
   await expect(undo).toBeVisible(); // paused past 8 s: still offered (the server accepts until 12 s)
-  await expect(undo).toHaveCount(0, { timeout: 4_500 }); // gone by 12 s after the action
+  // Record the instant the toast leaves, in the page, then check it is 12 s (± polling) after Done.
+  const goneAt = await page.evaluate(
+    (label) =>
+      new Promise<number>((resolve) => {
+        const gone = () => !document.querySelector(`button[aria-label="${label}"]`);
+        if (gone()) return resolve(performance.now());
+        const obs = new MutationObserver(() => {
+          if (gone()) {
+            obs.disconnect();
+            resolve(performance.now());
+          }
+        });
+        obs.observe(document.body, { childList: true, subtree: true });
+      }),
+    `Undo done: ${TITLE}`,
+  );
+  const elapsed = goneAt - clickedAt;
+  test.info().annotations.push({ type: "toast removed after Done (ms)", description: String(Math.round(elapsed)) });
+  expect(elapsed).toBeGreaterThanOrEqual(11_900);
+  expect(elapsed).toBeLessThanOrEqual(12_600);
   await expect(page.locator("#thread-status")).toBeFocused();
   await expect(page.getByRole("alert").filter({ hasText: INVALID })).toHaveCount(0);
   const [t] = await thread();
