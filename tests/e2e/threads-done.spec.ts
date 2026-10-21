@@ -110,9 +110,11 @@ test("Done runs at once (no dialog), shows an 8 s undo toast; Undo restores Open
   const undo = page.getByRole("button", { name: `Undo done: ${TITLE}` });
   await undo.focus(); // focus pauses the timer
   await expectNoViolations();
-  await undo.click();
+  await page.keyboard.press("Enter"); // keyboard Undo
   await expect(page.locator("#thread-status")).toHaveText("Open");
   await expect(page.getByRole("button", { name: "Done", exact: true })).toBeVisible();
+  // Focus returns to Done once it is back on the page (not left on the status line or <body>).
+  await expect(page.getByRole("button", { name: "Done", exact: true })).toBeFocused();
   await expect(page.getByRole("button", { name: /Undo done/ })).toHaveCount(0);
   expect(await threadRow()).toMatchObject({ status: "open", resolution: null, resolved_at: null });
   expect(await eventTypes(t.id)).toEqual(["created", "resolved", "undone"]);
