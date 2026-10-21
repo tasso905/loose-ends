@@ -13,7 +13,10 @@ import type { DueCertainty } from "@/lib/schemas";
  * "in a month of Sundays"), a bare duration ("one day"), a range or two dates is rejected rather
  * than guessed. A day plus a separately parsed time ("Saturday by 6pm") is one expression. A
  * phrase pointing back ("last Saturday") is read backward and never becomes a future date.
- * Bare hours ("tomorrow at 5") keep chrono's AM reading, marked inferred (PRD AI Behavior, D32).
+ * Deadline idioms ("at the latest", "first thing", "end of day") are ignored around the day; "end
+ * of the day" alone is the written-on day. Vague amounts ("a few days") and a weekday that
+ * contradicts its date give no date. A bare hour from 1 to 6 with no AM/PM is PM (user decision,
+ * Oct 21), and every guessed AM/PM stays inferred with a "Not sure about" line (D32).
  */
 
 export type ReferenceDateSource = "user" | "detected" | "defaulted";
@@ -124,11 +127,22 @@ function monthDayYear(mo: number, d: number, referenceDate: string): string | nu
 const PAST_MARKER = /\b(last|past|previous|ago|yesterday)\b/i;
 /**
  * Words a date phrase may carry around what chrono matched ("by Friday", "due on the 15th",
- * "by end of day Friday", "Saturday no later than 6pm"). Any other leftover word means chrono read
- * only part of the phrase ("in a month" of "in a month of Sundays", "one day" of "one day at a
- * time"), so the phrase is not taken as a date (rule 3: never guess).
+ * "Saturday no later than 6pm"). Any other leftover word means chrono read only part of the phrase
+ * ("in a month" of "in a month of Sundays", "one day" of "one day at a time"), so the phrase is not
+ * taken as a date (rule 3: never guess).
  */
-const FILLER = new Set(["by", "on", "at", "before", "due", "the", "of", "no", "later", "than", "end", "day", "eod", "cob", "close", "business"]);
+const FILLER = new Set(["by", "on", "at", "before", "due", "the", "of", "no", "later", "than"]);
+/**
+ * Deadline idioms that add nothing to the day: masked before chrono reads the phrase ("Friday at
+ * the latest", "first thing Friday", "by end of day Friday"). chrono misreads some of them on its
+ * own ("end of the day" → "the day" → tomorrow).
+ */
+const NEUTRAL = /\b(at the (very )?latest|first thing( in the morning)?|end of (the )?(business )?day|close of business|eod|cob)\b/giu;
+/** "end of (the) day", "EOD", "close of business" with no other day: the written-on day. */
+const END_OF_DAY = /\b(end of (the )?(business )?day|close of business|eod|cob)\b/iu;
+/** A vague amount ("a few days", "a couple of days", "several days") is never a date. */
+const VAGUE_AMOUNT = /\b(few|couple|several)\b/iu;
+const WEEKDAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"] as const;
 /** Connectors allowed between a day and a separately parsed time ("Saturday by 6pm"). */
 const TIME_CONNECTOR = new Set(["by", "at", "before", "no", "later", "than", "on"]);
 /** A bare duration is an amount of time, not a date ("one day", "a minute"); "in a day" is a date. */
@@ -147,6 +161,7 @@ function wholePhrase(text: string, results: chrono.ParsedResult[]): { day: chron
   if (results.length === 0 || results.length > 2) return null;
   if (results.some((r) => r.end)) return null;
   if (results.some((r) => BARE_DURATION.test(r.text.trim()))) return null;
+  if (VAGUE_AMOUNT.test(text)) return null;
   let day = results[0]!;
   let time: chrono.ParsedResult | null = null;
   if (results.length === 2) {
@@ -164,26 +179,39 @@ function wholePhrase(text: string, results: chrono.ParsedResult[]): { day: chron
   return tokens(rest).every((w) => FILLER.has(w)) ? { day, time } : null;
 }
 
-function chronoResolve(text: string, ctx: DateContext): Wall | null {
+/** chrono's reading, null when there is none, or a refusal with its own "Not sure about" line. */
+type ChronoReading = Wall | { refused: string } | null;
+
+function chronoResolve(text: string, ctx: DateContext): ChronoReading {
   const refInstant = fromZonedTime(`${ctx.referenceDate}T12:00:00`, ctx.timezone);
   const offsetMin = getTimezoneOffset(ctx.timezone, refInstant) / 60_000;
   const ref = { instant: refInstant, timezone: offsetMin };
   const past = PAST_MARKER.test(text);
+  // Same length, so result indexes still point into `text`.
+  const masked = text.replace(NEUTRAL, (m) => " ".repeat(m.length));
   // Phrases look forward from the written-on date ("Friday", "the 15th", "Apr 10"), except a
   // phrase that points back ("last Saturday"): forwardDate would turn it into a future date.
   // Without forwardDate as a fallback: "Feb 29" written Mar 10, 2028 has no forward reading in 2029.
-  let results = past ? [] : parser.parse(text, ref, { forwardDate: true });
-  if (results.length === 0) results = parser.parse(text, ref);
-  const phrase = wholePhrase(text, results);
+  let results = past ? [] : parser.parse(masked, ref, { forwardDate: true });
+  if (results.length === 0) results = parser.parse(masked, ref);
+  // "by the end of the day" with no other day is the written-on day; no clock time is stated.
+  if (results.length === 0 && END_OF_DAY.test(text) && tokens(masked).every((w) => FILLER.has(w))) {
+    return { date: ctx.referenceDate, time: null };
+  }
+  const phrase = wholePhrase(masked, results);
   if (!phrase) return null;
   const start = phrase.day.start;
   const clock = phrase.time?.start ?? start;
   // A time counts only if the phrase states one: "in 2 hours" and "now" keep the day but not the
   // clock time computed from an assumed noon.
-  const hour = clock.get("hour") ?? 0;
+  const rawHour = clock.get("hour") ?? 0;
   const timeKnown = clock.isCertain("hour") && STATED_TIME.test(text);
+  // No AM/PM stated and a 12-hour reading ("at 5", "by 6:00"; not "17:00" or a zero-padded "06:00"):
+  // the meridiem is a guess, said so in "Not sure about".
+  const meridiemGuessed = timeKnown && !STATED_MERIDIEM.test(text) && !/\b0\d:\d{2}\b/.test(text) && rawHour >= 1 && rawHour <= 12;
+  // User decision, Oct 21: a guessed hour from 1 to 6 is PM ("tomorrow at 5" → 5 PM), still inferred.
+  const hour = meridiemGuessed && rawHour <= 6 ? rawHour + 12 : rawHour;
   const time = timeKnown ? `${pad(hour)}:${pad(clock.get("minute") ?? 0)}` : null;
-  const meridiemGuessed = timeKnown && !STATED_MERIDIEM.test(text) && !/\b\d{1,2}:\d{2}\b/.test(text) ? hour >= 1 && hour <= 12 : false;
   const dayStated = (["year", "month", "day", "weekday"] as const).some((k) => start.isCertain(k));
   if (!dayStated) {
     // "this morning", "tonight at 8": the written-on day. A bare time ("at 5", "5pm") names no
@@ -196,13 +224,24 @@ function chronoResolve(text: string, ctx: DateContext): Wall | null {
   if (y === null || mo === null || d === null) return null;
   // A month-day with no year resolves to the past only within PAST_WINDOW_DAYS before the
   // written-on date ("Oct 4" written Oct 5 is overdue); otherwise to its next occurrence.
+  let date: string | null = `${y}-${pad(mo)}-${pad(d)}`;
   if (start.isCertain("month") && start.isCertain("day") && !start.isCertain("year")) {
-    const date = monthDayYear(mo, d, ctx.referenceDate);
-    return date ? { date, time, meridiemGuessed } : null;
+    date = monthDayYear(mo, d, ctx.referenceDate);
+    if (!date) return null;
   }
-  const date = `${y}-${pad(mo)}-${pad(d)}`;
   // A phrase that points back never becomes a future date ("previous Tuesday" read as tomorrow).
   if (past && dayNumber(date) > dayNumber(ctx.referenceDate)) return null;
+  // A weekday that contradicts the stated date ("Monday Oct 9" when Oct 9 is a Friday): the source
+  // contradicts itself, so neither reading is taken.
+  const weekday = start.get("weekday");
+  if (start.isCertain("weekday") && start.isCertain("day") && weekday !== null) {
+    const actual = new Date(dayNumber(date) * 86_400_000).getUTCDay();
+    if (actual !== weekday) {
+      const refYear = Number(ctx.referenceDate.slice(0, 4));
+      const day = formatDay(date, refYear).replace(/^\w+ /, "");
+      return { refused: `"${text}" says ${WEEKDAY_NAMES[weekday]}, but ${day} is a ${WEEKDAY_NAMES[actual]}, so I didn't set a date.` };
+    }
+  }
   return { date, time, meridiemGuessed };
 }
 
@@ -282,16 +321,17 @@ export function resolveDate(input: DateInput, ctx: DateContext): ResolvedDate {
     return { ...NONE, agreement: input.date_iso ? "unanchored" : "none", not_sure: [] };
   }
 
-  const fromChrono = chronoResolve(text, ctx);
+  const reading = chronoResolve(text, ctx);
   const fromModel = input.date_iso ? modelWall(input.date_iso, ctx.timezone) : null;
 
-  if (!fromChrono) {
+  if (!reading || "refused" in reading) {
     return {
       ...NONE,
       agreement: input.date_iso ? "model_only" : "none",
-      not_sure: [`I couldn't work out a date from "${text}", so I didn't set one.`],
+      not_sure: [reading ? reading.refused : `I couldn't work out a date from "${text}", so I didn't set one.`],
     };
   }
+  const fromChrono = reading;
 
   const agreement: DateAgreement = !input.date_iso ? "chrono_only" : fromModel && sameWall(fromChrono, fromModel) ? "agree" : "disagree";
 

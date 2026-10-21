@@ -231,11 +231,12 @@ describe("resolveDate(): times (round 5)", () => {
     expect(resolveDate({ date_text: t, date_iso: null }, NY)).toMatchObject({ due_date: "2026-10-05", due_time_known: false, due_at: "2026-10-06T03:59:00.000Z" });
   });
 
-  it("'tomorrow at 5' is inferred with a Not sure about line, even if the model agrees", () => {
-    const r = resolveDate({ date_text: "tomorrow at 5", date_iso: "2026-10-06T05:00:00" }, NY);
+  it("'tomorrow at 5' is 5 PM (bare hour 1-6, user decision Oct 21), inferred with a Not sure about line, even if the model agrees", () => {
+    const r = resolveDate({ date_text: "tomorrow at 5", date_iso: "2026-10-06T17:00:00" }, NY);
     expect(r.agreement).toBe("agree");
     expect(r.due_certainty).toBe("inferred");
-    expect(r.not_sure).toContain(`"tomorrow at 5" doesn't say AM or PM. I read it as Tue Oct 6, 5:00 AM.`);
+    expect(r.due_at).toBe("2026-10-06T21:00:00.000Z");
+    expect(r.not_sure).toContain(`"tomorrow at 5" doesn't say AM or PM. I read it as Tue Oct 6, 5:00 PM.`);
   });
 
   it.each(["tomorrow at 5pm", "tomorrow at 17:00", "tomorrow at noon", "Monday at 9am"])("'%s' states the time: explicit when the model agrees", (t) => {
@@ -307,9 +308,59 @@ describe("resolveDate(): rule 3 probes (core-loop follow-ups C)", () => {
     expect(resolveDate({ date_text: "due on the 15th", date_iso: "2026-10-15" }, NY).due_date).toBe("2026-10-15");
   });
 
-  it("'tomorrow at 5' stays 5 AM marked inferred with the AM/PM line (PRD 477, D32: no PM default)", () => {
+  it("'tomorrow at 5' is 5 PM marked inferred with the AM/PM line (user decision Oct 21; D32)", () => {
     const r = resolveDate({ date_text: "tomorrow at 5", date_iso: null }, NY);
-    expect(r).toMatchObject({ due_date: "2026-10-06", due_at: "2026-10-06T09:00:00.000Z", due_certainty: "inferred" });
-    expect(r.not_sure).toContain(`"tomorrow at 5" doesn't say AM or PM. I read it as Tue Oct 6, 5:00 AM.`);
+    expect(r).toMatchObject({ due_date: "2026-10-06", due_at: "2026-10-06T21:00:00.000Z", due_certainty: "inferred" });
+    expect(r.not_sure).toContain(`"tomorrow at 5" doesn't say AM or PM. I read it as Tue Oct 6, 5:00 PM.`);
+  });
+});
+
+describe("resolveDate(): dates-and-toast round (user decisions Oct 21, tester T-C1..T-C3)", () => {
+  it.each([
+    ["tomorrow at 1", "2026-10-06T17:00:00.000Z"],
+    ["tomorrow at 6", "2026-10-06T22:00:00.000Z"],
+    ["tomorrow at 7", "2026-10-06T11:00:00.000Z"],
+    ["tomorrow at 11", "2026-10-06T15:00:00.000Z"],
+  ])("bare hour '%s': 1-6 is PM, 7-11 stays AM; always inferred with the AM/PM line", (t, at) => {
+    const r = resolveDate({ date_text: t, date_iso: null }, NY);
+    expect(r.due_at).toBe(at);
+    expect(r.due_certainty).toBe("inferred");
+    expect(r.not_sure.some((l) => l.includes("doesn't say AM or PM"))).toBe(true);
+  });
+
+  it("'Saturday by 6:00' gets the AM/PM line and reads 6 PM; '06:00' and '18:00' are 24-hour, no line", () => {
+    const r = resolveDate({ date_text: "Saturday by 6:00", date_iso: null }, NY);
+    expect(r).toMatchObject({ due_date: "2026-10-10", due_at: "2026-10-10T22:00:00.000Z", due_certainty: "inferred" });
+    expect(r.not_sure).toContain(`"Saturday by 6:00" doesn't say AM or PM. I read it as Sat Oct 10, 6:00 PM.`);
+    for (const [t, at] of [["Saturday by 06:00", "2026-10-10T10:00:00.000Z"], ["Saturday by 18:00", "2026-10-10T22:00:00.000Z"]]) {
+      const x = resolveDate({ date_text: t!, date_iso: null }, NY);
+      expect(x.due_at, t).toBe(at);
+      expect(x.not_sure.some((l) => l.includes("AM or PM")), t).toBe(false);
+    }
+  });
+
+  it.each(["end of the day", "by the end of the day", "by EOD", "by close of business"])("'%s' alone is the written-on day (Mon Oct 5)", (t) => {
+    expect(resolveDate({ date_text: t, date_iso: "2026-10-05" }, NY)).toMatchObject({ due_date: "2026-10-05", due_time_known: false, agreement: "agree" });
+  });
+
+  it("'by end of day Friday' is still Friday", () => {
+    expect(resolveDate({ date_text: "by end of day Friday", date_iso: "2026-10-09" }, NY).due_date).toBe("2026-10-09");
+  });
+
+  it.each(["at the latest", "first thing", "cobweb Friday"])("'%s' without a day, or a lookalike word, is not a date", (t) => {
+    expect(resolveDate({ date_text: t, date_iso: null }, NY).due_date).toBeNull();
+  });
+
+  it("a weekday that contradicts its date gives no date and says why", () => {
+    const r = resolveDate({ date_text: "Monday Oct 9", date_iso: "2026-10-09" }, NY);
+    expect(r).toMatchObject({ due_date: null, due_certainty: "none" });
+    expect(r.not_sure).toEqual([`"Monday Oct 9" says Monday, but Oct 9 is a Friday, so I didn't set a date.`]);
+    expect(resolveDate({ date_text: "Friday Oct 9", date_iso: "2026-10-09" }, NY)).toMatchObject({ due_date: "2026-10-09", due_certainty: "explicit" });
+  });
+});
+
+describe("resolveDate(): vague amounts", () => {
+  it.each(["a few days", "in a few days", "a couple of days", "several weeks", "the past few days"])("'%s' gives no date", (t) => {
+    expect(resolveDate({ date_text: t, date_iso: "2026-10-08" }, NY).due_date).toBeNull();
   });
 });
