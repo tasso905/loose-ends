@@ -93,7 +93,7 @@ const TABLE: Record<ThreadStatus | "proposal", Partial<Record<ThreadActionType, 
   },
   waiting: { done: "resolved", back_to_me: "open", resolve: "resolved", dismiss: "dismissed", edit: "waiting", forget: "deleted" },
   snoozed: { wake: "open", done: "resolved", resolve: "resolved", dismiss: "dismissed", edit: "snoozed", forget: "deleted" },
-  // undo (proposed D44 a): only where the thread still holds the undone event's `after` values.
+  // undo (D44 a): only where the thread still holds the undone event's `after` values.
   resolved: { reopen: "open", edit: "resolved", forget: "deleted", undo: "open" },
   dismissed: { reopen: "open", edit: "dismissed", forget: "deleted" },
 };
@@ -321,7 +321,7 @@ describe("transition(): actors (round 2 fixes)", () => {
   });
 });
 
-describe("transition(): undo (proposed D44 option a)", () => {
+describe("transition(): undo (D44 option a, approved Oct 21)", () => {
   type Undo = Extract<ThreadAction, { type: "undo" }>;
   type Ev = { type: string; before: Record<string, unknown> | null; after: Record<string, unknown> | null };
   const done = (t: ThreadState, at: Date = NOW) => {
@@ -355,10 +355,11 @@ describe("transition(): undo (proposed D44 option a)", () => {
     expect(r.effects).toEqual([]);
   });
 
-  it("is valid up to exactly 8 s after the event and refused after", () => {
+  it("is valid up to exactly 12 s after the event (8 s toast + 4 s grace, D44 a) and refused after", () => {
     const d = done(thread("open"));
-    expect(transition(d.thread, undoOf(d.event), { now: at(8000) }).ok).toBe(true);
-    const late = transition(d.thread, undoOf(d.event), { now: at(8001) });
+    expect(transition(d.thread, undoOf(d.event), { now: at(8001) }).ok).toBe(true);
+    expect(transition(d.thread, undoOf(d.event), { now: at(12_000) }).ok).toBe(true);
+    const late = transition(d.thread, undoOf(d.event), { now: at(12_001) });
     expect(late).toMatchObject({ ok: false, error: { code: "invalid_transition" } });
     // An event "from the future" (clock mismatch) is refused too.
     expect(transition(d.thread, undoOf(d.event), { now: at(-1) }).ok).toBe(false);

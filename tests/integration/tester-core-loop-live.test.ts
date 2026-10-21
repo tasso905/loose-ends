@@ -395,12 +395,13 @@ describe.skipIf(!live)("tester core loop on real local Supabase", () => {
       expect((await threadRow(t.threadId)).status).toBe("open");
     });
 
-    it("Undo after 8 s on the real clock is invalid_transition and writes nothing", { timeout: 20_000 }, async () => {
+    // D44 (a), approved Oct 21: 8 s toast + 4 s server grace, so the server refuses after 12 s.
+    it("Undo after 12 s (8 s + 4 s grace) on the real clock is invalid_transition and writes nothing", { timeout: 25_000 }, async () => {
       const a = await makeUser("d8");
       const t = await acceptedThread(a.client);
       const done = await markDone(rpc(a.client), t.threadId, "open", { now: now(), logger: quiet });
       if (!done.ok) throw new Error("done failed");
-      await sleep(8_600);
+      await sleep(12_600);
       expect(await undoEvent(rpc(a.client), t.threadId, done.event_id, { now: now(), logger: quiet })).toMatchObject({ ok: false, code: "invalid_transition" });
       expect((await threadRow(t.threadId)).status).toBe("resolved");
       expect((await events(t.threadId)).length).toBe(2);
@@ -410,13 +411,13 @@ describe.skipIf(!live)("tester core loop on real local Supabase", () => {
     // accept_proposals) took the clock from the caller (p_now) unchecked, so a direct PostgREST call
     // could undo a Done minutes later by passing p_now = the Done's time + 1 s. Fixed by migration
     // 20261021131140: the database refuses a p_now far from its own now().
-    it("a direct RPC cannot undo a Done after 8 s by supplying an old p_now", { timeout: 20_000 }, async () => {
+    it("a direct RPC cannot undo a Done after 12 s by supplying an old p_now", { timeout: 25_000 }, async () => {
       const a = await makeUser("d8b");
       const t = await acceptedThread(a.client);
       const doneAt = now();
       const done = await markDone(rpc(a.client), t.threadId, "open", { now: doneAt, logger: quiet });
       if (!done.ok) throw new Error("done failed");
-      await sleep(8_600);
+      await sleep(12_600);
       const res = await a.client.rpc("thread_undo", { p_thread_id: t.threadId, p_event_id: done.event_id, p_now: new Date(doneAt.getTime() + 1000).toISOString() });
       expect(res.data).toEqual({ ok: false, error: "invalid_transition" });
     });

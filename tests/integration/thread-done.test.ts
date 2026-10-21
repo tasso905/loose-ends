@@ -7,7 +7,7 @@ import { transition, type ThreadState } from "@/lib/threads/transition";
 import { asUser, migratedDb, rpcAs } from "./pglite";
 
 /**
- * S4 (F9 Done + proposed D44 undo) against the real migrations in PGlite: public.thread_done() and
+ * S4 (F9 Done + D44 undo) against the real migrations in PGlite: public.thread_done() and
  * public.thread_undo(), their refusals, ownership, and parity with transition() in TypeScript.
  */
 
@@ -119,7 +119,7 @@ describe("Done (thread_done)", () => {
   });
 });
 
-describe("Undo (thread_undo, proposed D44 a)", () => {
+describe("Undo (thread_undo, D44 a)", () => {
   it.each(["open", "waiting", "snoozed"] as const)("within 8 s restores the exact prior %s state and appends an 'undone' event", async (from) => {
     const id = await seedThread(A, from);
     const original = await state(id);
@@ -136,15 +136,22 @@ describe("Undo (thread_undo, proposed D44 a)", () => {
     expect(ev[2]).toMatchObject({ actor: "user", before: ev[1]!.after, after: { ...ev[1]!.before, undone_event_id: done.event_id } });
   });
 
-  it("at exactly 8 s it still works; after 8 s it is invalid_transition and writes nothing", async () => {
+  it("at exactly 12 s (8 s + 4 s grace) it still works; after 12 s it is invalid_transition and writes nothing", async () => {
     const id = await seedThread(A, "open");
     const done = await markDone(dbA, id, "open", { now: NOW });
     if (!done.ok) throw new Error("done failed");
     const before = await snapshot();
-    expect(await undoEvent(dbA, id, done.event_id, { now: at(8001) })).toMatchObject({ ok: false, code: "invalid_transition" });
+    expect(await undoEvent(dbA, id, done.event_id, { now: at(12_001) })).toMatchObject({ ok: false, code: "invalid_transition" });
     expect(await undoEvent(dbA, id, done.event_id, { now: at(-1) })).toMatchObject({ ok: false, code: "invalid_transition" });
     expect(await snapshot()).toEqual(before);
-    expect(await undoEvent(dbA, id, done.event_id, { now: at(8000) })).toMatchObject({ ok: true });
+    expect(await undoEvent(dbA, id, done.event_id, { now: at(12_000) })).toMatchObject({ ok: true });
+  });
+
+  it("inside the grace period (8 s < t ≤ 12 s) Undo works: a toast paused past 8 s is not refused", async () => {
+    const id = await seedThread(A, "open");
+    const done = await markDone(dbA, id, "open", { now: NOW });
+    if (!done.ok) throw new Error("done failed");
+    expect(await undoEvent(dbA, id, done.event_id, { now: at(9_500) })).toMatchObject({ ok: true });
   });
 
   it("only the latest event: a non-latest event, the created event and a repeat undo are refused", async () => {

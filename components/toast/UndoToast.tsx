@@ -12,7 +12,8 @@ import { cn } from "@/lib/utils";
  *
  * The live region (role=status) is always mounted, so a screen reader announces the message when it
  * appears. Errors never go in a toast (SITE_CONTRACT §2.13): the caller shows them on the page.
- * The toast's own timer is a display convenience; the server decides whether an undo is still valid.
+ * The toast's own timer is a display convenience; the server decides whether an undo is still valid
+ * (8 s + 4 s grace, D44 a, so a short pause is honoured; a toast held open longer is refused there).
  */
 
 export const TOAST_MS = 8_000;

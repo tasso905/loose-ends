@@ -4,8 +4,8 @@ import { getNow } from "@/lib/time";
 
 /**
  * The single place thread status changes happen (CLAUDE.md engineering conventions).
- * Implements exactly the PRD "Lifecycle transitions" table (v1.1, incl. D6), plus the 8 s `undo`
- * of proposed D44 option (a), kept in its own branch so it can change. Anything else
+ * Implements exactly the PRD "Lifecycle transitions" table (v1.1, incl. D6), plus the `undo` of
+ * D44 option (a) (approved Oct 21: 8 s toast + 4 s server grace), kept in its own branch. Anything else
  * returns `invalid_transition`. Pure: the caller persists the new state, appends the
  * returned `thread_events` row and applies the effects.
  */
@@ -76,7 +76,7 @@ export type ThreadAction =
   | { type: "undo"; target: UndoTarget };
 
 /**
- * The event an Undo reverses (proposed D44 option a, pending user confirmation). The caller reads it
+ * The event an Undo reverses (D44 option a, approved Oct 21). The caller reads it
  * from `thread_events`; `latest` says whether it is the thread's newest event.
  */
 export interface UndoTarget {
@@ -90,8 +90,13 @@ export interface UndoTarget {
   latest: boolean;
 }
 
-/** D8: the undo toast lasts 8 s; the server refuses an undo after that. */
+/** D8, D44 (a): the undo toast lasts 8 s (it pauses while hovered or focused). */
 export const UNDO_WINDOW_MS = 8_000;
+/**
+ * D44 (a), approved Oct 21: the server accepts an Undo up to 4 s past the toast's 8 s, so a short
+ * pause and the round trip are not refused. Mirrored by private.thread_undo_unguarded (12 s).
+ */
+export const UNDO_GRACE_MS = 4_000;
 
 /**
  * Event types an Undo may reverse. Only Done exists so far (S4); mirrored by public.thread_undo().
@@ -157,7 +162,7 @@ export const ALLOWED_FROM: Record<ThreadActionType, ReadonlyArray<ThreadStatus |
   reopen: ["resolved", "dismissed"],
   edit: ["open", "waiting", "snoozed", "resolved", "dismissed"],
   forget: ["open", "waiting", "snoozed", "resolved", "dismissed"],
-  // Proposed D44 (a), not in the PRD table yet: what it restores depends on the undone event.
+  // D44 (a), approved Oct 21: what it restores depends on the undone event.
   undo: ["open", "waiting", "snoozed", "resolved", "dismissed"],
 };
 
@@ -332,15 +337,15 @@ export function transition(thread: ThreadState | null, action: ThreadAction, ctx
 }
 
 /**
- * Undo (proposed D44 option a): only the thread's latest event, only the user's own reversible
- * action, only within UNDO_WINDOW_MS of it. Restores that event's `before` values exactly (a Done
+ * Undo (D44 option a, approved Oct 21): only the thread's latest event, only the user's own
+ * reversible action, only within UNDO_WINDOW_MS + UNDO_GRACE_MS (12 s) of it. Restores that event's `before` values exactly (a Done
  * from waiting goes back to waiting) and returns an `undone` event; nothing earlier is rewritten.
  */
 function undo(t: ThreadState, target: UndoTarget, actor: Actor, now: Date): TransitionResult {
   if (!target.latest || target.actor !== "user" || !UNDOABLE_EVENT_TYPES.includes(target.type)) return invalid();
   if (!validInstant(target.created_at)) return invalid();
   const elapsed = now.getTime() - new Date(target.created_at).getTime();
-  if (elapsed < 0 || elapsed > UNDO_WINDOW_MS) return invalid();
+  if (elapsed < 0 || elapsed > UNDO_WINDOW_MS + UNDO_GRACE_MS) return invalid();
 
   const before = target.before ?? {};
   const after = target.after ?? {};

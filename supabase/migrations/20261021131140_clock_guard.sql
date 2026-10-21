@@ -5,8 +5,8 @@
 -- from getNow() so tests stay deterministic, but they are callable directly through PostgREST. A
 -- signed-in user could pass any instant: undo a Done minutes later (p_now = the Done's time + 1 s),
 -- write thread_events.created_at or threads.resolved_at at any instant, or keep a running
--- extraction from timing out. Own data only (every body filters on auth.uid()), but the 8 s Undo
--- window (proposed D44 a) and the append-only history must not depend on the caller's honesty.
+-- extraction from timing out. Own data only (every body filters on auth.uid()), but the Undo
+-- window (D44 a) and the append-only history must not depend on the caller's honesty.
 --
 -- What: each public function becomes a thin SECURITY DEFINER wrapper that checks p_now against the
 -- database's own now() before calling the unchanged body, which moves to schema private under a
@@ -14,8 +14,9 @@
 -- (default 5 s; app servers and the database are NTP-synced to well under a second).
 --
 -- Why 5 s and not 30 s: an accepted p_now can be up to the tolerance T off on each of the two
--- calls, so a direct caller can stretch the 8 s Undo window to at most 8 s + 2T. T = 5 s keeps that
--- under 20 s; at T = 30 s an Undo 30 s late would still succeed.
+-- calls, so a direct caller can stretch the Undo window W (8 s; 12 s with the D44 grace, migration
+-- 20261021170903) to at most W + 2T. T = 5 s keeps that to 22 s; at T = 30 s an Undo a minute
+-- late would still succeed.
 --
 -- Refusals: thread_undo answers invalid_transition (the Undo window cannot be shown to be open, the
 -- same answer as an expired window). The others raise 22023, which the services map to their

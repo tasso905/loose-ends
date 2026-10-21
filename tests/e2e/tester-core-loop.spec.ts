@@ -254,13 +254,10 @@ test("not-found thread: no content of another user's thread leaks (title, quote,
   }
 });
 
-// CONFLICT (DESIGN_STANDARD "Undo toast: the timer pauses while hovered or focused" vs proposed
-// D44 (a), "within 8 s of the event" on the server): a user who focuses or hovers the toast keeps
-// Undo on screen past 8 s, presses it, and gets invalid_transition. The UI offers an action the
-// server will refuse. Safe behaviour: an Undo the toast still offers works (or the toast leaves at
-// 8 s regardless). Needs a decision (lead-program-manager), not just a code fix.
+// REGRESSION GUARD (was CONFLICT: DESIGN_STANDARD "the timer pauses while hovered or focused" vs
+// the server's fixed 8 s): resolved by D44 (a), approved Oct 21, with a 4 s server grace, so an
+// Undo the toast still offers after a short pause works (server accepts up to 12 s).
 test("an Undo the toast still offers after a paused 8 s works", async () => {
-  test.fail(true, "CONFLICT: paused toast vs fixed 8 s server window (D44 a)");
   await page.goto(threadUrl);
   await page.getByRole("button", { name: "Done", exact: true }).click();
   const undo = page.getByRole("button", { name: `Undo done: ${TITLE}` });
@@ -273,8 +270,18 @@ test("an Undo the toast still offers after a paused 8 s works", async () => {
   await expect(page.locator("#thread-status")).toHaveText("Open");
 });
 
-test("after the refused late Undo: the page says so with §2.13 copy and Refresh, and the thread stays Done", async () => {
-  // Continues from the previous test's state (thread resolved, late undo refused).
+// Adapted for D44 (a): the grace period makes a 9 s Undo work (previous test), so this test makes
+// its own refused Undo by holding the toast open past the server's 12 s.
+test("after a refused late Undo (toast held past 12 s): the page says so with §2.13 copy and Refresh, and the thread stays Done", async () => {
+  test.setTimeout(60_000);
+  await page.goto(threadUrl);
+  await page.getByRole("button", { name: "Done", exact: true }).click();
+  const undo = page.getByRole("button", { name: `Undo done: ${TITLE}` });
+  await expect(undo).toBeVisible();
+  await undo.focus();
+  await page.waitForTimeout(13_000);
+  await expect(undo).toBeVisible(); // still paused, still offered
+  await page.keyboard.press("Enter");
   await expect(page.getByRole("alert").filter({ hasText: INVALID })).toBeVisible();
   await expect(page.getByRole("button", { name: "Refresh" })).toBeVisible();
   await expect(page.getByText(/Marked done.*Undo/)).toHaveCount(0);
