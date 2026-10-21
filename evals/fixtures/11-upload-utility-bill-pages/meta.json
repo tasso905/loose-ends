@@ -1,0 +1,10 @@
+{
+  "description": "Text layer of an uploaded two-page utility bill (synthetic), statement dated Wed Oct 14, 2026, Denver. One payment deadline with an amount and a full date, and one request on page 2 with a month-day and no year. Page footers are kept as a PDF text layer leaves them. The fixture format has no page-offset field and evals/run.ts does not pass pageOffsets, so page numbers are not scored.",
+  "covers": ["upload", "bill", "utility_notice", "deadline_with_amount", "full_date_with_year", "month_day_no_year", "page_footers", "autopay_decoy", "summary_box_duplicate", "brief_expected"],
+  "reference_date": "2026-10-14",
+  "reference_date_source": "detected",
+  "timezone": "America/Denver",
+  "source_kind": "upload",
+  "user": { "display_name": "Rosa Delgado", "aliases": ["rosa.delgado@example.net", "Rosa"] },
+  "ambiguous": false
+}

@@ -1,0 +1,10 @@
+{
+  "description": "Bullet notes copied from a shared group document on Wed Oct 21, 2026 (New York). No line has an author and the user's name appears nowhere, so the writer of 'I'll' and the person asked in 'Can you' cannot be identified: owner unknown (prompt rule 5, 'Do not guess'). The owner-unknown penalty applies to the commitment and the request, not to the deadline.",
+  "covers": ["shared_notes", "unclear_speaker", "owner_unknown", "owner_unknown_penalty", "commitment_unknown_owner", "request_unknown_owner", "deadline_with_amount", "hedged_intention", "which_of_these_is_you_trigger"],
+  "reference_date": "2026-10-21",
+  "reference_date_source": "user",
+  "timezone": "America/New_York",
+  "source_kind": "paste",
+  "user": { "display_name": "Chris Novak", "aliases": ["chris.novak@example.net", "Chris"] },
+  "ambiguous": true
+}

@@ -1,0 +1,49 @@
+{
+  "notes": "'the clocks go back this weekend' is a fact, not a loop, and 'this weekend' must not become a due date on its own item. The concert set-up is part of the music-stand request.",
+  "items": [
+    {
+      "type": "request",
+      "title": "Bring the music stands to the church hall",
+      "owner": "user",
+      "quote": "Could you bring the music stands to the church hall on Saturday at 3pm?",
+      "date_text": "on Saturday at 3pm",
+      "due_date": "2026-10-24",
+      "due_at": "2026-10-24T14:00:00.000Z",
+      "due_certainty": "explicit",
+      "certainty": "explicit",
+      "counterparty": "Nadia",
+      "amount_text": null,
+      "band": "high",
+      "note": "Before the change: 3 PM BST = 14:00 UTC (15:00 would mean GMT was used)."
+    },
+    {
+      "type": "waiting_on",
+      "title": "Final running order from Nadia",
+      "owner": "other",
+      "quote": "I'll email everyone the final running order on Monday at 10am",
+      "date_text": "on Monday at 10am",
+      "due_date": "2026-10-26",
+      "due_at": "2026-10-26T10:00:00.000Z",
+      "due_certainty": "explicit",
+      "certainty": "explicit",
+      "counterparty": "Nadia",
+      "amount_text": null,
+      "band": "high",
+      "note": "Written by Nadia, not the user. After the change: 10 AM GMT = 10:00 UTC (09:00 would mean the BST offset was kept)."
+    },
+    {
+      "type": "request",
+      "title": "Return the rehearsal folder to Mrs Patel",
+      "owner": "user",
+      "quote": "please return your rehearsal folder to Mrs Patel by 30 October",
+      "date_text": "by 30 October",
+      "due_date": "2026-10-30",
+      "due_certainty": "explicit",
+      "certainty": "explicit",
+      "counterparty": "Nadia",
+      "amount_text": null,
+      "band": "high",
+      "note": "UK day-month order. Counterparty is the person asking (Nadia); Mrs Patel is the recipient. evals/run.ts does not score counterparty."
+    }
+  ]
+}

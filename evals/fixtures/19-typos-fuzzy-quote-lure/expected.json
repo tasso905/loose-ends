@@ -1,0 +1,50 @@
+{
+  "notes": "Near-miss quote. Golden quotes must be verbatim substrings of input.txt (the runner matches by containment), so the near miss is expressed with the tester extension 'fuzzy_quote': a typo-corrected copy a model is likely to return. tests/unit/eval-fixtures.test.ts replays each fuzzy_quote and checks that it is not verbatim, verifies only by fuzzy match (measured 0.95, 0.97, 0.95 against the 0.9 threshold), is stored as the source span (so it still matches the golden), and keeps the golden band and due date. Bands are chosen so exact and fuzzy land in the same band (fuzzy loses only the +0.05 exact-quote bonus): 0.90 -> 0.85 stays High, 0.35 -> 0.30 stays Low. evals/run.ts ignores fuzzy_quote. A quote that drifts further (paraphrase) is dropped as quote_unverified and is a recall miss; watch the live run's unverified-quote count here.",
+  "items": [
+    {
+      "type": "request",
+      "title": "Be home Thursday to let the repair person in",
+      "owner": "user",
+      "quote": "can u be home thursday to let him in?",
+      "fuzzy_quote": "Can you be home Thursday to let him in?",
+      "date_text": "thursday",
+      "due_date": "2026-10-22",
+      "due_certainty": "explicit",
+      "certainty": "explicit",
+      "counterparty": "Marco",
+      "amount_text": null,
+      "band": "high",
+      "note": "Accepted in the thread ('ya i can do that'), still an open loop for the user. 0.80 + 0.05 + 0.05 = 0.90. The 'comming thursday' line is context for the same loop; a separate item for it counts against precision."
+    },
+    {
+      "type": "commitment",
+      "title": "Pick up the replacement fridge filter",
+      "owner": "user",
+      "quote": "ill pick up the replacment filter for the fridge on wednesday",
+      "fuzzy_quote": "I'll pick up the replacement filter for the fridge on Wednesday",
+      "date_text": "on wednesday",
+      "due_date": "2026-10-21",
+      "due_certainty": "explicit",
+      "certainty": "explicit",
+      "counterparty": null,
+      "amount_text": null,
+      "band": "high",
+      "note": "'ill' (no apostrophe) is not matched by the first-person modal regex, so no +0.05: 0.80 + 0.05 + 0.05 = 0.90. Fuzzy (model wrote 'I'll ... replacement'): 0.85, still High."
+    },
+    {
+      "type": "intention",
+      "title": "Ask the landlord about the bathroom fan",
+      "owner": "user",
+      "quote": "we shud probly get the landlord to look at the bathroom fan at some point",
+      "fuzzy_quote": "we should probably get the landlord to look at the bathroom fan at some point",
+      "date_text": null,
+      "due_date": null,
+      "due_certainty": "none",
+      "certainty": "speculative",
+      "counterparty": null,
+      "amount_text": null,
+      "band": "low",
+      "note": "Hedged intention with vague timing ('at some point'): 0.30 + 0.05 = 0.35, Also noticed. Intentions take no hedge penalty, so the misspelled 'probly' does not change the band."
+    }
+  ]
+}

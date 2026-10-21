@@ -1,0 +1,61 @@
+{
+  "notes": "A model that assigns 'user' or 'other' to the first two bullets makes an owner error and also inflates the band (0.70 -> 0.95 for the tables). These High-value unknown-owner items are the PRD's 'Which of these is you?' trigger (D20, deferred), which the eval does not score.",
+  "items": [
+    {
+      "type": "commitment",
+      "title": "Pick up the folding tables from the church",
+      "owner": "unknown",
+      "quote": "I'll pick up the folding tables from the church on Friday.",
+      "date_text": "on Friday",
+      "due_date": "2026-10-23",
+      "due_certainty": "explicit",
+      "certainty": "explicit",
+      "counterparty": null,
+      "amount_text": null,
+      "band": "medium",
+      "note": "0.80 + 0.05 exact - 0.25 owner unknown + 0.05 date agrees + 0.05 first-person modal = 0.70, Maybe."
+    },
+    {
+      "type": "request",
+      "title": "Print the price stickers",
+      "owner": "unknown",
+      "quote": "Can you print the price stickers before Saturday?",
+      "date_text": "before Saturday",
+      "due_date": "2026-10-24",
+      "due_certainty": "explicit",
+      "certainty": "explicit",
+      "counterparty": null,
+      "amount_text": null,
+      "band": "medium",
+      "note": "Nobody named as asker or asked. 0.80 + 0.05 - 0.25 + 0.05 = 0.65, Maybe."
+    },
+    {
+      "type": "deadline",
+      "title": "Take down the garage sale signs",
+      "owner": "unknown",
+      "quote": "Signs have to be taken down by Sunday evening or the HOA charges a $25 fine.",
+      "date_text": "by Sunday evening",
+      "due_date": "2026-10-25",
+      "due_certainty": "explicit",
+      "certainty": "explicit",
+      "counterparty": "HOA",
+      "amount_text": "$25",
+      "band": "high",
+      "note": "Passive deadline with a stated consequence; the owner-unknown penalty applies only to commitments and requests. 0.80 + 0.05 + 0.05 = 0.90. 'evening' states no clock time."
+    },
+    {
+      "type": "intention",
+      "title": "Ask the neighbors about borrowing their canopy",
+      "owner": "unknown",
+      "quote": "Someone mentioned asking the neighbors about borrowing their canopy.",
+      "date_text": null,
+      "due_date": null,
+      "due_certainty": "none",
+      "certainty": "speculative",
+      "counterparty": null,
+      "amount_text": null,
+      "band": "low",
+      "note": "Second-hand idea with no owner or date: 0.30 + 0.05 = 0.35, Also noticed."
+    }
+  ]
+}

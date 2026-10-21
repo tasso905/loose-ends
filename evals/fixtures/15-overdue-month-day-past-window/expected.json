@@ -1,0 +1,33 @@
+{
+  "notes": "The overdue slip keeps its original due date (Oct 9, 2026); Today computes 'overdue' from due_at at read time. A model that rolls 'Oct 9' forward to 2027 fails date accuracy. The concert sentence must produce no item.",
+  "items": [
+    {
+      "type": "deadline",
+      "title": "Return Leo's field trip permission slip",
+      "owner": "user",
+      "quote": "Leo's field trip permission slip, which was due Oct 9, has not been returned yet.",
+      "date_text": "Oct 9",
+      "due_date": "2026-10-09",
+      "due_certainty": "explicit",
+      "certainty": "explicit",
+      "counterparty": "Ms. Ruiz",
+      "amount_text": null,
+      "band": "high",
+      "note": "D28: 12 days back, within the 30-day window, so this year: overdue. Could be typed request; type is informational."
+    },
+    {
+      "type": "decision",
+      "title": "Decide whether Leo gets a photo retake",
+      "owner": "user",
+      "quote": "If you would like Leo to have his photo retaken, please return the order form by Oct 30.",
+      "date_text": "by Oct 30",
+      "due_date": "2026-10-30",
+      "due_certainty": "explicit",
+      "certainty": "explicit",
+      "counterparty": "Ms. Ruiz",
+      "amount_text": null,
+      "band": "high",
+      "note": "The 'if' is the parent's choice, not a hedge on the deadline: a decision with an explicit date. Due date is the order deadline (Oct 30), not retake day (Nov 4)."
+    }
+  ]
+}
