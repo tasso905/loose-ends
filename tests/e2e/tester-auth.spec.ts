@@ -20,6 +20,12 @@ const fresh = () => {
 const SEND = "Email me a sign-in link";
 const sentHeading = (page: Page) => page.getByRole("heading", { name: "Check your email" });
 const opts = { auth: { persistSession: false, autoRefreshToken: false } };
+/** Origin of the configured base URL (playwright.config.ts, E2E_PORT), which is also SITE_URL for the web server. */
+const baseOrigin = () => {
+  const b = test.info().project.use.baseURL;
+  if (!b) throw new Error("playwright baseURL is not configured");
+  return new URL(b).origin;
+};
 
 async function axe(page: Page) {
   const r = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"]).analyze();
@@ -157,7 +163,7 @@ async function spoofedLinkOrigin(page: Page): Promise<string> {
 test("magic-link origin: SITE_URL wins over a forged Origin / Host / X-Forwarded-Host", async ({ page }) => {
   const origin = await spoofedLinkOrigin(page);
   test.info().annotations.push({ type: "redirect_to origin", description: origin });
-  expect(origin).toBe("http://127.0.0.1:3000");
+  expect(origin).toBe(baseOrigin());
 });
 
 test("a bogus code in the browser that requested the link shows the expired notice", async ({ page }) => {
@@ -196,7 +202,7 @@ test("onboarding cannot write another user's profile, and RLS refuses direct wri
   }, victimId);
   await page.getByLabel("Names and emails").fill("Mallory");
   await page.getByRole("button", { name: "Save" }).click();
-  await expect(page).toHaveURL("http://127.0.0.1:3000/today");
+  await expect(page).toHaveURL(`${baseOrigin()}/today`);
   expect(await profileFor(victimEmail)).toEqual(before);
 
   // Direct PostgREST writes with an attacker session.

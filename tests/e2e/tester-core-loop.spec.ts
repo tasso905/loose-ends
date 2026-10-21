@@ -123,6 +123,8 @@ test("keyboard only: paste → review → accept → View in Today → detail �
   });
   test.info().annotations.push({ type: "focus after Undo", description: active });
   expect(active, "focus after keyboard Undo").not.toMatch(/^body/);
+  // REGRESSION GUARD (follow-up A4): focus lands on Done itself once it is back, not the status line.
+  await expect(done).toBeFocused();
   const [t] = await thread();
   expect(t).toMatchObject({ status: "open", resolution: null, resolved_at: null });
   expect(await eventTypes(t!.id)).toEqual(["created", "resolved", "undone"]);
@@ -236,6 +238,19 @@ test("not-found thread: HTTP 404, not a soft 404 (unknown id and another user's 
     expect([res?.status(), res2?.status()]).toEqual([404, 404]);
   } finally {
     await deleteUsers([other]);
+  }
+});
+
+// Follow-up A1: the existence gate in app/threads/[id]/layout.tsx must not break the list (moved to
+// app/threads/(list)/) and must give a real 404 for a malformed id too.
+test("follow-up A1: /threads list is 200; a malformed id is HTTP 404 with the not-found page", async () => {
+  const list = await page.goto("/threads");
+  expect(list?.status()).toBe(200);
+  await expect(page.getByRole("heading", { name: "Threads", level: 1 })).toBeVisible();
+  for (const path of ["/threads/not-a-uuid", "/threads/%27%20or%201%3D1--"]) {
+    const res = await page.goto(path);
+    expect(res?.status(), path).toBe(404);
+    await expect(page.getByRole("heading", { name: NOT_FOUND })).toBeVisible();
   }
 });
 
