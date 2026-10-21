@@ -1,0 +1,10 @@
+{
+  "description": "School email written Wed Oct 21, 2026 in Chicago. 'Oct 9' is 12 days before the written-on date, inside the 30-day past window, so it resolves to this year and the item is already overdue (D28), not to Oct 9, 2027. 'Oct 15' is a past event, not a loop. 'Nov 4' is the event date, not the order deadline.",
+  "covers": ["email", "school_notice", "overdue_month_day_d28", "past_window_30_days", "decision", "conditional_request", "past_event_decoy", "event_date_vs_deadline"],
+  "reference_date": "2026-10-21",
+  "reference_date_source": "user",
+  "timezone": "America/Chicago",
+  "source_kind": "paste",
+  "user": { "display_name": "Omar Haddad", "aliases": ["omar.haddad@example.org", "Omar", "Mr. Haddad"] },
+  "ambiguous": false
+}

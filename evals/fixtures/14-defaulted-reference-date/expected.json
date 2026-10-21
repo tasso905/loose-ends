@@ -1,0 +1,47 @@
+{
+  "notes": "PRD Failure modes 'Missing reference date': reference_date_source = defaulted, show 'I assumed this was written today'. The month-day 'Nov 12' is not a relative phrase in resolveDates.ts, so it stays explicit even though its year still depends on the assumed date; raise with the PM if the Assumed marking should cover it too.",
+  "items": [
+    {
+      "type": "request",
+      "title": "Drop off the donated books at the library",
+      "owner": "user",
+      "quote": "Could you drop off the donated books at the library on Friday?",
+      "date_text": "on Friday",
+      "due_date": "2026-10-23",
+      "due_certainty": "inferred",
+      "certainty": "explicit",
+      "counterparty": "Grace",
+      "amount_text": null,
+      "band": "high",
+      "note": "Read against the assumed date Wed Oct 21: Fri Oct 23, marked Assumed. The band is unaffected (date agreement still counts)."
+    },
+    {
+      "type": "request",
+      "title": "Sign up for a book fair cashier shift",
+      "owner": "user",
+      "quote": "The sign-up sheet for cashier shifts closes Nov 12, so please add your name before then.",
+      "date_text": "Nov 12",
+      "due_date": "2026-11-12",
+      "due_certainty": "explicit",
+      "certainty": "explicit",
+      "counterparty": "Grace",
+      "amount_text": null,
+      "band": "high",
+      "note": "Could be typed deadline; type is informational in evals/run.ts."
+    },
+    {
+      "type": "waiting_on",
+      "title": "Parking passes from Grace",
+      "owner": "other",
+      "quote": "I'll send the parking passes to everyone tomorrow.",
+      "date_text": "tomorrow",
+      "due_date": "2026-10-22",
+      "due_certainty": "inferred",
+      "certainty": "explicit",
+      "counterparty": "Grace",
+      "amount_text": null,
+      "band": "high",
+      "note": "Written by Grace, not the user. 'tomorrow' against an assumed date: Thu Oct 22, Assumed."
+    }
+  ]
+}

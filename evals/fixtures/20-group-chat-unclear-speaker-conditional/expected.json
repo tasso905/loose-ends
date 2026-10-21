@@ -1,0 +1,58 @@
+{
+  "notes": "The casserole dish is owed by Ruth to Hannah, not to or by the user: an item for it counts against precision (the golden 'ignore' entry asserts it is not shown). 'who's bringing dessert?' is answered in the thread by the cheesecake line.",
+  "items": [
+    {
+      "type": "commitment",
+      "title": "Bring cheesecake to book club",
+      "owner": "unknown",
+      "quote": "I'll bring the cheesecake!",
+      "date_text": null,
+      "due_date": null,
+      "due_certainty": "none",
+      "certainty": "explicit",
+      "counterparty": null,
+      "amount_text": null,
+      "band": "medium",
+      "note": "No speaker label: it could be Hannah continuing, or anyone, including the user. 0.80 + 0.05 exact - 0.25 owner unknown + 0.05 first-person modal = 0.65, Maybe. Owner 'other' or 'user' is an owner error."
+    },
+    {
+      "type": "commitment",
+      "title": "Ruth to pick up the next book if the library has a copy",
+      "owner": "other",
+      "quote": "if the library has a spare copy I'll pick up the next book for whoever needs one",
+      "date_text": null,
+      "due_date": null,
+      "due_certainty": "none",
+      "certainty": "speculative",
+      "counterparty": "Ruth",
+      "amount_text": null,
+      "band": "low",
+      "note": "Conditional promise by someone else: 0.30 + 0.05 exact + 0.05 first-person modal = 0.40, Also noticed. Could be typed waiting_on (0.35, still Low)."
+    },
+    {
+      "type": "request",
+      "title": "Send everyone the discussion questions",
+      "owner": "user",
+      "quote": "Noor, can you send everyone the discussion questions by this Friday?",
+      "date_text": "by this Friday",
+      "due_date": "2026-10-23",
+      "due_certainty": "explicit",
+      "certainty": "explicit",
+      "counterparty": "Ruth",
+      "amount_text": null,
+      "band": "high",
+      "note": "Accepted by the user ('on it'). 'this Friday' written Tue Oct 20 is Fri Oct 23. 0.80 + 0.05 + 0.05 = 0.90. Must not score Low (F19 control)."
+    },
+    {
+      "type": "waiting_on",
+      "title": "Ruth to return Hannah's casserole dish",
+      "owner": "other",
+      "quote": "you still owe me the casserole dish lol, no stress",
+      "date_text": null,
+      "due_date": null,
+      "due_certainty": "none",
+      "band": "ignore",
+      "note": "A loop between two other people. Pass if the model leaves it out."
+    }
+  ]
+}

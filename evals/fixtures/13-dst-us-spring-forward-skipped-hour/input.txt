@@ -1,0 +1,14 @@
+From: Lena Ortiz <lena.ortiz@example.com>
+To: Jordan Pike <jordan.pike@example.com>
+Date: Thu, Mar 11, 2027
+Subject: Weekend database upgrade
+
+Jordan,
+
+The database upgrade is booked for this weekend. Please pause the nightly backup job by Saturday at 7pm.
+
+Can you restart the backup job Sunday at 2:30am once the upgrade finishes?
+
+I'll send the post-upgrade report on Monday at 8am.
+
+Lena
