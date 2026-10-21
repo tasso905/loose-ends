@@ -359,6 +359,23 @@ describe("resolveDate(): dates-and-toast round (user decisions Oct 21, tester T-
   });
 });
 
+describe("resolveDate(): a part of the day states AM or PM (T-D1)", () => {
+  it.each([
+    ["this morning at 5", "2026-10-05T09:00:00.000Z"],
+    ["tomorrow morning at 6", "2026-10-06T10:00:00.000Z"],
+    ["Friday at 6 in the morning", "2026-10-09T10:00:00.000Z"],
+    ["this afternoon at 2", "2026-10-05T18:00:00.000Z"],
+    ["Friday at 3 in the afternoon", "2026-10-09T19:00:00.000Z"],
+    ["tomorrow evening at 6", "2026-10-06T22:00:00.000Z"],
+    ["tonight at 8", "2026-10-06T00:00:00.000Z"],
+    ["Friday night at 9", "2026-10-10T01:00:00.000Z"],
+  ])("'%s' keeps the stated part of the day, no PM default and no AM/PM line", (t, at) => {
+    const r = resolveDate({ date_text: t, date_iso: null }, NY);
+    expect(r.due_at).toBe(at);
+    expect(r.not_sure.some((l) => l.includes("AM or PM"))).toBe(false);
+  });
+});
+
 describe("resolveDate(): vague amounts", () => {
   it.each(["a few days", "in a few days", "a couple of days", "several weeks", "the past few days"])("'%s' gives no date", (t) => {
     expect(resolveDate({ date_text: t, date_iso: "2026-10-08" }, NY).due_date).toBeNull();

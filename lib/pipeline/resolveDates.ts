@@ -97,7 +97,12 @@ interface Wall {
 
 /** A clock time the source actually states: "5pm", "9:30", "at 5", "noon", "8 o'clock". */
 const STATED_TIME = /\b\d{1,2}(:\d{2})?\s*(a\.?m\.?|p\.?m\.?)(?![\p{L}])|\b\d{1,2}:\d{2}\b|\bat\s+\d{1,2}\b|\b(noon|midnight)\b|o'clock/iu;
-const STATED_MERIDIEM = /\d\s*(a\.?m\.?|p\.?m\.?)(?![\p{L}])|\b(noon|midnight)\b/iu;
+/**
+ * The phrase says AM or PM: "5pm", "noon", or a part of the day ("tomorrow morning at 6", "at 6 in
+ * the morning", "tonight at 8"). chrono reads the part of the day into the hour (morning stays AM,
+ * afternoon/evening/night become PM), so neither the PM default nor the AM/PM line applies (T-D1).
+ */
+const STATED_MERIDIEM = /\d\s*(a\.?m\.?|p\.?m\.?)(?![\p{L}])|\b(noon|midnight|morning|afternoon|evening|tonight|night)\b/iu;
 /** Past window for a month-day with no year (user decision, Oct 18): up to 30 days back. */
 export const PAST_WINDOW_DAYS = 30;
 

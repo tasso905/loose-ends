@@ -96,19 +96,19 @@ describe("D50: bare hour with no AM/PM (REGRESSION GUARDS)", () => {
   });
 });
 
-describe("D50 OPEN DEFECT: a time of day that states the morning is shifted to PM", () => {
-  // DEFECT T-D1 (introduced by 2e4686f): "morning" states AM, but STATED_MERIDIEM only knows
+describe("D50: a time of day that states the morning is never shifted to PM (REGRESSION GUARDS)", () => {
+  // REGRESSION GUARD (was DEFECT T-D1, introduced by 2e4686f, fixed on fix/dates-and-toast): "morning" states AM, but STATED_MERIDIEM only knows
   // am/pm/noon/midnight and chrono does not always mark the meridiem certain, so the PM default
   // fires. Before 2e4686f these read 5/6 AM (correct time, wrong AM/PM line). Now the deadline is
   // 12 hours late, a model that says 6 AM is overridden (chrono wins, rule 3), and the
   // "doesn't say AM or PM" line is false.
-  it.fails.each([
+  it.each([
     ["this morning at 5", "2026-10-05T09:00:00.000Z"],
     ["tomorrow morning at 6", "2026-10-06T10:00:00.000Z"],
     ["Friday morning at 6", "2026-10-09T10:00:00.000Z"],
     ["Friday at 6 in the morning", "2026-10-09T10:00:00.000Z"],
     ["tomorrow at 5 in the morning", "2026-10-06T09:00:00.000Z"],
-  ])("DEFECT: %s → AM (or no time), never PM", (t, am) => {
+  ])("%s → AM (or no time), never PM", (t, am) => {
     const x = r(t);
     expect(x.due_at === am || x.due_time_known === false, `${t} → ${x.due_at}`).toBe(true);
     expect(hasAmPmLine(x), JSON.stringify(x.not_sure)).toBe(false);
