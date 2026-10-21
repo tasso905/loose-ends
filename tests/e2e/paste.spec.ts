@@ -168,7 +168,9 @@ test("poll API: own id 200, unknown id 404, signed out 401; unknown review page 
   expect((await anon.request.get(`/api/extractions/${id}`)).status()).toBe(401);
   await anon.close();
 
-  await page.goto("/review/3f1c2b4a-8d6e-4c1a-9b2e-7a5d3c1e0f9a");
+  // A real 404, not a soft one: /review/[id] has no loading boundary above its notFound().
+  const notFound = await page.goto("/review/3f1c2b4a-8d6e-4c1a-9b2e-7a5d3c1e0f9a");
+  expect(notFound?.status()).toBe(404);
   await expect(page.getByRole("heading", { name: "This doesn't exist or was deleted." })).toBeVisible();
 });
 

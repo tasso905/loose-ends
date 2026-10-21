@@ -220,11 +220,10 @@ test("375 px: no horizontal scroll on Today, Threads, detail and the toast; thei
   }
 });
 
-// DEFECT (same class as S1's): an unknown id, or another user's thread, renders the not-found copy
-// but with HTTP 200, because loading.tsx streams the response before notFound() runs. Crawlers,
-// monitoring and anything that reads the status see a success. Safe behaviour: HTTP 404.
+// REGRESSION GUARD (was DEFECT, same class as S1's): an unknown id, or another user's thread,
+// rendered the not-found copy with HTTP 200 because loading.tsx streamed the response before
+// notFound() ran. Fixed by the gate in app/threads/[id]/layout.tsx. Safe behaviour: HTTP 404.
 test("not-found thread: HTTP 404, not a soft 404 (unknown id and another user's thread)", async () => {
-  test.fail(true, "DEFECT: soft 404 (HTTP 200) behind app/threads/[id]/loading.tsx");
   const res = await page.goto(`/threads/${randomUUID()}`);
   await expect(page.getByRole("heading", { name: NOT_FOUND })).toBeVisible();
   const other = testEmail();
