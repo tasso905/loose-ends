@@ -23,8 +23,8 @@ No separate backend, queue, vector DB, LangChain, Redis or ORM-managed migration
 
 | Task | Command |
 | --- | --- |
-| Local Supabase | `pnpm exec supabase start` |
-| Dev server | `pnpm dev` |
+| Local Supabase | `pnpm exec supabase start -x vector,logflare` (those two containers can fail health checks on macOS) |
+| Dev server | `pnpm dev --hostname 127.0.0.1` (open 127.0.0.1:3000, not localhost) |
 | Typecheck / lint | `pnpm typecheck` · `pnpm lint` |
 | Unit + integration | `pnpm test` |
 | Live Supabase checks (RLS, storage, deletion; needs local Supabase running) | `pnpm test:supabase` |
