@@ -208,7 +208,6 @@ test("keyboard only: paste → open date → submit → results; Also noticed co
 // "That didn't save. Try again." with a Try again button that can never succeed. Safe behaviour: a
 // field error at the date (or the browser's own min/max), never a retryable save failure.
 test("an out-of-range written-on date is reported at the field, not as a retryable save failure", async () => {
-  test.fail();
   await page.goto("/add?mode=paste");
   await page.getByLabel("Paste a message or document").fill(MIKE);
   await page.getByText("When was this written?").click();

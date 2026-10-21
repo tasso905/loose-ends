@@ -8,7 +8,7 @@ import { ErrorBanner, FieldError } from "@/components/Notice";
 import { Button } from "@/components/ui/button";
 import { Input, Textarea } from "@/components/ui/input";
 import { formatWrittenOn, normalizeLineBreaks, pasteCounter, TITLE_MAX_CHARS } from "@/lib/capture/pasteInput";
-import { apiError, type ApiError } from "@/lib/errors";
+import { apiError, type ApiError, type InputField } from "@/lib/errors";
 
 type Failure = ApiError["error"];
 
@@ -26,7 +26,9 @@ export function PasteForm({ today }: { today: string }) {
   const [blank, setBlank] = useState(true);
   const [writtenOn, setWrittenOn] = useState(today);
   const [writtenOnSet, setWrittenOnSet] = useState(false);
+  const [titleLength, setTitleLength] = useState(0);
   const [failure, setFailure] = useState<Failure | null>(null);
+  const [failedField, setFailedField] = useState<InputField | null>(null);
   const [pending, startTransition] = useTransition();
 
   // Text typed or pasted before hydration is already in the field: count it once.
@@ -40,14 +42,20 @@ export function PasteForm({ today }: { today: string }) {
 
   const counter = pasteCounter(length);
   const overLimit = counter.over ? apiError("input_too_long", { n: length }).error.message : null;
-  const fieldError = overLimit ?? (failure?.code === "input_too_long" ? failure.message : null);
-  const banner = failure && failure.code !== "input_too_long" ? failure : null;
+  const serverField = (f: InputField) => (failure && failedField === f ? failure.message : null);
+  const fieldError = overLimit ?? serverField("text");
+  // A long title is reported, never cut off (no maxLength on the input).
+  const titleError =
+    titleLength > TITLE_MAX_CHARS ? apiError("invalid_input", { field: "title" }).error.message : serverField("title");
+  const dateError = serverField("written_on");
+  const banner = failure && !failedField ? failure : null;
 
   function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    if (pending || counter.over) return;
+    if (pending || counter.over || titleLength > TITLE_MAX_CHARS) return;
     const formData = new FormData(e.currentTarget);
     setFailure(null);
+    setFailedField(null);
     startTransition(async () => {
       if (!navigator.onLine) {
         setFailure(apiError("offline").error);
@@ -65,13 +73,14 @@ export function PasteForm({ today }: { today: string }) {
           return;
         }
         setFailure(result.error);
+        setFailedField(result.field ?? null);
       } catch {
         setFailure(apiError(navigator.onLine ? "save_failed" : "offline").error);
       }
     });
   }
 
-  const describedBy = ["text-hint", counter.visible ? "text-counter" : null, fieldError ? "text-error" : null]
+  const describedBy = ["text-hint", "text-counter", fieldError ? "text-error" : null]
     .filter(Boolean)
     .join(" ");
 
@@ -107,23 +116,23 @@ export function PasteForm({ today }: { today: string }) {
           onInput={(e) => {
             setLength(normalizeLineBreaks(e.currentTarget.value).length);
             setBlank(e.currentTarget.value.trim() === "");
-            if (failure?.code === "input_too_long") setFailure(null);
+            if (failedField === "text") setFailure(null);
           }}
           aria-invalid={fieldError ? true : undefined}
           aria-describedby={describedBy}
         />
-        {counter.visible ? (
-          <p
-            id="text-counter"
-            className={`mt-1 text-right text-small tabular-nums ${counter.over ? "text-le-danger-fg" : "text-le-text-secondary"}`}
-          >
-            {counter.text}
-          </p>
-        ) : null}
+        {/* Always in the DOM so screen readers hear it politely once it appears at 27,000. */}
+        <p
+          id="text-counter"
+          aria-live="polite"
+          className={`mt-1 text-right text-small tabular-nums ${counter.over ? "text-le-danger-fg" : "text-le-text-secondary"}`}
+        >
+          {counter.visible ? counter.text : null}
+        </p>
         {fieldError ? <FieldError id="text-error">{fieldError}</FieldError> : null}
       </div>
 
-      <details className="group">
+      <details className="group" open={dateError ? true : undefined}>
         <summary className="focus-ring flex min-h-11 cursor-pointer items-center gap-2 rounded-control text-body-strong text-le-text md:min-h-0">
           When was this written?
           <span className="text-small font-normal text-le-text-secondary tabular-nums">{formatWrittenOn(writtenOn, today)}</span>
@@ -139,18 +148,24 @@ export function PasteForm({ today }: { today: string }) {
             type="date"
             value={writtenOn}
             required
+            min="1900-01-01"
+            max="2100-12-31"
             onChange={(e) => {
               if (!e.currentTarget.value) return;
               setWrittenOn(e.currentTarget.value);
               setWrittenOnSet(true);
+              if (failedField === "written_on") setFailure(null);
             }}
             className="mt-2 w-auto tabular-nums"
+            aria-invalid={dateError ? true : undefined}
+            aria-describedby={dateError ? "written-on-error" : undefined}
           />
+          {dateError ? <FieldError id="written-on-error">{dateError}</FieldError> : null}
           <input type="hidden" name="written_on_set" value={writtenOnSet ? "1" : "0"} readOnly />
         </div>
       </details>
 
-      <details>
+      <details open={titleError ? true : undefined}>
         <summary className="focus-ring flex min-h-11 cursor-pointer items-center rounded-control text-body-strong text-le-text md:min-h-0">
           Add a title
         </summary>
@@ -158,11 +173,23 @@ export function PasteForm({ today }: { today: string }) {
           <label htmlFor="title" className="block text-small text-le-text-secondary">
             Title (optional)
           </label>
-          <Input id="title" name="title" maxLength={TITLE_MAX_CHARS} autoComplete="off" className="mt-2" />
+          <Input
+            id="title"
+            name="title"
+            autoComplete="off"
+            className="mt-2"
+            onInput={(e) => {
+              setTitleLength(e.currentTarget.value.trim().length);
+              if (failedField === "title") setFailure(null);
+            }}
+            aria-invalid={titleError ? true : undefined}
+            aria-describedby={titleError ? "title-error" : undefined}
+          />
+          {titleError ? <FieldError id="title-error">{titleError}</FieldError> : null}
         </div>
       </details>
 
-      <Button type="submit" disabled={!hydrated || pending || blank || counter.over}>
+      <Button type="submit" disabled={!hydrated || pending || blank || counter.over || titleLength > TITLE_MAX_CHARS}>
         {pending ? <Spinner /> : null}
         Review source
       </Button>

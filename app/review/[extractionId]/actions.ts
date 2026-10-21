@@ -22,6 +22,8 @@ export async function retryExtractionAction(extractionId: string): Promise<Retry
   const db = rpcDb(supabase);
   const res = await retryExtraction(db, extractionId);
   if (!res.ok) return { ok: false, error: res.notFound ? apiError("not_found").error : res.error.error };
+  // Another click already started this attempt: show it, never run it twice (S2-2).
+  if (res.alreadyStarted) return { ok: true, extractionId: res.extractionId };
   const onComplete = extractionCompletedTracker(auth.user.id);
   after(() => runExtraction(db, res.extractionId, { onComplete }).then(() => undefined));
   return { ok: true, extractionId: res.extractionId };

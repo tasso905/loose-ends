@@ -30,3 +30,18 @@ export function extractionCompletedTracker(userId: string): (r: CompletedExtract
       band_counts: r.bandCounts,
     });
 }
+
+/**
+ * `extraction_completed` (status failed) for an attempt the 90 s rule just failed. Only the poll
+ * whose read applied the rule gets `timedOut`, so the event is sent once.
+ */
+export function trackTimedOut(userId: string, view: { id: string; timedOut: boolean; elapsedMs: number }): void {
+  if (!view.timedOut) return;
+  track(userId, "extraction_completed", {
+    extraction_id: view.id,
+    status: "failed",
+    latency_ms: Math.min(Math.round(view.elapsedMs), 1_000_000),
+    item_count: 0,
+    band_counts: {},
+  });
+}

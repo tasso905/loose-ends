@@ -37,6 +37,12 @@ export type ExtractionStage = "reading" | "finding" | "checking";
 export const SLOW_AFTER_MS = 45_000;
 /** A running extraction older than this is marked failed by the next poll (A2). */
 export const STALE_AFTER_MS = 90_000;
+/**
+ * `Try again` limit per source after the first attempt. PENDING USER DECISION (recommended, not yet
+ * approved); defaults on. The database enforces the same value in private.max_retries_per_source()
+ * (migration 20261020231312); change both together.
+ */
+export const MAX_RETRIES_PER_SOURCE = 3;
 
 /** `extractions.model` before the call has resolved a model; replaced by extract()'s label after. */
 export function configuredModelLabel(env: Record<string, string | undefined> = process.env): string {
@@ -84,7 +90,13 @@ export async function startExtraction(
   return { ok: true, sourceId: out.source_id, extractionId: out.extraction_id };
 }
 
-export type RetryResult = { ok: true; extractionId: string } | { ok: false; notFound: boolean; error: ApiError };
+/**
+ * `alreadyStarted`: another click already started the newest attempt; the caller shows it and must
+ * NOT schedule another run (S2-2).
+ */
+export type RetryResult =
+  | { ok: true; extractionId: string; alreadyStarted: boolean }
+  | { ok: false; notFound: boolean; error: ApiError };
 
 export async function retryExtraction(db: RpcDb, extractionId: string, opts: { logger?: Logger } = {}): Promise<RetryResult> {
   const logger = opts.logger ?? defaultLog;
@@ -98,9 +110,10 @@ export async function retryExtraction(db: RpcDb, extractionId: string, opts: { l
     logger("extraction_start_failed", { code: errCode(error), retry: true });
     return { ok: false, notFound: false, error: apiError("save_failed") };
   }
-  const out = data as { extraction_id?: string; error?: string } | null;
+  const out = data as { extraction_id?: string; already_started?: boolean; error?: string } | null;
   if (!out) return { ok: false, notFound: true, error: apiError("save_failed") };
-  if (out.extraction_id) return { ok: true, extractionId: out.extraction_id };
+  if (out.extraction_id) return { ok: true, extractionId: out.extraction_id, alreadyStarted: out.already_started === true };
+  if (out.error === "retry_limit") return { ok: false, notFound: false, error: apiError("retry_limit", { n: MAX_RETRIES_PER_SOURCE }) };
   logger("extraction_start_failed", { code: out.error ?? "unknown", retry: true });
   return { ok: false, notFound: false, error: apiError("save_failed") };
 }
@@ -193,7 +206,11 @@ export async function runExtraction(db: RpcDb, extractionId: string, deps: RunDe
     if (ctx.status !== "running") return "skipped";
     if (ctx.source_text === null) return await fail("source_unavailable");
 
-    await db.rpc("set_extraction_stage", { p_extraction_id: extractionId, p_stage: "finding" });
+    // The claim: reading → finding succeeds for one run only, so a second run of the same
+    // attempt (double click, two tabs) stops here, before any model call (S2-2).
+    const claim = await db.rpc("set_extraction_stage", { p_extraction_id: extractionId, p_stage: "finding" });
+    if (claim.error) return await fail("context_failed");
+    if (claim.data !== true) return "skipped";
 
     let run;
     try {
@@ -268,6 +285,8 @@ const Row = z.object({
   stage: z.enum(["reading", "finding", "checking"]).nullable(),
   error: z.string().nullable(),
   created_at: z.string(),
+  timed_out: z.boolean().optional(),
+  retry_available: z.boolean().optional(),
   brief: z.unknown().nullable(),
   proposals: z.array(
     z.object({
@@ -300,6 +319,12 @@ export interface ExtractionView {
   proposals: ProposalView[];
   brief: unknown;
   error: ApiError["error"] | null;
+  /** Failed and `Try again` may start a new attempt (newest attempt, under MAX_RETRIES_PER_SOURCE). */
+  retryAvailable: boolean;
+  /** True only for the read that applied the 90 s rule: that caller reports extraction_completed. */
+  timedOut: boolean;
+  /** Time since the attempt started, for the timeout event. */
+  elapsedMs: number;
 }
 
 /** Poll read. null = not found for this user (RLS), never revealing whether it exists. */
@@ -342,5 +367,8 @@ export async function readExtraction(
     proposals: row.status === "succeeded" ? proposals : [],
     brief: row.status === "succeeded" ? row.brief : null,
     error: row.status === "failed" ? apiError("extraction_failed").error : null,
+    retryAvailable: row.status === "failed" && row.retry_available === true,
+    timedOut: row.timed_out === true,
+    elapsedMs: Math.max(0, elapsed),
   };
 }

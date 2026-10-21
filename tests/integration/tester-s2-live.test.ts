@@ -150,7 +150,7 @@ describe.skipIf(!live)("tester S2: extraction lifecycle on real local Supabase",
   // DEFECT S2-5 (minor): the SQL backstop uses btrim(p_text), which strips spaces only, so text that
   // is only newlines/tabs passes start_source_extraction (counted, stored). The form and Zod reject
   // it (String.trim), so only a direct RPC call reaches this.
-  it.fails("SQL backstop refuses whitespace-only text that contains newlines or tabs", async () => {
+  it("SQL backstop refuses whitespace-only text that contains newlines or tabs", async () => {
     const a = await makeUser("s2ws");
     const res = await a.client.rpc("start_source_extraction", {
       p_kind: "paste", p_text: " \n\t\n ", p_title: null, p_reference_date: "2026-10-05", p_now: now().toISOString(), p_model: "m", p_prompt_version: "p", p_schema_version: "s",
@@ -193,7 +193,7 @@ describe.skipIf(!live)("tester S2: extraction lifecycle on real local Supabase",
   // with ok: true, and retryExtractionAction then schedules runExtraction for it AGAIN. Both runs
   // read status "running" and both call the model; the loser's complete is skipped. Two paid LLM
   // calls for one attempt. Safe behaviour: one model call.
-  it.fails("double retry does not run the pipeline twice for the same attempt (one model call)", async () => {
+  it("double retry does not run the pipeline twice for the same attempt (one model call)", async () => {
     const a = await makeUser("s2dr2");
     const s = await start(a.client, MALFORMED.input!);
     await runExtraction(rpc(a.client), s.extractionId, { model: createRecordedModel({ recordings: [MALFORMED] }), logger: () => {} });
@@ -210,7 +210,7 @@ describe.skipIf(!live)("tester S2: extraction lifecycle on real local Supabase",
   // signed-in user can INSERT a source and a FAILED extraction directly through PostgREST without
   // consume_usage, then call Try again (retry_extraction, not counted) to make the server run the
   // model. Safe behaviour: an attempt never starts unless it was counted once.
-  it.fails("a source + failed extraction inserted directly via PostgREST cannot be retried into an uncounted model run", async () => {
+  it("a source + failed extraction inserted directly via PostgREST cannot be retried into an uncounted model run", async () => {
     const a = await makeUser("s2byp");
     const { data: src, error: e1 } = await a.client
       .from("sources")
@@ -229,7 +229,7 @@ describe.skipIf(!live)("tester S2: extraction lifecycle on real local Supabase",
 
   // DEFECT S2-1b: after any attempt finishes, the owner can UPDATE extractions.status back to
   // 'failed' via PostgREST and press Try again again: unlimited uncounted model runs from one count.
-  it.fails("the owner cannot flip a finished attempt back to failed to get another uncounted run", async () => {
+  it("the owner cannot flip a finished attempt back to failed to get another uncounted run", async () => {
     const a = await makeUser("s2loop");
     const s = await start(a.client, MALFORMED.input!);
     await runExtraction(rpc(a.client), s.extractionId, { model: createRecordedModel({ recordings: [MALFORMED] }), logger: () => {} });
@@ -249,7 +249,7 @@ describe.skipIf(!live)("tester S2: extraction lifecycle on real local Supabase",
   // DEFECT S2-1c: the 30,000-character limit is checked only by start_source_extraction. A source
   // inserted or updated directly via PostgREST can hold any length, and extraction_context hands it
   // to extract() on Try again with no length check. Safe behaviour: over-limit text never reaches the pipeline.
-  it.fails("an over-limit source written directly via PostgREST never reaches extraction_context for a retry", async () => {
+  it("an over-limit source written directly via PostgREST never reaches extraction_context for a retry", async () => {
     const a = await makeUser("s2big");
     const s = await start(a.client, MALFORMED.input!);
     await runExtraction(rpc(a.client), s.extractionId, { model: createRecordedModel({ recordings: [MALFORMED] }), logger: () => {} });
@@ -265,7 +265,7 @@ describe.skipIf(!live)("tester S2: extraction lifecycle on real local Supabase",
   // not verify quotes, so the owner can call it on their own running attempt with an item whose
   // quote is not in the source; get_extraction returns it and /review renders it as a proposal.
   // (Direct INSERT into extraction_items is also open via the FOR ALL policy since S0.)
-  it.fails("an owner-forged item with a quote absent from the source is never returned as a proposal", async () => {
+  it("an owner-forged item with a quote absent from the source is never returned as a proposal", async () => {
     const a = await makeUser("s2forge");
     const s = await start(a.client, "Synthetic: we talked about the weather.");
     const payload = {

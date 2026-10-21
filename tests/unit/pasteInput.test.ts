@@ -75,3 +75,17 @@ describe("formatWrittenOn", () => {
     expect(formatWrittenOn("2027-01-08", "2026-10-20")).toBe("Fri Jan 8, 2027");
   });
 });
+
+describe("S2-4 field errors (PROPOSED copy) are not retryable", () => {
+  it("names the field's rule", () => {
+    expect(apiError("invalid_input", { field: "title" }).error).toEqual({ code: "invalid_input", message: "Titles can be up to 120 characters.", retryable: false });
+    expect(apiError("invalid_input", { field: "written_on" }).error.message).toBe("Enter a real date between 1900 and 2100.");
+    expect(apiError("invalid_input", { field: "text" }).error.retryable).toBe(false);
+    expect(apiError("retry_limit", { n: 3 }).error).toEqual({ code: "retry_limit", message: "I couldn't read this after 3 more tries. Your text is saved.", retryable: false });
+  });
+
+  it("a year outside 1900–2100 is invalid_date", () => {
+    expect(form({ writtenOnSet: "1", writtenOn: "100520-10-05" })).toMatchObject({ ok: false, reason: "invalid_date" });
+    expect(form({ writtenOnSet: "1", writtenOn: "1899-12-31" })).toMatchObject({ ok: false, reason: "invalid_date" });
+  });
+});

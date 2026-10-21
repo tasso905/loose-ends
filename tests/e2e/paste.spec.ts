@@ -87,6 +87,21 @@ test("Add: written-on date is Assumed by default; over-limit shows the count and
   await expectNoViolations();
 });
 
+test("title over 120 characters is reported at the field and kept whole; the counter is a polite live region", async () => {
+  await page.goto("/add?mode=paste");
+  await expect(page.locator("#text-counter")).toHaveAttribute("aria-live", "polite");
+  await page.getByLabel("Paste a message or document").fill("Synthetic note.");
+  await page.getByText("Add a title").click();
+  const title = page.getByLabel("Title (optional)");
+  await title.fill("t".repeat(121));
+  await expect(title).toHaveValue("t".repeat(121)); // never truncated
+  await expect(page.getByText("Titles can be up to 120 characters.")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Review source" })).toBeDisabled();
+  await title.fill("t".repeat(120));
+  await expect(page.getByText("Titles can be up to 120 characters.")).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Review source" })).toBeEnabled();
+});
+
 test("paste the Mike email → verified proposals appear; the invented item is not shown", async () => {
   // Written Mon Oct 5, so "Friday" is Fri Oct 9 and chrono agrees with the model.
   await paste(MIKE, "2026-10-05");

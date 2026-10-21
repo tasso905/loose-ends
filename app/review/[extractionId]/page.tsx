@@ -5,6 +5,7 @@ import { SignOutButton } from "@/components/auth/SignOutButton";
 import { ReviewProgress } from "@/components/review/ReviewProgress";
 import { Wordmark } from "@/components/Wordmark";
 import { requireUser } from "@/lib/auth/session";
+import { trackTimedOut } from "@/lib/extraction/analytics";
 import { readExtraction } from "@/lib/extraction/service";
 import { rpcDb } from "@/lib/extraction/supabaseDb";
 import { createClient } from "@/lib/supabase/server";
@@ -22,12 +23,13 @@ type Params = Promise<{ extractionId: string }>;
  */
 export default async function ReviewPage({ params }: { params: Params }) {
   const { extractionId } = await params;
-  await requireUser(`/review/${encodeURIComponent(extractionId)}`);
+  const user = await requireUser(`/review/${encodeURIComponent(extractionId)}`);
   if (!z.uuid().safeParse(extractionId).success) notFound();
 
   const supabase = await createClient();
   const view = await readExtraction(rpcDb(supabase), extractionId, { now: getNow() });
   if (!view) notFound();
+  trackTimedOut(user.id, view);
 
   return (
     <>

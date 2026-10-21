@@ -6,7 +6,8 @@ import { createRecordedModel, Recording } from "@/lib/ai/fake";
 import type { LogEvent, LogProps } from "@/lib/log";
 import { ProposalPayload } from "@/lib/extraction/payload";
 import { charCountBucket, validateEvent } from "@/lib/analytics/events";
-import { readExtraction, retryExtraction, runExtraction, startExtraction, type CompletedExtraction, type RpcDb } from "@/lib/extraction/service";
+import { MAX_RETRIES_PER_SOURCE, readExtraction, retryExtraction, runExtraction, startExtraction, type CompletedExtraction, type RpcDb } from "@/lib/extraction/service";
+import { asUser } from "./pglite";
 import { migratedDb, rpcAs } from "./pglite";
 
 /**
@@ -202,7 +203,8 @@ describe("failure", () => {
     if (!retry.ok) return;
     expect(retry.extractionId).not.toBe(extractionId);
     // A double click returns the attempt already started.
-    expect(await retryExtraction(dbA, extractionId, { logger })).toEqual({ ok: true, extractionId: retry.extractionId });
+    expect(retry.alreadyStarted).toBe(false);
+    expect(await retryExtraction(dbA, extractionId, { logger })).toEqual({ ok: true, extractionId: retry.extractionId, alreadyStarted: true });
     const after = (await q<{ n: number }>(`select extractions as n from usage_counters where user_id = '${A}'`))[0]!.n;
     expect(after).toBe(before);
     const rows = await q<{ status: string; stage: string }>(`select status, stage from extractions where source_id = '${sourceId}' order by created_at, id`);
@@ -325,5 +327,119 @@ describe("extraction_completed (S1 analytics)", () => {
       },
     });
     expect(outcome).toBe("succeeded");
+  });
+});
+
+describe("S2 hardening (tester S2-1..S2-5, retry cap, timeout event)", () => {
+  const asA = <T,>(sql: string) => asUser(pg, A, () => pg.query<T>(sql));
+  const failOnce = async () => {
+    const s = await submit(dbA, MALFORMED.input!);
+    await runExtraction(dbA, s.extractionId, { model: model(MALFORMED), logger });
+    return s;
+  };
+
+  it("S2-1a: a source + failed attempt inserted directly is never retryable or readable", async () => {
+    const [src] = (await asA<{ id: string }>(
+      `insert into sources (user_id, kind, text_content, reference_date, reference_date_source) values ('${A}', 'paste', 'Uncounted.', '2026-10-05', 'user') returning id`,
+    )).rows;
+    const [ex] = (await asA<{ id: string; via_pipeline: boolean }>(
+      `insert into extractions (user_id, source_id, status, model, prompt_version, schema_version, via_pipeline) values ('${A}', '${src!.id}', 'failed', 'm', 'p', 's', true) returning id, via_pipeline`,
+    )).rows;
+    expect(ex!.via_pipeline).toBe(false); // forced by the guard
+    expect(await retryExtraction(dbA, ex!.id, { logger })).toMatchObject({ ok: false, notFound: true });
+    expect(await readExtraction(dbA, ex!.id, { now: NOW })).toBeNull();
+    expect((await q<{ n: number }>(`select count(*)::int as n from usage_counters where user_id = '${A}'`))[0]!.n).toBe(0);
+  });
+
+  it("S2-1b/c: the owner cannot change attempt status or trace columns, or replace source text; clearing text is allowed", async () => {
+    const s = await failOnce();
+    await expect(asA(`update extractions set status = 'failed', error = null where id = '${s.extractionId}'`)).rejects.toThrow(/pipeline only/);
+    await expect(asA(`update extractions set stage = 'reading' where id = '${s.extractionId}'`)).rejects.toThrow(/pipeline only/);
+    await expect(asA(`update sources set text_content = repeat('z', 200000) where id = '${s.sourceId}'`)).rejects.toThrow(/cannot be replaced/);
+    await expect(asA(`update sources set pipeline_attempts = 0 where id = '${s.sourceId}'`)).rejects.toThrow(/pipeline only/);
+    await asA(`update sources set title = 'Renamed' where id = '${s.sourceId}'`);
+    await asA(`update sources set text_content = null where id = '${s.sourceId}'`);
+    expect(await retryExtraction(dbA, s.extractionId, { logger })).toMatchObject({ ok: false });
+  });
+
+  it("S2-1c: extraction_context never hands over-limit text to extract()", async () => {
+    const s = await failOnce();
+    await pg.exec(`update sources set text_content = repeat('z', 30001) where id = '${s.sourceId}'`); // superuser: legacy row
+    expect(await retryExtraction(dbA, s.extractionId, { logger })).toMatchObject({ ok: false, notFound: false });
+    const ctx = await dbA.rpc("extraction_context", { p_extraction_id: s.extractionId });
+    expect((ctx.data as { source_text: string | null }).source_text).toBeNull();
+  });
+
+  it("S2-2: two runs of one attempt make one model call; the second is skipped", async () => {
+    const s = await submit(dbA, MIKE.input!);
+    const m = createRecordedModel({ recordings: [{ ...MIKE, delay_ms: 200 }] });
+    const outcomes = await Promise.all([0, 1].map(() => runExtraction(dbA, s.extractionId, { model: m, logger })));
+    expect(outcomes.sort()).toEqual(["skipped", "succeeded"]);
+    expect(m.doGenerateCalls.length).toBe(1);
+  });
+
+  it("S2-3: forged proposals and evidence with a quote absent from the source are refused, by any path", async () => {
+    const s = await submit(dbA, "Synthetic: we talked about the weather.");
+    const forged = {
+      item_index: 0, confidence: 0.95, band: "high", suppression_hash: "f",
+      payload: { v: 1, evidence: [{ quote: "I will wire $5,000 today" }] },
+      evidence: [{ quote: "we talked about the weather", start_offset: 11, end_offset: 38, page: null, match_kind: "exact", quote_hash: "x" }],
+    };
+    const done = await dbA.rpc("complete_extraction", {
+      p_extraction_id: s.extractionId, p_model: "x", p_input_tokens: 0, p_output_tokens: 0, p_latency_ms: 0, p_raw_output: null, p_brief: null, p_items: [forged],
+    });
+    expect(done.error).toMatchObject({ message: expect.stringMatching(/not in source/) });
+    await expect(
+      asA(`insert into extraction_items (user_id, extraction_id, payload, confidence, band, item_index) values ('${A}', '${s.extractionId}', '{"evidence":[{"quote":"I will wire money"}]}', 0.9, 'high', 0)`),
+    ).rejects.toThrow(/not in source/);
+    await expect(
+      asA(`insert into evidence (user_id, source_id, quote, match_kind) values ('${A}', '${s.sourceId}', 'I will wire money', 'exact')`),
+    ).rejects.toThrow(/not in source/);
+    const brief = JSON.stringify({ what_to_do: [{ text: "Wire it", basis: "source", quote: "wire $5,000" }] });
+    const bad = await dbA.rpc("complete_extraction", {
+      p_extraction_id: s.extractionId, p_model: "x", p_input_tokens: 0, p_output_tokens: 0, p_latency_ms: 0, p_raw_output: null, p_brief: JSON.parse(brief), p_items: [],
+    });
+    expect(bad.error).not.toBeNull();
+    expect((await q<{ n: number }>(`select count(*)::int as n from extraction_items`))[0]!.n).toBe(0);
+    // The owner cannot rewrite a pipeline proposal's payload either.
+    const real = await submit(dbA, MIKE.input!);
+    await runExtraction(dbA, real.extractionId, { model: model(MIKE), logger });
+    await expect(asA(`update extraction_items set band = 'high' where band = 'low'`)).rejects.toThrow(/pipeline only/);
+    await asA(`update extraction_items set review_status = 'rejected' where band = 'low'`); // S3's columns stay writable
+  });
+
+  it("S2-5: whitespace-only text with newlines or tabs is refused before counting", async () => {
+    const res = await dbA.rpc("start_source_extraction", {
+      p_kind: "paste", p_text: " \n\t\n\u00a0", p_title: null, p_reference_date: "2026-10-05", p_now: NOW.toISOString(), p_model: "m", p_prompt_version: "p", p_schema_version: "s",
+    });
+    expect(res.error).toMatchObject({ code: "22023" });
+    expect((await q<{ n: number }>(`select count(*)::int as n from usage_counters`))[0]!.n).toBe(0);
+  });
+
+  it(`Try again is capped at ${MAX_RETRIES_PER_SOURCE} per source, and deleting old attempts does not reset it`, async () => {
+    const s = await failOnce();
+    let latest = s.extractionId;
+    for (let i = 0; i < MAX_RETRIES_PER_SOURCE; i++) {
+      expect((await readExtraction(dbA, latest, { now: NOW }))!.retryAvailable).toBe(true);
+      const r = await retryExtraction(dbA, latest, { logger });
+      if (!r.ok) throw new Error("retry refused early");
+      latest = r.extractionId;
+      await runExtraction(dbA, latest, { model: model(MALFORMED), logger });
+    }
+    expect((await readExtraction(dbA, latest, { now: NOW }))!.retryAvailable).toBe(false);
+    const refused = await retryExtraction(dbA, latest, { logger });
+    expect(refused).toMatchObject({ ok: false, error: { error: { code: "retry_limit", retryable: false } } });
+    await asA(`delete from extractions where source_id = '${s.sourceId}' and id <> '${latest}'`);
+    expect((await retryExtraction(dbA, latest, { logger })).ok).toBe(false);
+  });
+
+  it("the poll that applies the 90 s rule says so once (timeout event)", async () => {
+    const s = await submit(dbA, MIKE.input!);
+    const later = new Date(Date.now() + 91_000);
+    const first = await readExtraction(dbA, s.extractionId, { now: later });
+    const second = await readExtraction(dbA, s.extractionId, { now: later });
+    expect(first).toMatchObject({ status: "failed", timedOut: true });
+    expect(first!.elapsedMs).toBeGreaterThanOrEqual(90_000);
+    expect(second).toMatchObject({ status: "failed", timedOut: false });
   });
 });

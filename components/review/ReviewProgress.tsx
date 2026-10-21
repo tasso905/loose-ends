@@ -84,10 +84,13 @@ export function ReviewProgress({ initial }: { initial: ExtractionView }) {
         <ErrorBanner
           action={
             <div className="flex flex-wrap gap-2">
-              <Button variant="secondary" size="small" onClick={retry} disabled={retrying}>
-                {retrying ? <Spinner /> : null}
-                Try again
-              </Button>
+              {/* Hidden once the newest attempt has used the Try again cap (MAX_RETRIES_PER_SOURCE). */}
+              {view.retryAvailable && retryError?.retryable !== false ? (
+                <Button variant="secondary" size="small" onClick={retry} disabled={retrying}>
+                  {retrying ? <Spinner /> : null}
+                  Try again
+                </Button>
+              ) : null}
               <Link href="/add" className={buttonVariants({ variant: "ghost", size: "small" })}>
                 Back to Add
               </Link>

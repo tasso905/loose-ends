@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { errorResponse } from "@/lib/errors";
 import { log } from "@/lib/log";
+import { trackTimedOut } from "@/lib/extraction/analytics";
 import { readExtraction } from "@/lib/extraction/service";
 import { rpcDb } from "@/lib/extraction/supabaseDb";
 import { createClient } from "@/lib/supabase/server";
@@ -24,6 +25,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
   try {
     const view = await readExtraction(rpcDb(supabase), id, { now: getNow() });
     if (!view) return errorResponse("not_found");
+    trackTimedOut(auth.user.id, view);
     return Response.json(view, { headers: { "Cache-Control": "no-store" } });
   } catch {
     log("extraction_persist_failed", { extraction_id: id, step: "read" });

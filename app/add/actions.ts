@@ -1,14 +1,22 @@
 "use server";
 import { after } from "next/server";
-import { parsePasteForm } from "@/lib/capture/pasteInput";
-import { apiError, type ApiError } from "@/lib/errors";
+import { parsePasteForm, type PasteInputError } from "@/lib/capture/pasteInput";
+import { apiError, type ApiError, type InputField } from "@/lib/errors";
 import { extractionCompletedTracker, trackSourceSubmitted } from "@/lib/extraction/analytics";
 import { runExtraction, startExtraction } from "@/lib/extraction/service";
 import { rpcDb } from "@/lib/extraction/supabaseDb";
 import { createClient } from "@/lib/supabase/server";
 import { getNow, isDemoMode } from "@/lib/time";
 
-export type SubmitPasteResult = { ok: true; extractionId: string } | { ok: false; error: ApiError["error"]; signedOut?: boolean };
+export type SubmitPasteResult =
+  | { ok: true; extractionId: string }
+  | { ok: false; error: ApiError["error"]; signedOut?: boolean; field?: InputField };
+
+const FIELD_FOR: Record<Exclude<PasteInputError, "too_long">, InputField> = {
+  empty: "text",
+  title_too_long: "title",
+  invalid_date: "written_on",
+};
 
 /**
  * F2 submit (SITE_CONTRACT §2.2, §3.1): validates with Zod, counts one extraction (consume_usage),
@@ -24,10 +32,12 @@ export async function submitPaste(formData: FormData): Promise<SubmitPasteResult
     writtenOnSet: formData.get("written_on_set"),
   });
   if (!parsed.ok) {
-    return {
-      ok: false,
-      error: parsed.reason === "too_long" ? apiError("input_too_long", { n: parsed.length }).error : apiError("save_failed").error,
-    };
+    // Validation failures are field errors and never retryable (S2-4): resubmitting can't succeed.
+    const error =
+      parsed.reason === "too_long"
+        ? apiError("input_too_long", { n: parsed.length }).error
+        : apiError("invalid_input", { field: FIELD_FOR[parsed.reason] }).error;
+    return { ok: false, error, field: parsed.reason === "too_long" ? "text" : FIELD_FOR[parsed.reason] };
   }
 
   const supabase = await createClient();
