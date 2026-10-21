@@ -55,12 +55,14 @@ describe("schema (PGlite with Supabase stand-ins)", () => {
   });
 
   it("a user cannot link their rows to another user's thread", async () => {
-    await expect(
-      asUser(db, A, () => db.exec(`insert into thread_events (user_id, thread_id, actor, type) values ('${A}', '${THR_B}', 'user', 'created')`)),
-    ).rejects.toThrow(/foreign key/);
-    await expect(
-      asUser(db, A, () => db.exec(`insert into evidence (user_id, thread_id, quote, match_kind) values ('${A}', '${THR_B}', 'q', 'exact')`)),
-    ).rejects.toThrow(/foreign key/);
+    const event = `insert into thread_events (user_id, thread_id, actor, type) values ('${A}', '${THR_B}', 'user', 'created')`;
+    const ev = `insert into evidence (user_id, thread_id, quote, match_kind) values ('${A}', '${THR_B}', 'q', 'exact')`;
+    // No direct writes for users (migration 20261021115926: writes go through definer functions)...
+    await expect(asUser(db, A, () => db.exec(event))).rejects.toThrow(/permission denied/);
+    await expect(asUser(db, A, () => db.exec(ev))).rejects.toThrow(/permission denied/);
+    // ...and the composite foreign keys still refuse a cross-user link from any writer.
+    await expect(db.exec(event)).rejects.toThrow(/foreign key/);
+    await expect(db.exec(ev)).rejects.toThrow(/foreign key/);
   });
 
   it("profiles and user_settings cannot be deleted by the user; profile can be updated", async () => {

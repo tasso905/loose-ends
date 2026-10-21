@@ -338,27 +338,45 @@ describe("S2 hardening (tester S2-1..S2-5, retry cap, timeout event)", () => {
     return s;
   };
 
-  it("S2-1a: a source + failed attempt inserted directly is never retryable or readable", async () => {
-    const [src] = (await asA<{ id: string }>(
-      `insert into sources (user_id, kind, text_content, reference_date, reference_date_source) values ('${A}', 'paste', 'Uncounted.', '2026-10-05', 'user') returning id`,
-    )).rows;
+  it("S2-1a: the owner cannot insert sources or attempts directly; an attempt not made by the pipeline is never retryable or readable", async () => {
+    await expect(
+      asA(`insert into sources (user_id, kind, text_content, reference_date, reference_date_source) values ('${A}', 'paste', 'Uncounted.', '2026-10-05', 'user')`),
+    ).rejects.toThrow(/permission denied/);
+    const s = await failOnce();
+    await expect(
+      asA(`insert into extractions (user_id, source_id, status, model, prompt_version, schema_version) values ('${A}', '${s.sourceId}', 'failed', 'm', 'p', 's')`),
+    ).rejects.toThrow(/permission denied/);
+    // Second layer, if INSERT were ever granted again: the guard forces via_pipeline = false.
+    await pg.exec(`grant insert on extractions to authenticated`);
     const [ex] = (await asA<{ id: string; via_pipeline: boolean }>(
-      `insert into extractions (user_id, source_id, status, model, prompt_version, schema_version, via_pipeline) values ('${A}', '${src!.id}', 'failed', 'm', 'p', 's', true) returning id, via_pipeline`,
+      `insert into extractions (user_id, source_id, status, model, prompt_version, schema_version, via_pipeline) values ('${A}', '${s.sourceId}', 'failed', 'm', 'p', 's', true) returning id, via_pipeline`,
     )).rows;
-    expect(ex!.via_pipeline).toBe(false); // forced by the guard
+    await pg.exec(`revoke insert on extractions from authenticated`);
+    expect(ex!.via_pipeline).toBe(false);
     expect(await retryExtraction(dbA, ex!.id, { logger })).toMatchObject({ ok: false, notFound: true });
     expect(await readExtraction(dbA, ex!.id, { now: NOW })).toBeNull();
-    expect((await q<{ n: number }>(`select count(*)::int as n from usage_counters where user_id = '${A}'`))[0]!.n).toBe(0);
+    expect((await q<{ n: number }>(`select extractions as n from usage_counters where user_id = '${A}'`))[0]!.n).toBe(1);
   });
 
-  it("S2-1b/c: the owner cannot change attempt status or trace columns, or replace source text; clearing text is allowed", async () => {
+  it("S2-1b/c: the owner cannot update attempts or sources directly", async () => {
     const s = await failOnce();
-    await expect(asA(`update extractions set status = 'failed', error = null where id = '${s.extractionId}'`)).rejects.toThrow(/pipeline only/);
-    await expect(asA(`update extractions set stage = 'reading' where id = '${s.extractionId}'`)).rejects.toThrow(/pipeline only/);
-    await expect(asA(`update sources set text_content = repeat('z', 200000) where id = '${s.sourceId}'`)).rejects.toThrow(/cannot be replaced/);
-    await expect(asA(`update sources set pipeline_attempts = 0 where id = '${s.sourceId}'`)).rejects.toThrow(/pipeline only/);
-    await asA(`update sources set title = 'Renamed' where id = '${s.sourceId}'`);
-    await asA(`update sources set text_content = null where id = '${s.sourceId}'`);
+    await expect(asA(`update extractions set status = 'failed', error = null where id = '${s.extractionId}'`)).rejects.toThrow(/permission denied/);
+    await expect(asA(`update sources set text_content = repeat('z', 200000) where id = '${s.sourceId}'`)).rejects.toThrow(/permission denied/);
+    await expect(asA(`delete from extractions where id = '${s.extractionId}'`)).rejects.toThrow(/permission denied/);
+  });
+
+  it("S2-1b/c second layer: if UPDATE were granted again, the guards still lock pipeline columns", async () => {
+    const s = await failOnce();
+    await pg.exec(`grant update on extractions, sources to authenticated`);
+    try {
+      await expect(asA(`update extractions set status = 'failed', error = null where id = '${s.extractionId}'`)).rejects.toThrow(/pipeline only/);
+      await expect(asA(`update extractions set stage = 'reading' where id = '${s.extractionId}'`)).rejects.toThrow(/pipeline only/);
+      await expect(asA(`update sources set text_content = repeat('z', 200000) where id = '${s.sourceId}'`)).rejects.toThrow(/cannot be replaced/);
+      await expect(asA(`update sources set pipeline_attempts = 0 where id = '${s.sourceId}'`)).rejects.toThrow(/pipeline only/);
+      await asA(`update sources set text_content = null where id = '${s.sourceId}'`);
+    } finally {
+      await pg.exec(`revoke update on extractions, sources from authenticated`);
+    }
     expect(await retryExtraction(dbA, s.extractionId, { logger })).toMatchObject({ ok: false });
   });
 
@@ -389,12 +407,14 @@ describe("S2 hardening (tester S2-1..S2-5, retry cap, timeout event)", () => {
       p_extraction_id: s.extractionId, p_model: "x", p_input_tokens: 0, p_output_tokens: 0, p_latency_ms: 0, p_raw_output: null, p_brief: null, p_items: [forged],
     });
     expect(done.error).toMatchObject({ message: expect.stringMatching(/not in source/) });
-    await expect(
-      asA(`insert into extraction_items (user_id, extraction_id, payload, confidence, band, item_index) values ('${A}', '${s.extractionId}', '{"evidence":[{"quote":"I will wire money"}]}', 0.9, 'high', 0)`),
-    ).rejects.toThrow(/not in source/);
-    await expect(
-      asA(`insert into evidence (user_id, source_id, quote, match_kind) values ('${A}', '${s.sourceId}', 'I will wire money', 'exact')`),
-    ).rejects.toThrow(/not in source/);
+    const item = `insert into extraction_items (user_id, extraction_id, payload, confidence, band, item_index) values ('${A}', '${s.extractionId}', '{"evidence":[{"quote":"I will wire money"}]}', 0.9, 'high', 0)`;
+    const ev = `insert into evidence (user_id, source_id, quote, match_kind) values ('${A}', '${s.sourceId}', 'I will wire money', 'exact')`;
+    // The owner has no direct write at all...
+    await expect(asA(item)).rejects.toThrow(/permission denied/);
+    await expect(asA(ev)).rejects.toThrow(/permission denied/);
+    // ...and the quote triggers refuse any writer, even the table owner.
+    await expect(pg.exec(item)).rejects.toThrow(/not in source/);
+    await expect(pg.exec(ev)).rejects.toThrow(/not in source/);
     const brief = JSON.stringify({ what_to_do: [{ text: "Wire it", basis: "source", quote: "wire $5,000" }] });
     const bad = await dbA.rpc("complete_extraction", {
       p_extraction_id: s.extractionId, p_model: "x", p_input_tokens: 0, p_output_tokens: 0, p_latency_ms: 0, p_raw_output: null, p_brief: JSON.parse(brief), p_items: [],
@@ -404,8 +424,8 @@ describe("S2 hardening (tester S2-1..S2-5, retry cap, timeout event)", () => {
     // The owner cannot rewrite a pipeline proposal's payload either.
     const real = await submit(dbA, MIKE.input!);
     await runExtraction(dbA, real.extractionId, { model: model(MIKE), logger });
-    await expect(asA(`update extraction_items set band = 'high' where band = 'low'`)).rejects.toThrow(/pipeline only/);
-    await asA(`update extraction_items set review_status = 'rejected' where band = 'low'`); // S3's columns stay writable
+    await expect(asA(`update extraction_items set band = 'high' where band = 'low'`)).rejects.toThrow(/permission denied/);
+    await expect(asA(`update extraction_items set review_status = 'rejected' where band = 'low'`)).rejects.toThrow(/permission denied/); // reject_proposals only
   });
 
   it("S2-5: whitespace-only text with newlines or tabs is refused before counting", async () => {
@@ -429,7 +449,7 @@ describe("S2 hardening (tester S2-1..S2-5, retry cap, timeout event)", () => {
     expect((await readExtraction(dbA, latest, { now: NOW }))!.retryAvailable).toBe(false);
     const refused = await retryExtraction(dbA, latest, { logger });
     expect(refused).toMatchObject({ ok: false, error: { error: { code: "retry_limit", retryable: false } } });
-    await asA(`delete from extractions where source_id = '${s.sourceId}' and id <> '${latest}'`);
+    await pg.exec(`delete from extractions where source_id = '${s.sourceId}' and id <> '${latest}'`); // as the owner role: rows gone
     expect((await retryExtraction(dbA, latest, { logger })).ok).toBe(false);
   });
 

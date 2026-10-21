@@ -22,14 +22,15 @@ export async function migratedDb(): Promise<PGlite> {
     create function storage.foldername(name text) returns text[] language sql as $$ select string_to_array(name, '/') $$;
     grant usage on schema auth, storage, public, extensions to authenticated;
     grant execute on function auth.uid() to authenticated;
+    -- Supabase grants table privileges to authenticated by default (RLS does the restricting).
+    -- Default privileges, as there, so a migration's later revoke still applies.
+    alter default privileges in schema public grant select, insert, update, delete on tables to authenticated;
   `);
   const dir = join(process.cwd(), "supabase", "migrations");
   for (const f of readdirSync(dir).filter((x) => x.endsWith(".sql")).sort()) {
     await db.exec(readFileSync(join(dir, f), "utf8"));
   }
-  // Supabase grants table privileges to authenticated by default; RLS does the restricting.
-  await db.exec(`grant select, insert, update, delete on all tables in schema public to authenticated;
-                 grant select, insert, delete on storage.objects to authenticated;`);
+  await db.exec(`grant select, insert, delete on storage.objects to authenticated;`);
   return db;
 }
 

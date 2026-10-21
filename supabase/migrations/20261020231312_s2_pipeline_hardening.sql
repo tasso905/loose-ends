@@ -20,6 +20,8 @@
 -- are SECURITY INVOKER and write these tables, and the S0 live suite seeds data through the user's
 -- own client. Triggers keep those working while closing the bypasses. Why not the service role:
 -- CLAUDE.md limits it to cron/daily, account deletion and inbound email.
+-- SUPERSEDED by 20261021115926_write_model_definer.sql: those functions are now definer and
+-- direct writes are revoked; the guards below remain as a second layer.
 --
 -- Residual (reported): an owner can still insert their own extraction_items/evidence rows directly,
 -- but every quote in them must be verbatim in their own source (rule 1 holds); titles and labels of
