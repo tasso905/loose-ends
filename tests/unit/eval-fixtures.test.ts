@@ -14,7 +14,8 @@ import { Band, DueCertainty } from "@/lib/schemas";
  * Checks the eval fixtures in evals/fixtures without any live model call.
  *
  * 1. Format: meta.json and expected.json match the format evals/run.ts reads, plus the tester
- *    extensions (title, certainty, date_text, due_certainty, due_at, counterparty, amount_text, note).
+ *    extensions (title, certainty, date_text, due_certainty, due_at, counterparty, amount_text, note,
+ *    fuzzy_quote).
  * 2. Every golden quote is a verbatim substring of input.txt, no two golden quotes overlap (the
  *    runner matches by quote containment), and golden date/amount/name phrases appear in the source.
  * 3. Synthetic only: every email address and web domain uses a reserved example domain, and
@@ -23,7 +24,9 @@ import { Band, DueCertainty } from "@/lib/schemas";
  *    extract() with the fake recorded provider (schema validation included), then through the real
  *    pipeline. Band, due date, date certainty and (where given) due_at must equal the golden values.
  *    This proves the goldens are reachable under the PRD scoring and date rules, so a live-eval miss
- *    is a model miss, not a golden error.
+ *    is a model miss, not a golden error. Items with a `fuzzy_quote` are replayed a second time
+ *    quoting that near-miss copy: it must verify as fuzzy (>= 0.9), map back onto the golden span
+ *    and keep the golden band and due date.
  *
  * Set EVAL_RECORDINGS_OUT=<dir> to also write those perfect responses as fake-provider recordings,
  * for `AI_PROVIDER=fake AI_MODEL=golden AI_RECORDINGS_DIR=<dir> pnpm eval` (harness self-check).
@@ -62,6 +65,9 @@ const ExpectedItem = z
     counterparty: z.string().nullable().optional(),
     amount_text: z.string().nullable().optional(),
     note: z.string().optional(),
+    // A near-miss copy of `quote` (e.g. typos "corrected") that a model might return. Not verbatim;
+    // the replay below checks it verifies only by fuzzy match and lands on the golden span and band.
+    fuzzy_quote: z.string().min(3).max(400).optional(),
   })
   .strict()
   .refine((e) => e.band === "ignore" || e.certainty !== undefined, { message: "shown items need the expected model certainty" })
@@ -92,10 +98,10 @@ function load(name: string): Fixture {
 const norm = (s: string) => normalizeText(s).toLowerCase();
 const overlaps = (a: string, b: string) => norm(a).includes(norm(b)) || norm(b).includes(norm(a));
 
-/** The model response a perfect extractor would give for this fixture. */
-function perfectOutput(f: Fixture) {
+/** The model response a perfect extractor would give for this fixture (or, with `fuzzy`, one that quotes the near-miss copies). */
+function perfectOutput(f: Fixture, fuzzy = false) {
   const items: Item[] = f.expected.items
-    .filter((e) => e.certainty !== undefined)
+    .filter((e) => e.certainty !== undefined && (!fuzzy || e.fuzzy_quote !== undefined))
     .map((e) => ({
       type: e.type,
       title: e.title,
@@ -108,14 +114,14 @@ function perfectOutput(f: Fixture) {
       certainty: e.certainty!,
       uncertainty_notes: [],
       matches_thread_id: null,
-      evidence: [{ quote: e.quote, speaker: null }],
+      evidence: [{ quote: fuzzy ? e.fuzzy_quote! : e.quote, speaker: null }],
     }));
   return Extraction.parse({ source_summary: `Golden replay for ${f.name}`, participants: [], items, brief: null });
 }
 
 describe("eval fixtures", () => {
   it("there are fixtures, each with input.txt, meta.json and expected.json", () => {
-    expect(names.length).toBeGreaterThanOrEqual(10);
+    expect(names.length).toBeGreaterThanOrEqual(20); // Core-loop checkpoint: `pnpm eval` runs on >= 20 fixtures
     for (const n of names) {
       for (const file of ["input.txt", "meta.json", "expected.json"]) {
         expect(existsSync(join(root, n, file)), `${n}/${file}`).toBe(true);
@@ -181,6 +187,21 @@ describe("eval fixtures", () => {
         expect(p!.item.counterparty).toBe(e.counterparty ?? null);
       }
 
+      if (f.expected.items.some((e) => e.fuzzy_quote !== undefined)) {
+        // Near-miss quotes: not verbatim, verified by fuzzy match only, stored as the source span
+        // (so the runner's containment match still finds the golden), same band and due date.
+        const fuzzyOut = processExtraction(perfectOutput(f, true), { sourceText: f.text, ...ctx, logger: () => {} });
+        expect(fuzzyOut.droppedItemIndexes).toEqual([]);
+        for (const e of f.expected.items.filter((x) => x.fuzzy_quote !== undefined)) {
+          expect(norm(f.text).includes(norm(e.fuzzy_quote!)), `fuzzy_quote is verbatim: ${e.fuzzy_quote}`).toBe(false);
+          const p = fuzzyOut.proposals.find((x) => x.evidence.some((ev) => overlaps(ev.quote, e.quote)));
+          expect(p, `no proposal for fuzzy ${e.fuzzy_quote}`).toBeDefined();
+          expect(p!.evidence[0]!.match_kind).toBe("fuzzy");
+          expect(p!.evidence[0]!.similarity).toBeGreaterThanOrEqual(0.9);
+          expect({ band: p!.band, due_date: p!.date.due_date }, e.fuzzy_quote).toEqual({ band: e.band, due_date: e.due_date });
+        }
+      }
+
       const outDir = process.env.EVAL_RECORDINGS_OUT;
       if (outDir) {
         mkdirSync(outDir, { recursive: true });
@@ -193,8 +214,8 @@ describe("eval fixtures", () => {
     const all = names.map(load);
     const bands = all.flatMap((f) => f.expected.items.map((e) => e.band));
     const count = (b: string) => bands.filter((x) => x === b).length;
-    // The 40-fixture target needs >= 12 ambiguous (PRD Testing Strategy); this set is 1-10.
-    expect(all.filter((f) => f.meta.ambiguous).length).toBeGreaterThanOrEqual(1);
+    // The 40-fixture target needs >= 12 ambiguous (PRD Testing Strategy); this set is 1-20 (8 ambiguous).
+    expect(all.filter((f) => f.meta.ambiguous).length).toBeGreaterThanOrEqual(8);
     expect(count("high") + count("medium") + count("low") + count("ignore")).toBe(bands.length);
     expect(all.some((f) => f.expected.items.length === 0)).toBe(true); // at least one no-item fixture
   });

@@ -1,0 +1,50 @@
+{
+  "notes": "Skipped-hour rule (lib/pipeline/resolveDates.ts zonedInstant, tests/unit/resolveDates.test.ts): a wall-clock time inside the spring-forward gap moves forward by the gap. 'this weekend' names the upgrade window, not a due date.",
+  "items": [
+    {
+      "type": "request",
+      "title": "Pause the nightly backup job",
+      "owner": "user",
+      "quote": "Please pause the nightly backup job by Saturday at 7pm.",
+      "date_text": "by Saturday at 7pm",
+      "due_date": "2027-03-13",
+      "due_at": "2027-03-14T00:00:00.000Z",
+      "due_certainty": "explicit",
+      "certainty": "explicit",
+      "counterparty": "Lena Ortiz",
+      "amount_text": null,
+      "band": "high",
+      "note": "Before the change: 7 PM EST = 00:00 UTC on Mar 14. The local due date stays Sat Mar 13."
+    },
+    {
+      "type": "request",
+      "title": "Restart the backup job after the upgrade",
+      "owner": "user",
+      "quote": "Can you restart the backup job Sunday at 2:30am once the upgrade finishes?",
+      "date_text": "Sunday at 2:30am",
+      "due_date": "2027-03-14",
+      "due_at": "2027-03-14T07:30:00.000Z",
+      "due_certainty": "explicit",
+      "certainty": "explicit",
+      "counterparty": "Lena Ortiz",
+      "amount_text": null,
+      "band": "high",
+      "note": "2:30 AM does not exist on Mar 14 in New York; it becomes 3:30 AM EDT = 07:30 UTC (the same instant as reading it with the old EST offset). 06:30 UTC would mean the nonexistent 2:30 was read as EDT, an instant before the change; local due date stays Sun Mar 14 either way."
+    },
+    {
+      "type": "waiting_on",
+      "title": "Post-upgrade report from Lena",
+      "owner": "other",
+      "quote": "I'll send the post-upgrade report on Monday at 8am.",
+      "date_text": "on Monday at 8am",
+      "due_date": "2027-03-15",
+      "due_at": "2027-03-15T12:00:00.000Z",
+      "due_certainty": "explicit",
+      "certainty": "explicit",
+      "counterparty": "Lena Ortiz",
+      "amount_text": null,
+      "band": "high",
+      "note": "Written by Lena, not the user. After the change: 8 AM EDT = 12:00 UTC (13:00 would mean the EST offset was kept)."
+    }
+  ]
+}

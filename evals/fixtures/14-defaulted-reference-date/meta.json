@@ -1,0 +1,10 @@
+{
+  "description": "Email body pasted without its header, so there is no written-on date: the reference date is defaulted to the paste day (Wed Oct 21, 2026, Phoenix, no DST). Relative phrases ('on Friday', 'tomorrow') read against an assumed date are marked Assumed (inferred) with a 'Change the date if that's wrong' line. An absolute month-day ('Nov 12') stays explicit.",
+  "covers": ["email_body_no_header", "reference_date_defaulted", "assumed_relative_dates", "absolute_month_day_with_defaulted_reference", "request_to_user", "commitment_by_other", "timezone_without_dst"],
+  "reference_date": "2026-10-21",
+  "reference_date_source": "defaulted",
+  "timezone": "America/Phoenix",
+  "source_kind": "paste",
+  "user": { "display_name": "Kim Alvarez", "aliases": ["kim.alvarez@example.com", "Kim"] },
+  "ambiguous": false
+}

@@ -1,0 +1,10 @@
+{
+  "description": "Book-club group chat copied on Tue Oct 20, 2026 (New York); the user is Noor. One message lost its speaker label in the copy, so 'I'll bring the cheesecake!' has no known writer (owner unknown). A conditional promise by someone else, a request the user accepted with 'this Friday', and a debt between two other people that is not the user's loop.",
+  "covers": ["group_chat", "unclear_speaker_missing_label", "owner_unknown", "conditional_promise_by_other", "request_to_user_accepted", "this_friday", "third_party_loop_decoy"],
+  "reference_date": "2026-10-20",
+  "reference_date_source": "user",
+  "timezone": "America/New_York",
+  "source_kind": "paste",
+  "user": { "display_name": "Noor Siddiqui", "aliases": ["noor.siddiqui@example.com", "Noor"] },
+  "ambiguous": true
+}

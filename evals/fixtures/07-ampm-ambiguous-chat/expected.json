@@ -27,7 +27,7 @@
       "counterparty": "Jamie",
       "amount_text": null,
       "band": "high",
-      "note": "Written by Jamie, not the user. A model may attach 'Thursday at 10:30' (Oct 22); evals/run.ts does not score dates on golden items with no due date."
+      "note": "Written by Jamie, not the user. A model may attach 'Thursday at 10:30' (Oct 22) from the line before; evals/run.ts scores dates on dateless goldens too, so that counts as an invented date (date-accuracy error, diff 'invented'). If live runs show models consistently dating this item to the plumber visit, revisit with the PM whether Oct 22 should be the golden date instead."
     }
   ]
 }

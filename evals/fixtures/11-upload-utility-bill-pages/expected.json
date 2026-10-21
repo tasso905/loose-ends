@@ -1,0 +1,33 @@
+{
+  "notes": "The summary box ('Amount due: $142.37' / 'Payment due date: November 3, 2026') restates the payment deadline. A model may cite it as a second evidence quote for the same item; a separate item for it counts against precision. The meter replacement window (Oct 26-30) is the utility's own work and a key fact, not a loop for the user. The AutoPay paragraph is a decoy: the user is not enrolled, so there is no 'nothing to do' item. Pages: if page offsets are added to the fixture format later, the payment item is on page 1 and the meter-pit item on page 2.",
+  "items": [
+    {
+      "type": "deadline",
+      "title": "Pay the water and power bill",
+      "owner": "user",
+      "quote": "Please pay $142.37 by November 3, 2026 to avoid a $15.00 late fee.",
+      "date_text": "by November 3, 2026",
+      "due_date": "2026-11-03",
+      "due_certainty": "explicit",
+      "certainty": "explicit",
+      "counterparty": "Front Range Water & Power",
+      "amount_text": "$142.37",
+      "band": "high",
+      "note": "0.80 + 0.05 exact + 0.05 date agrees = 0.90. Amount copied as written; the $15.00 late fee is the consequence, not the amount due. Could be typed request; evals/run.ts scores type only as informational."
+    },
+    {
+      "type": "request",
+      "title": "Clear the meter pit before the replacement",
+      "owner": "user",
+      "quote": "Please make sure the meter pit in your front yard is clear of vehicles and debris by October 26.",
+      "date_text": "by October 26",
+      "due_date": "2026-10-26",
+      "due_certainty": "explicit",
+      "certainty": "explicit",
+      "counterparty": "Front Range Water & Power",
+      "amount_text": null,
+      "band": "high",
+      "note": "Page 2. Month-day with no year, 12 days after the statement date: this year (D28)."
+    }
+  ]
+}
