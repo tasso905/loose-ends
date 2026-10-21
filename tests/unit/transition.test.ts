@@ -61,6 +61,19 @@ const ACTIONS: Record<ThreadActionType, ThreadAction> = {
   reopen: { type: "reopen" },
   edit: { type: "edit", fields: { title: "Send the proposal to Mike" } },
   forget: { type: "forget" },
+  // Undo of a Done from open, written 1 s ago: it applies only to a thread still in that resolved state.
+  undo: {
+    type: "undo",
+    target: {
+      id: 7,
+      type: "resolved",
+      actor: "user",
+      before: { status: "open", resolution: null, resolved_at: null },
+      after: { status: "resolved", resolution: "done", resolved_at: EARLIER },
+      created_at: new Date(NOW.getTime() - 1000).toISOString(),
+      latest: true,
+    },
+  },
 };
 
 /**
@@ -80,7 +93,8 @@ const TABLE: Record<ThreadStatus | "proposal", Partial<Record<ThreadActionType, 
   },
   waiting: { done: "resolved", back_to_me: "open", resolve: "resolved", dismiss: "dismissed", edit: "waiting", forget: "deleted" },
   snoozed: { wake: "open", done: "resolved", resolve: "resolved", dismiss: "dismissed", edit: "snoozed", forget: "deleted" },
-  resolved: { reopen: "open", edit: "resolved", forget: "deleted" },
+  // undo (proposed D44 a): only where the thread still holds the undone event's `after` values.
+  resolved: { reopen: "open", edit: "resolved", forget: "deleted", undo: "open" },
   dismissed: { reopen: "open", edit: "dismissed", forget: "deleted" },
 };
 
@@ -304,5 +318,72 @@ describe("transition(): actors (round 2 fixes)", () => {
     expect(transition(thread("open"), ACTIONS.edit, { now: NOW, actor: "ai" }).ok).toBe(true);
     expect(transition(thread("open"), ACTIONS.forget, { now: NOW, actor: "ai" }).ok).toBe(false);
     expect(transition(thread("snoozed"), ACTIONS.wake, { now: NOW, actor: "ai" }).ok).toBe(false);
+  });
+});
+
+describe("transition(): undo (proposed D44 option a)", () => {
+  type Undo = Extract<ThreadAction, { type: "undo" }>;
+  type Ev = { type: string; before: Record<string, unknown> | null; after: Record<string, unknown> | null };
+  const done = (t: ThreadState, at: Date = NOW) => {
+    const r = transition(t, { type: "done" }, { now: at });
+    if (!r.ok || !r.event) throw new Error("done failed");
+    return { thread: r.thread!, event: r.event };
+  };
+  const undoOf = (ev: Ev, over: Partial<Undo["target"]> = {}): Undo => ({
+    type: "undo",
+    target: {
+      id: 42,
+      type: ev.type as Undo["target"]["type"],
+      actor: "user",
+      before: ev.before,
+      after: ev.after,
+      created_at: NOW.toISOString(),
+      latest: true,
+      ...over,
+    },
+  });
+  const at = (ms: number) => new Date(NOW.getTime() + ms);
+
+  it.each(["open", "waiting", "snoozed"] as const)("restores the exact prior state of a Done from %s", (from) => {
+    const original = thread(from);
+    const d = done(original);
+    const r = transition(d.thread, undoOf(d.event), { now: at(3000) });
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.thread).toEqual(original);
+    expect(r.event).toEqual({ type: "undone", actor: "user", before: d.event.after, after: { ...d.event.before, undone_event_id: 42 } });
+    expect(r.effects).toEqual([]);
+  });
+
+  it("is valid up to exactly 8 s after the event and refused after", () => {
+    const d = done(thread("open"));
+    expect(transition(d.thread, undoOf(d.event), { now: at(8000) }).ok).toBe(true);
+    const late = transition(d.thread, undoOf(d.event), { now: at(8001) });
+    expect(late).toMatchObject({ ok: false, error: { code: "invalid_transition" } });
+    // An event "from the future" (clock mismatch) is refused too.
+    expect(transition(d.thread, undoOf(d.event), { now: at(-1) }).ok).toBe(false);
+  });
+
+  it("refuses a non-latest event, another actor's event, or a non-undoable type", () => {
+    const d = done(thread("open"));
+    expect(transition(d.thread, undoOf(d.event, { latest: false }), { now: NOW }).ok).toBe(false);
+    expect(transition(d.thread, undoOf(d.event, { actor: "system" }), { now: NOW }).ok).toBe(false);
+    for (const type of ["created", "edited", "status_changed", "snoozed", "reopened", "undone"] as const) {
+      expect(transition(d.thread, undoOf(d.event, { type }), { now: NOW }).ok, type).toBe(false);
+    }
+  });
+
+  it("refuses when the thread no longer holds the event's after values, or the event names unknown keys", () => {
+    const d = done(thread("open"));
+    expect(transition({ ...d.thread, resolved_at: LATER }, undoOf(d.event), { now: NOW }).ok).toBe(false);
+    expect(transition(thread("open"), undoOf(d.event), { now: NOW }).ok).toBe(false);
+    expect(transition(d.thread, undoOf({ ...d.event, before: { ...d.event.before, user_id: "x" } }), { now: NOW }).ok).toBe(false);
+    expect(transition(d.thread, undoOf(d.event, { created_at: "nope" }), { now: NOW }).ok).toBe(false);
+  });
+
+  it("only the user can undo", () => {
+    const d = done(thread("open"));
+    expect(transition(d.thread, undoOf(d.event), { now: NOW, actor: "system" }).ok).toBe(false);
+    expect(transition(d.thread, undoOf(d.event), { now: NOW, actor: "ai" }).ok).toBe(false);
   });
 });

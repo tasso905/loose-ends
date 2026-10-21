@@ -1,8 +1,7 @@
 import type { Metadata } from "next";
 import { formatInTimeZone } from "date-fns-tz";
-import { SignOutButton } from "@/components/auth/SignOutButton";
+import { AppHeader } from "@/components/AppHeader";
 import { PasteForm } from "@/components/capture/PasteForm";
-import { Wordmark } from "@/components/Wordmark";
 import { requireUser } from "@/lib/auth/session";
 import { createClient } from "@/lib/supabase/server";
 import { getNow, isDemoMode } from "@/lib/time";
@@ -36,10 +35,7 @@ export default async function AddPage({ searchParams }: { searchParams: SearchPa
 
   return (
     <>
-      <header className="mx-auto flex w-full max-w-column items-center justify-between gap-4 px-4 pt-6 sm:px-6 md:pt-8 lg:px-8">
-        <Wordmark />
-        <SignOutButton />
-      </header>
+      <AppHeader current={null} />
       <main className="mx-auto w-full max-w-column px-4 pt-6 pb-16 sm:px-6 lg:px-8">
         <h1 className="text-display-sm text-le-text sm:text-display">Drop something in</h1>
         <PasteForm today={today} />

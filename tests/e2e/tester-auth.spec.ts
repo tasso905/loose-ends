@@ -313,10 +313,10 @@ test("keyboard only: sign in → onboarding → skip → Today → sign out, wit
   await expect(page.getByRole("button", { name: "Skip" })).toBeFocused();
   await page.keyboard.press("Enter");
   await expect(page).toHaveURL(/\/today$/);
-  await page.keyboard.press("Tab");
-  // `next dev` injects the Next.js dev-tools button (NEXTJS-PORTAL) as a tab stop; it is not in production.
-  if (await page.evaluate(() => document.activeElement?.tagName === "NEXTJS-PORTAL")) await page.keyboard.press("Tab");
+  // S4 app header: wordmark (Today), Today, Threads, Add, then Sign out. `next dev` also injects the
+  // Next.js dev-tools button (NEXTJS-PORTAL) as a tab stop; it is not in production.
   const out = page.getByRole("button", { name: "Sign out" });
+  for (let i = 0; i < 7 && !(await out.evaluate((el) => el === document.activeElement)); i++) await page.keyboard.press("Tab");
   await expect(out).toBeFocused();
   expect(await out.evaluate((el) => getComputedStyle(el).outlineStyle)).toBe("solid");
   await axe(page);

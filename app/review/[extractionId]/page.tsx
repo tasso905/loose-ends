@@ -1,9 +1,8 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { z } from "zod";
-import { SignOutButton } from "@/components/auth/SignOutButton";
+import { AppHeader } from "@/components/AppHeader";
 import { ReviewProgress } from "@/components/review/ReviewProgress";
-import { Wordmark } from "@/components/Wordmark";
 import { requireUser } from "@/lib/auth/session";
 import { trackTimedOut } from "@/lib/extraction/analytics";
 import { readExtraction } from "@/lib/extraction/service";
@@ -37,10 +36,7 @@ export default async function ReviewPage({ params }: { params: Params }) {
 
   return (
     <>
-      <header className="mx-auto flex w-full max-w-column items-center justify-between gap-4 px-4 pt-6 sm:px-6 md:pt-8 lg:px-8">
-        <Wordmark />
-        <SignOutButton />
-      </header>
+      <AppHeader current={null} />
       <main className="mx-auto w-full max-w-column px-4 pt-6 pb-16 sm:px-6 lg:px-8">
         <ReviewProgress key={view.id} initial={view} timezone={timezone} nowIso={now.toISOString()} />
       </main>

@@ -20,7 +20,9 @@ export type LogEvent =
   | "analytics_rejected"
   | "analytics_capture_failed"
   | "analytics_setting_save_failed"
-  | "review_persist_failed";
+  | "review_persist_failed"
+  | "thread_action_failed"
+  | "threads_load_failed";
 
 export type LogProps = Record<string, string | number | boolean | null>;
 
