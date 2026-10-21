@@ -242,6 +242,29 @@ describe.skipIf(!env)("real local Supabase: RLS, rate limit, deletion", () => {
     expect(del.data ?? []).toEqual([]);
   });
 
+  it("S4: threads cannot be updated directly; Done and Undo go through the definer functions, owner only", async () => {
+    // No direct UPDATE, even of one's own thread (status changes need a thread_events row).
+    const direct = await A.client.from("threads").update({ status: "resolved" }).eq("id", gA.thread).select();
+    expect(direct.error?.code).toBe("42501");
+    expect((await admin.from("threads").select("status").eq("id", gA.thread).single()).data).toEqual({ status: "open" });
+
+    // B cannot Done A's thread.
+    const now = new Date();
+    const foreign = await B.client.rpc("thread_done", { p_thread_id: gA.thread, p_from_status: "open", p_now: now.toISOString() });
+    expect(foreign.data).toEqual({ ok: false, error: "not_found" });
+    // anon cannot call it at all.
+    expect((await anon.rpc("thread_done", { p_thread_id: gA.thread, p_from_status: "open", p_now: now.toISOString() })).error).not.toBeNull();
+
+    const done = await A.client.rpc("thread_done", { p_thread_id: gA.thread, p_from_status: "open", p_now: now.toISOString() });
+    expect(done.data).toMatchObject({ ok: true, from_status: "open", to_status: "resolved" });
+    expect((await B.client.rpc("thread_undo", { p_thread_id: gA.thread, p_event_id: done.data.event_id, p_now: now.toISOString() })).data).toEqual({ ok: false, error: "not_found" });
+    const undo = await A.client.rpc("thread_undo", { p_thread_id: gA.thread, p_event_id: done.data.event_id, p_now: new Date(now.getTime() + 2000).toISOString() });
+    expect(undo.data).toMatchObject({ ok: true, to_status: "open", undone_event_id: done.data.event_id });
+    expect((await admin.from("threads").select("status, resolution").eq("id", gA.thread).single()).data).toEqual({ status: "open", resolution: null });
+    const { data: ev } = await admin.from("thread_events").select("type").eq("thread_id", gA.thread).order("id");
+    expect(ev!.map((e) => e.type)).toEqual(["created", "resolved", "undone"]);
+  });
+
   it("profiles and user_settings cannot be deleted by the owner; invalid timezone is refused", async () => {
     expect((await A.client.from("profiles").delete().eq("id", A.id).select()).data ?? []).toEqual([]);
     expect((await A.client.from("user_settings").delete().eq("user_id", A.id).select()).data ?? []).toEqual([]);
