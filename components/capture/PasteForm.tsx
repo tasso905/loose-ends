@@ -33,6 +33,10 @@ export function PasteForm({ today }: { today: string }) {
 
   // Text typed or pasted before hydration is already in the field: count it once.
   useEffect(() => {
+    // SITE_CONTRACT §3.2: focus the first relevant field on /add. Not when the user has already
+    // moved focus somewhere else before hydration.
+    const active = document.activeElement;
+    if (!active || active === document.body) textRef.current?.focus();
     const value = textRef.current?.value ?? "";
     if (value.length > 0) {
       setLength(normalizeLineBreaks(value).length);

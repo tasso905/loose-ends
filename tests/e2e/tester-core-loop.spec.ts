@@ -128,10 +128,9 @@ test("keyboard only: paste → review → accept → View in Today → detail �
   expect(await eventTypes(t!.id)).toEqual(["created", "resolved", "undone"]);
 });
 
-// DEFECT (minor, SITE_CONTRACT §3.2 "Focus the first relevant field on /add"): nothing is focused
-// on arrival, so a keyboard user tabs past the skip link and header first.
+// REGRESSION GUARD (was DEFECT, minor, SITE_CONTRACT §3.2 "Focus the first relevant field on
+// /add"): nothing was focused on arrival, so a keyboard user tabbed past the skip link and header.
 test("/add focuses the paste field on arrival (§3.2)", async () => {
-  test.fail(true, "DEFECT: /add does not focus its first field");
   await page.goto("/add?mode=paste");
   await expect(page.getByLabel("Paste a message or document")).toBeFocused({ timeout: 3_000 });
 });
