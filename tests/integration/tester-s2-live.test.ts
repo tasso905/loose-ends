@@ -357,22 +357,25 @@ describe.skipIf(!live)("tester S2: extraction lifecycle on real local Supabase",
     expect(raw.proposals.map((p) => p.band)).toEqual(["low"]);
   });
 
-  it("the 90 s rule with a faked clock: running at +89 s (slow from +45 s), failed 'timeout' at +91 s; a late complete writes nothing", async () => {
+  // Adapted for migration 20261021131140 (the database refuses a p_now more than 5 s from its own
+  // clock): instead of faking p_now, created_at is backdated with the service role and every poll
+  // uses the real clock. The exact 45 s / 90 s boundaries are in tests/integration/extraction.test.ts.
+  it("the 90 s rule on the real clock: running at 44 s, slow from 45 s, running at 89 s, failed 'timeout' past 90 s; a late complete writes nothing", async () => {
     const a = await makeUser("s2stale");
     const s = await start(a.client, MIKE.input!);
-    const { data: row } = await admin.from("extractions").select("created_at").eq("id", s.extractionId).single();
-    const created = row!.created_at as string;
+    const age = async (seconds: number) => {
+      const { error } = await admin.from("extractions").update({ created_at: new Date(Date.now() - seconds * 1000).toISOString() }).eq("id", s.extractionId);
+      if (error) throw new Error(`backdate failed: ${error.code}`);
+    };
 
-    const v44 = await readExtraction(rpc(a.client), s.extractionId, { now: new Date(at(created, 44)) });
-    expect(v44).toMatchObject({ status: "running", slow: false });
-    const v45 = await readExtraction(rpc(a.client), s.extractionId, { now: new Date(at(created, 45)) });
-    expect(v45).toMatchObject({ status: "running", slow: true });
-    const v89 = await readExtraction(rpc(a.client), s.extractionId, { now: new Date(at(created, 89.9)) });
-    expect(v89?.status).toBe("running");
-    // Exactly 90 s is still running (strict "older than 90 s").
-    const v90 = await readExtraction(rpc(a.client), s.extractionId, { now: new Date(at(created, 90)) });
-    expect(v90?.status).toBe("running");
-    const v91 = await readExtraction(rpc(a.client), s.extractionId, { now: new Date(at(created, 91)) });
+    await age(44);
+    expect(await readExtraction(rpc(a.client), s.extractionId, { now: now() })).toMatchObject({ status: "running", slow: false });
+    await age(45.5);
+    expect(await readExtraction(rpc(a.client), s.extractionId, { now: now() })).toMatchObject({ status: "running", slow: true });
+    await age(89);
+    expect((await readExtraction(rpc(a.client), s.extractionId, { now: now() }))?.status).toBe("running");
+    await age(91);
+    const v91 = await readExtraction(rpc(a.client), s.extractionId, { now: now() });
     expect(v91).toMatchObject({ status: "failed", slow: false, error: { code: "extraction_failed" } });
     const { data: after } = await admin.from("extractions").select("status, error, stage").eq("id", s.extractionId).single();
     expect(after).toEqual({ status: "failed", error: "timeout", stage: null });
@@ -383,7 +386,7 @@ describe.skipIf(!live)("tester S2: extraction lifecycle on real local Supabase",
     expect(outcome).toBe("skipped");
     expect(reported).toBe(0);
     expect(await count("extraction_items", a.id)).toBe(0);
-    // A poll with an earlier clock never revives it.
-    expect((await readExtraction(rpc(a.client), s.extractionId, { now: new Date(at(created, 1)) }))?.status).toBe("failed");
+    // A later poll never revives it.
+    expect((await readExtraction(rpc(a.client), s.extractionId, { now: now() }))?.status).toBe("failed");
   });
 });

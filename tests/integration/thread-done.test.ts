@@ -267,3 +267,80 @@ describe("SQL thread_done / thread_undo agree with TS transition()", () => {
     expect(checked).toBe(12);
   });
 });
+
+describe("clock guard (migration 20261021131140): p_now must be within 5 s of the database clock", () => {
+  let g: PGlite;
+  let gA: RpcDb;
+  const dbNow = async () => new Date((await g.query<{ t: string }>(`select now()::text as t`)).rows[0]!.t);
+  const shift = (d: Date, ms: number) => new Date(d.getTime() + ms);
+
+  beforeEach(async () => {
+    g = await migratedDb({ clockGuard: true });
+    await g.exec(`insert into auth.users values ('${A}', 'sam@example.com', '{}')`);
+    gA = rpcAs(g, A);
+  });
+
+  async function seed(): Promise<string> {
+    const [row] = (await g.query<{ id: string }>(`insert into threads (user_id, title, kind) values ($1, 'Synthetic guard thread', 'commitment') returning id`, [A])).rows;
+    await g.query(`insert into thread_events (user_id, thread_id, actor, type) values ($1, $2, 'user', 'created')`, [A, row!.id]);
+    return row!.id;
+  }
+  const typesOf = async (id: string) =>
+    (await g.query<{ type: string }>(`select type from thread_events where thread_id = $1 order by id`, [id])).rows.map((r) => r.type);
+
+  it("Done with the real clock works; Done with p_now 10 s or 1 h off is refused (save_failed) and writes nothing", async () => {
+    const id = await seed();
+    for (const off of [-10_000, 10_000, -3_600_000]) {
+      const res = await markDone(gA, id, "open", { now: shift(await dbNow(), off), logger: () => {} });
+      expect(res, String(off)).toMatchObject({ ok: false, code: "save_failed" });
+    }
+    expect(await typesOf(id)).toEqual(["created"]);
+    expect(await markDone(gA, id, "open", { now: await dbNow() })).toMatchObject({ ok: true });
+  });
+
+  it("Undo claiming an instant outside the tolerance is invalid_transition and writes nothing", async () => {
+    const id = await seed();
+    const done = await markDone(gA, id, "open", { now: shift(await dbNow(), -4_000) });
+    if (!done.ok) throw new Error("done failed");
+    // Inside the 8 s window of the Done, but 6 s behind the database clock.
+    const r = await gA.rpc("thread_undo", { p_thread_id: id, p_event_id: done.event_id, p_now: shift(await dbNow(), -6_000).toISOString() });
+    expect(r.data).toEqual({ ok: false, error: "invalid_transition" });
+    expect(await typesOf(id)).toEqual(["created", "resolved"]);
+    expect(await undoEvent(gA, id, done.event_id, { now: await dbNow() })).toMatchObject({ ok: true });
+  });
+
+  it("accept_proposals, reject_proposals and get_extraction refuse a skewed p_now before anything else (22023)", async () => {
+    const x = "30000000-0000-0000-0000-000000000001";
+    const late = shift(await dbNow(), -60_000).toISOString();
+    const calls: Array<[string, Record<string, unknown>]> = [
+      ["accept_proposals", { p_extraction_id: x, p_item_ids: [], p_now: late }],
+      ["reject_proposals", { p_extraction_id: x, p_item_ids: [], p_now: late }],
+      ["get_extraction", { p_extraction_id: x, p_now: late }],
+      ["thread_done", { p_thread_id: x, p_from_status: "open", p_now: null }],
+    ];
+    for (const [fn, args] of calls) expect(await gA.rpc(fn, args), fn).toMatchObject({ data: null, error: { code: "22023" } });
+    expect((await gA.rpc("get_extraction", { p_extraction_id: x, p_now: (await dbNow()).toISOString() })).error).toBeNull();
+  });
+
+  it("the unguarded bodies, the helpers and the tolerance table are out of reach of authenticated and anon", async () => {
+    const fns = [
+      "private.thread_done_unguarded(uuid, text, timestamptz)",
+      "private.thread_undo_unguarded(uuid, bigint, timestamptz)",
+      "private.accept_proposals_unguarded(uuid, uuid[], timestamptz)",
+      "private.reject_proposals_unguarded(uuid, uuid[], timestamptz)",
+      "private.get_extraction_unguarded(uuid, timestamptz)",
+      "private.now_within_skew(timestamptz)",
+      "private.assert_now(timestamptz)",
+    ];
+    for (const role of ["authenticated", "anon"]) {
+      for (const sig of fns) {
+        const [r] = (await g.query<{ ok: boolean }>(`select has_function_privilege($1, $2, 'EXECUTE') as ok`, [role, sig])).rows;
+        expect(r!.ok, `${role} ${sig}`).toBe(false);
+      }
+      for (const p of ["SELECT", "INSERT", "UPDATE", "DELETE"]) {
+        const [r] = (await g.query<{ ok: boolean }>(`select has_table_privilege($1, 'private.clock_guard', $2) as ok`, [role, p])).rows;
+        expect(r!.ok, `${role} clock_guard ${p}`).toBe(false);
+      }
+    }
+  });
+});

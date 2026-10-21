@@ -249,7 +249,11 @@ describe("rate limit, suppression, staleness, isolation", () => {
     const at = (ms: number) => new Date(created.getTime() + ms);
     expect(await readExtraction(dbA, extractionId, { now: at(44_000) })).toMatchObject({ status: "running", slow: false, stage: "reading" });
     expect(await readExtraction(dbA, extractionId, { now: at(46_000) })).toMatchObject({ status: "running", slow: true });
+    expect(await readExtraction(dbA, extractionId, { now: at(45_000) })).toMatchObject({ status: "running", slow: true });
     expect(await readExtraction(dbA, extractionId, { now: at(89_000) })).toMatchObject({ status: "running" });
+    // Exactly 90 s is still running (strict "older than 90 s"). Exact boundaries live here: the
+    // live tests can no longer fake the clock (migration 20261021131140).
+    expect(await readExtraction(dbA, extractionId, { now: at(90_000) })).toMatchObject({ status: "running" });
     const stale = await readExtraction(dbA, extractionId, { now: at(91_000) });
     expect(stale).toMatchObject({ status: "failed", stage: null, error: { code: "extraction_failed" } });
     expect((await q<{ e: string }>(`select error as e from extractions where id = '${extractionId}'`))[0]!.e).toBe("timeout");

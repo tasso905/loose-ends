@@ -8,7 +8,7 @@ import { pg_trgm } from "@electric-sql/pglite/contrib/pg_trgm";
  * Supabase's auth and storage schemas. A fast schema check only: it is not the RLS isolation test
  * against real local Supabase, which the lead-tester owns.
  */
-export async function migratedDb(): Promise<PGlite> {
+export async function migratedDb(opts: { clockGuard?: boolean } = {}): Promise<PGlite> {
   const db = new PGlite({ extensions: { pg_trgm } });
   await db.exec(`
     create schema auth; create schema storage; create schema extensions;
@@ -31,6 +31,10 @@ export async function migratedDb(): Promise<PGlite> {
     await db.exec(readFileSync(join(dir, f), "utf8"));
   }
   await db.exec(`grant select, insert, delete on storage.objects to authenticated;`);
+  // Migration 20261021131140 refuses a p_now more than 5 s from the database clock. These tests
+  // pass fixed synthetic instants (deterministic), so the tolerance is widened here as the owner,
+  // the only role that can write private.clock_guard. `clockGuard: true` keeps the real setting.
+  if (!opts.clockGuard) await db.exec(`update private.clock_guard set max_skew = interval '1000 years';`);
   return db;
 }
 

@@ -406,13 +406,11 @@ describe.skipIf(!live)("tester core loop on real local Supabase", () => {
       expect((await events(t.threadId)).length).toBe(2);
     });
 
-    // DEFECT (minor, own data only): thread_undo (and thread_done, accept_proposals) take the clock
-    // from the caller (p_now). app/threads/[id]/actions.ts says "The 8 s window is checked on the
-    // server's getNow()", but the function is callable directly through PostgREST, so a signed-in
-    // user can undo a Done minutes later by passing p_now = the Done's time + 1 s, and can write
-    // thread_events.created_at / threads.resolved_at at any instant (out of order with ids).
-    // Safe behaviour: the database refuses a p_now far from its own now().
-    it.fails("DEFECT: a direct RPC cannot undo a Done after 8 s by supplying an old p_now", { timeout: 20_000 }, async () => {
+    // REGRESSION GUARD (was DEFECT, minor, own data only): thread_undo (and thread_done,
+    // accept_proposals) took the clock from the caller (p_now) unchecked, so a direct PostgREST call
+    // could undo a Done minutes later by passing p_now = the Done's time + 1 s. Fixed by migration
+    // 20261021131140: the database refuses a p_now far from its own now().
+    it("a direct RPC cannot undo a Done after 8 s by supplying an old p_now", { timeout: 20_000 }, async () => {
       const a = await makeUser("d8b");
       const t = await acceptedThread(a.client);
       const doneAt = now();
@@ -473,14 +471,20 @@ describe.skipIf(!live)("tester core loop on real local Supabase", () => {
       expect(data).toEqual({ pipeline_attempts: 1 });
     });
 
-    it("a client-supplied far-future p_now on get_extraction can only fail the caller's own running attempt (one timed_out)", async () => {
+    // Adapted for migration 20261021131140: a client-supplied far-future p_now is now refused
+    // outright (22023) and changes nothing. The concurrent 90 s timeout is still exactly-once, shown
+    // by backdating created_at with the service role and polling on the real clock.
+    it("a client-supplied far-future p_now on get_extraction is refused; a real timeout fails the attempt exactly once (one timed_out)", async () => {
       const a = await makeUser("to");
       const s = await startExtraction(rpc(a.client), { text: MIKE.input!, title: null, writtenOn: "2026-10-05" }, { now: now() });
       if (!s.ok) throw new Error("start failed");
-      const far = new Date(Date.now() + 91_000);
+      const far = await a.client.rpc("get_extraction", { p_extraction_id: s.extractionId, p_now: new Date(Date.now() + 91_000).toISOString() });
+      expect(far).toMatchObject({ data: null, error: { code: "22023" } });
+      expect((await admin.from("extractions").select("status").eq("id", s.extractionId).single()).data).toEqual({ status: "running" });
+      await admin.from("extractions").update({ created_at: new Date(Date.now() - 91_000).toISOString() }).eq("id", s.extractionId);
       const [x, y] = await Promise.all([
-        readExtraction(rpc(a.client), s.extractionId, { now: far, logger: quiet }),
-        readExtraction(rpc(a.client), s.extractionId, { now: far, logger: quiet }),
+        readExtraction(rpc(a.client), s.extractionId, { now: now(), logger: quiet }),
+        readExtraction(rpc(a.client), s.extractionId, { now: now(), logger: quiet }),
       ]);
       expect([x?.timedOut, y?.timedOut].filter(Boolean)).toHaveLength(1);
       expect(x).toMatchObject({ status: "failed" });
