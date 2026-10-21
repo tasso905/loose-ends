@@ -91,7 +91,10 @@ describe.skipIf(!live)("tester S2: extraction lifecycle on real local Supabase",
     for (const u of users) await admin.auth.admin.deleteUser(u.id);
   });
 
-  it("grants: anon can execute none of the seven S2 functions; no function is SECURITY DEFINER", async () => {
+  // Since 20261020231312 / 20261021115926 the S2 writers are SECURITY DEFINER with search_path = ''
+  // and an auth.uid() check; the catalog side is asserted in write-model.test.ts (PostgREST cannot
+  // read pg_proc). Here: the live grants, from the API.
+  it("grants: anon can execute none of the seven S2 functions (all definer, authenticated-only)", async () => {
     for (const [fn, args] of ALL_FNS) {
       const res = await anon.rpc(fn, args);
       expect(res.error, fn).not.toBeNull();
