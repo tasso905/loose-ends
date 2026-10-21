@@ -27,9 +27,13 @@ export default async function ReviewPage({ params }: { params: Params }) {
   if (!z.uuid().safeParse(extractionId).success) notFound();
 
   const supabase = await createClient();
-  const view = await readExtraction(rpcDb(supabase), extractionId, { now: getNow() });
+  const now = getNow();
+  const view = await readExtraction(rpcDb(supabase), extractionId, { now });
   if (!view) notFound();
   trackTimedOut(user.id, view);
+  // Due dates render in the user's timezone (DESIGN_STANDARD "Dates and numbers").
+  const { data: profile } = await supabase.from("profiles").select("timezone").eq("id", user.id).maybeSingle();
+  const timezone = typeof profile?.timezone === "string" ? profile.timezone : "UTC";
 
   return (
     <>
@@ -38,7 +42,7 @@ export default async function ReviewPage({ params }: { params: Params }) {
         <SignOutButton />
       </header>
       <main className="mx-auto w-full max-w-column px-4 pt-6 pb-16 sm:px-6 lg:px-8">
-        <ReviewProgress key={view.id} initial={view} />
+        <ReviewProgress key={view.id} initial={view} timezone={timezone} nowIso={now.toISOString()} />
       </main>
     </>
   );

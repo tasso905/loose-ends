@@ -91,6 +91,7 @@
   --text-body-strong: 16px; --text-body-strong--line-height: 24px; --text-body-strong--font-weight: 500;
   --text-small: 14px; --text-small--line-height: 20px;
   --text-label: 13px; --text-label--line-height: 16px; --text-label--letter-spacing: 0.01em; --text-label--font-weight: 500;
+  --text-eyebrow: 12px; --text-eyebrow--line-height: 16px; --text-eyebrow--letter-spacing: 0.06em; --text-eyebrow--font-weight: 600;
   --text-wordmark: 17px; --text-wordmark--letter-spacing: -0.01em; --text-wordmark--font-weight: 600;
 
   /* Layout widths: the 720px content column and the 480px dialog/form measure. */
