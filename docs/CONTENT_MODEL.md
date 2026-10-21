@@ -110,7 +110,7 @@
 | Why? entry | Opens the Why panel | Present on Thread detail and every Today row |
 | Thread history | Chronological updates and actions | Timestamped; append-only; corrections read `You changed the date from Oct 9 to Oct 12`. Event lines (D47): `You accepted this from your source.`, `Added from quick add.`, `You marked this done.` / `Loose Ends marked this done.`, `You resolved this.` / `Loose Ends resolved this.`, `You undid the last change.`, `You reopened this.`, `You snoozed this.`, `You edited this.`, `Status changed to {status}.`; fallback `Updated.` |
 | Decision | If resolved as Decided | Choice, `You wrote` reason, date |
-| Actions | Manage thread | `Done`, `Resolve…`, `Mark waiting`, `Snooze`, `Edit`, `Dismiss`, `Reopen`, `Forget permanently`; only Forget is confirmed (D8). Done shows the toast `Marked done: "{title}"` + `Undo` (D47). Undo restores the state before the action and adds an `undone` history line; the toast lasts 8 s and the server accepts the undo up to 12 s (D44). Until F11 ships, `Resolve…` is disabled with `Resolving with a decision isn't available yet.` (D47) |
+| Actions | Manage thread | `Done`, `Resolve…`, `Mark waiting`, `Snooze`, `Edit`, `Dismiss`, `Reopen`, `Forget permanently`; only Forget is confirmed (D8). Done shows the toast `Marked done: "{title}"` + `Undo` (D47). Undo restores the state before the action and adds an `undone` history line; the toast lasts 8 s and the server accepts the undo up to 12 s (D44); hover or focus pauses the toast, but it closes 12 s after the action at the latest (D49). Until F11 ships, `Resolve…` is disabled with `Resolving with a decision isn't available yet.` (D47) |
 
 ### 7. Why panel (v1.1, F8)
 
