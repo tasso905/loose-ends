@@ -18,11 +18,17 @@
  *                                         (optional, scored when present: "due_certainty",
  *                                         "certainty"; other tester extensions are ignored)
  * A predicted item matches an expected one when one quote contains the other (normalized,
- * case-insensitive). Items with expected band "ignore" must not be shown.
+ * case-insensitive) AND the shorter covers at least MIN_QUOTE_COVERAGE of the longer's words, so a
+ * fragment ("Ravi") or a blob spanning several sentences matches nothing on its own. Matching is
+ * one-to-one: each golden item takes at most one predicted item and vice versa (best coverage
+ * first), so duplicates and blobs count as extras. Items with expected band "ignore" must not be
+ * shown.
  *
  * Scoring (see EvalReport.scores): a failed fixture is scored as if the model returned nothing, so
  * its golden items are misses; any failure, any null gated metric, or any F19 sub-threshold miss
- * means the run does not pass. Only-quota failures give result "incomplete_quota" (not judged).
+ * means the run does not pass. Only-quota failures give result "incomplete_quota" (not judged),
+ * unless a zero-tolerance gate (unverified quote shown, F19 speculative-as-High or
+ * explicit-dated-as-Low) is already violated: missing fixtures cannot undo that, so it is "fail".
  *
  * Rule 9: per-fixture failures record only the classification (kind, status, attempts, error
  * class name) via safeErrorFields(); never the provider message, the model's raw text or the input.
@@ -176,7 +182,11 @@ export interface FixtureResult {
   items: ItemResult[];
 }
 
-/** pass: every gate met. fail: a gate missed or a non-quota failure. incomplete_quota: only quota failures, so not judged. */
+/**
+ * pass: every gate met. fail: a gate missed, a non-quota failure, or a zero-tolerance violation
+ * (even alongside quota failures). incomplete_quota: only quota failures and no zero-tolerance
+ * violation, so not judged.
+ */
 export type EvalResult = "pass" | "fail" | "incomplete_quota";
 
 export interface EvalReport {
@@ -237,7 +247,50 @@ export interface RunEvalOptions {
 }
 
 const norm = (s: string) => normalizeText(s).toLowerCase();
-const overlaps = (a: string, b: string) => norm(a).includes(norm(b)) || norm(b).includes(norm(a));
+/**
+ * Minimum share of the longer quote's words that the shorter one must cover. 0.5, not
+ * verifyQuotes' 0.9: that threshold checks a quote against its source (it must be verbatim);
+ * here the question is "same item?", and a model legitimately quotes a clause where the golden
+ * has the sentence, or the reverse. Half the words rejects fragments and two-sentence blobs while
+ * keeping those. Containment is still required, so the overlap is one contiguous span.
+ */
+export const MIN_QUOTE_COVERAGE = 0.5;
+const words = (s: string) => norm(s).split(/[^\p{L}\p{N}]+/u).filter(Boolean);
+/** Coverage of the pair in [0, 1], or 0 when neither quote contains the other or coverage is too low. */
+export function quoteMatch(a: string, b: string): number {
+  const na = norm(a);
+  const nb = norm(b);
+  if (!na || !nb || !(na.includes(nb) || nb.includes(na))) return 0;
+  const wa = words(a).length;
+  const wb = words(b).length;
+  if (wa === 0 || wb === 0) return 0;
+  const coverage = Math.min(wa, wb) / Math.max(wa, wb);
+  return coverage >= MIN_QUOTE_COVERAGE ? coverage : 0;
+}
+const pairScore = (p: Proposal, e: Expected) => Math.max(0, ...p.evidence.map((ev) => quoteMatch(ev.quote, e.quote)));
+
+/**
+ * One-to-one assignment of proposals to golden items: every matching pair, best coverage first
+ * (ties: golden order, then proposal order), each side used once. Returns golden index -> proposal.
+ */
+function assign(expected: Expected[], proposals: Proposal[]): Map<number, Proposal> {
+  const pairs: { e: number; p: number; score: number }[] = [];
+  expected.forEach((e, ei) =>
+    proposals.forEach((p, pi) => {
+      const score = pairScore(p, e);
+      if (score > 0) pairs.push({ e: ei, p: pi, score });
+    }),
+  );
+  pairs.sort((x, y) => y.score - x.score || x.e - y.e || x.p - y.p);
+  const out = new Map<number, Proposal>();
+  const used = new Set<number>();
+  for (const { e, p } of pairs) {
+    if (out.has(e) || used.has(p)) continue;
+    out.set(e, proposals[p]!);
+    used.add(p);
+  }
+  return out;
+}
 const ratio = (n: number, d: number) => (d === 0 ? null : n / d);
 export const quoteHash = (q: string) => createHash("sha256").update(norm(q)).digest("hex").slice(0, 12);
 
@@ -264,9 +317,10 @@ function scoreFixture(text: string, expected: Expected[], proposals: Proposal[],
   const items: ItemResult[] = [];
   const shown = proposals.filter((p) => p.band !== "ignore");
   t.shown += shown.length;
+  const assigned = assign(expected, proposals);
 
   expected.forEach((e, i) => {
-    const p = proposals.find((x) => x.evidence.some((ev) => overlaps(ev.quote, e.quote)));
+    const p = assigned.get(i);
     const isShown = !!p && p.band !== "ignore";
     const r: ItemResult = { status: "missed", golden_index: i, quote_sha256: quoteHash(e.quote), band: p?.band ?? null, diffs: [] };
     items.push(r);
@@ -313,13 +367,15 @@ function scoreFixture(text: string, expected: Expected[], proposals: Proposal[],
     }
   });
 
+  const goldenOf = new Map<Proposal, Expected>([...assigned].map(([i, p]) => [p, expected[i]!]));
   for (const p of shown) {
     if (p.evidence.some((e) => text.slice(e.start_offset, e.end_offset) !== e.quote)) t.unverifiedShown++;
-    if (expected.some((e) => e.band !== "ignore" && p.evidence.some((ev) => overlaps(ev.quote, e.quote)))) {
+    const g = goldenOf.get(p);
+    if (g && g.band !== "ignore") {
       t.shownMatched++;
       continue;
     }
-    if (expected.some((e) => p.evidence.some((ev) => overlaps(ev.quote, e.quote)))) continue; // recorded as ignore_shown
+    if (g) continue; // recorded as ignore_shown
     items.push({ status: "extra", golden_index: null, quote_sha256: quoteHash(p.evidence[0]?.quote ?? ""), band: p.band, diffs: [] });
   }
   return { items, shown: shown.length };
@@ -448,7 +504,9 @@ export function failedGates(fixtures: number, s: EvalReport["scores"]): string[]
 
 function judge(fixtures: number, s: EvalReport["scores"], byKind: Partial<Record<AiFailureKind, number>>): EvalResult {
   const failed = Object.values(byKind).reduce((a, b) => a + (b ?? 0), 0);
-  if (failed > 0 && byKind.quota === failed) return "incomplete_quota";
+  // A zero-tolerance violation already seen stands whatever the quota-failed fixtures would add.
+  const hard = s.unverified_quotes_shown !== 0 || s.speculative_scored_high !== 0 || s.explicit_dated_scored_low !== 0;
+  if (failed > 0 && byKind.quota === failed && !hard) return "incomplete_quota";
   return failedGates(fixtures, s).length === 0 ? "pass" : "fail";
 }
 

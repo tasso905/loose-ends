@@ -393,9 +393,9 @@ describe("S0 eval scoring integrity (B1 fixed; adversarial probes)", () => {
     expect(r.pass).toBe(false);
   });
 
-  // DEFECT D-S0-1: matching is many-to-one. One shown item whose quote spans several golden
-  // sentences matches every one of them, so a single blob item scores recall 1 and precision 1.
-  it.fails("DEFECT: one shown item spanning every golden quote must not match all of them (recall should be ≤ 1/2)", async () => {
+  // REGRESSION GUARD (was DEFECT D-S0-1): matching was many-to-one. One shown item whose quote
+  // spanned several golden sentences matched every one of them (recall 1, precision 1).
+  it("one shown item spanning every golden quote must not match all of them (recall should be ≤ 1/2)", async () => {
     fixture("a", [G.invoice, G.gate], { ambiguous: false });
     const blob = `${Q.invoice} ${Q.gate}`;
     const r = await run(recorded({ [TEXT]: [it_(blob, { date_text: "on Friday", date_iso: "2026-10-09" })] }));
@@ -403,25 +403,25 @@ describe("S0 eval scoring integrity (B1 fixed; adversarial probes)", () => {
     expect(r.scores.recall).toBeLessThanOrEqual(0.5);
   });
 
-  it("observed (D-S0-1): the blob item currently yields recall 1 and precision 1", async () => {
+  it("fixed (D-S0-1): the blob item no longer yields recall 1 and precision 1", async () => {
     fixture("a", [G.invoice, G.gate], { ambiguous: false });
     const blob = `${Q.invoice} ${Q.gate}`;
     const r = await run(recorded({ [TEXT]: [it_(blob, { date_text: "on Friday", date_iso: "2026-10-09" })] }));
     expect(r.perFixture[0]!.shown).toBe(1);
-    expect(r.scores.recall).toBe(1);
-    expect(r.scores.precision).toBe(1);
+    expect(r.scores.recall).toBeLessThanOrEqual(0.5);
+    expect(r.scores.recall === 1 && r.scores.precision === 1).toBe(false);
   });
 
-  // DEFECT D-S0-2: a short fragment contained in a golden quote matches it ("contains" in either
-  // direction, no minimum overlap). A 3-character quote like "the" or "ll " can match goldens.
-  it.fails("DEFECT: a 4-character fragment quote must not count as matching a golden item", async () => {
+  // REGRESSION GUARD (was DEFECT D-S0-2): a short fragment contained in a golden quote matched it
+  // ("contains" in either direction, no minimum overlap).
+  it("a 4-character fragment quote must not count as matching a golden item", async () => {
     fixture("a", [G.gate], { ambiguous: false, text: `Synthetic ${MK}. Ravi will fix the gate.` });
     const r = await run(recorded({ [`Synthetic ${MK}. Ravi will fix the gate.`]: [it_("Ravi", { owner: "other" })] }));
     expect(r.scores.recall).toBe(0);
   });
 
-  // DEFECT D-S0-3: duplicates of one golden all count as true positives (precision not penalised).
-  it.fails("DEFECT: the same golden item shown three times should count two extras (precision ≤ 1/3)", async () => {
+  // REGRESSION GUARD (was DEFECT D-S0-3): duplicates of one golden all counted as true positives.
+  it("the same golden item shown three times should count two extras (precision ≤ 1/3)", async () => {
     fixture("a", [G.gate], { ambiguous: false, text: `Synthetic ${MK}. Ravi will fix the gate.` });
     const g = it_(Q.gate, { owner: "other" });
     const r = await run(recorded({ [`Synthetic ${MK}. Ravi will fix the gate.`]: [g, g, g] }));
@@ -429,9 +429,9 @@ describe("S0 eval scoring integrity (B1 fixed; adversarial probes)", () => {
     expect(r.scores.precision).toBeLessThanOrEqual(1 / 3);
   });
 
-  // FINDING F-S0-4 (for PM): one quota failure turns a run with a hard F19 violation into
-  // "incomplete_quota" (exit 3) instead of "fail" (exit 1). Not a pass, but the violation is not judged.
-  it("observed: quota failure + F19 violation elsewhere → incomplete_quota, not fail", async () => {
+  // REGRESSION GUARD (was FINDING F-S0-4): one quota failure turned a run with a hard F19 violation
+  // into "incomplete_quota" (exit 3) instead of "fail" (exit 1).
+  it("quota failure + F19 violation elsewhere → fail, not incomplete_quota", async () => {
     const T2 = `Synthetic quota ${MK}.`;
     fixture("a", [G.invoice, G.gate, G.lunch]);
     fixture("b", [G.gate], { text: T2 });
@@ -446,6 +446,6 @@ describe("S0 eval scoring integrity (B1 fixed; adversarial probes)", () => {
     const r = await run(model);
     expect(r.scores.speculative_scored_high).toBe(1);
     expect(r.pass).toBe(false);
-    expect(r.result).toBe("incomplete_quota");
+    expect(r.result).toBe("fail");
   });
 });

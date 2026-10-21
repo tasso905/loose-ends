@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { APICallError } from "ai";
 import { MockLanguageModelV4 } from "ai/test";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { EvalRpmError, evalRpm, failedGates, quoteHash, renderScorecard, runEval, type EvalReport } from "@/evals/harness";
+import { EvalRpmError, evalRpm, failedGates, MIN_QUOTE_COVERAGE, quoteHash, quoteMatch, renderScorecard, runEval, type EvalReport } from "@/evals/harness";
 import { askWhy, type RetrievedDecision } from "@/lib/ai/askWhy";
 import { classifyAiError, safeErrorName } from "@/lib/ai/errors";
 import { extract } from "@/lib/ai/extract";
@@ -336,6 +336,55 @@ describe("N5: EVAL_RPM is strict decimal", () => {
     } catch (e) {
       expect((e as Error).message).not.toContain(MARK);
     }
+  });
+});
+
+describe("quoteMatch: golden matching needs containment and meaningful overlap (D-S0-2)", () => {
+  const S = "I'll send you the revised proposal Friday.";
+  it("the same quote, and a clause or sentence covering at least half the words, match", () => {
+    expect(quoteMatch(S, S)).toBe(1);
+    expect(quoteMatch("send you the revised proposal Friday", S)).toBeGreaterThanOrEqual(MIN_QUOTE_COVERAGE);
+    expect(quoteMatch(`Thanks Mike — ${S}`, S)).toBeGreaterThan(0);
+  });
+  it("a fragment, a two-sentence blob, or text that is not contained does not match", () => {
+    expect(quoteMatch("Ravi", "Ravi will fix the gate.")).toBe(0);
+    expect(quoteMatch("the", S)).toBe(0);
+    expect(quoteMatch(`${S} Ravi will fix the gate on Saturday morning, weather permitting.`, S)).toBe(0);
+    expect(quoteMatch("I'll send the proposal Friday.", S)).toBe(0);
+    expect(quoteMatch("", S)).toBe(0);
+  });
+});
+
+describe("one-to-one matching (D-S0-1, D-S0-3) and quota judging (F-S0-4)", () => {
+  it("a duplicate of a matched item is an extra, not a second match", async () => {
+    fixture("a", [G.invoice, G.lunch, G.gate]);
+    const r = await run(recorded({ [TEXT]: [...perfect(), item(Q.gate, { owner: "other" })] }));
+    expect(r.scores.recall).toBe(1);
+    expect(r.scores.precision).toBe(3 / 4);
+    expect(r.perFixture[0]!.counts).toEqual({ matched: 3, missed: 0, extra: 1, ignore_shown: 0 });
+  });
+
+  it("two near-identical goldens each take their own prediction", async () => {
+    const T = "Synthetic. Ravi will fix the gate. Ravi will fix the gate latch.";
+    const a = { ...G.gate, quote: "Ravi will fix the gate." };
+    const b = { ...G.gate, quote: "Ravi will fix the gate latch." };
+    fixture("a", [a, b], { text: T, ambiguous: false });
+    const r = await run(recorded({ [T]: [item(b.quote, { owner: "other" }), item(a.quote, { owner: "other" })] }));
+    expect(r.scores).toMatchObject({ recall: 1, precision: 1 });
+  });
+
+  // The violation case (quota + F19 → fail) is pinned in tests/unit/tester-s0.test.ts.
+  it("quota failures with no zero-tolerance violation stay incomplete_quota", async () => {
+    fixture("a", [G.invoice, G.lunch, G.gate]);
+    fixture("b", [G.gate], { text: `Synthetic quota ${MARK}.` });
+    const rec = recorded({ [TEXT]: perfect() });
+    const model = new MockLanguageModelV4({
+      doGenerate: async (opts) => {
+        if (JSON.stringify(opts.prompt).includes("Synthetic quota")) throw apiErr(429);
+        return (rec as unknown as { doGenerate: (o: unknown) => Promise<never> }).doGenerate(opts);
+      },
+    });
+    expect((await run(model)).result).toBe("incomplete_quota");
   });
 });
 
