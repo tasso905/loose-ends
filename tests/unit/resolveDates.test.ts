@@ -406,6 +406,9 @@ describe("resolveDate(): night + a small hour is the next day's small hours (T-D
     ["tonight at 2:30 a.m.", "2026-10-06T06:30:00.000Z"],
     ["Friday night at 2am", "2026-10-10T06:00:00.000Z"],
     ["tonight at 01:00", "2026-10-06T05:00:00.000Z"],
+    ["tonight at 05:00", "2026-10-06T09:00:00.000Z"],
+    ["tonight at 06:00", "2026-10-06T10:00:00.000Z"],
+    ["last night at 1am", "2026-10-05T05:00:00.000Z"],
   ])("'%s' (AM stated, by am or a zero-padded hour) is the next morning with no AM/PM line", (t, at) => {
     const r = resolveDate({ date_text: t, date_iso: null }, NY);
     expect(r.due_at).toBe(at);
@@ -420,6 +423,13 @@ describe("resolveDate(): night + a small hour is the next day's small hours (T-D
     const r = resolveDate({ date_text: t, date_iso: null }, NY);
     expect(r.due_at).toBe(at);
     expect(r.not_sure.some((l) => l.includes("AM or PM"))).toBe(false);
+  });
+
+  it("'last night' is the night before the written-on day: 1 is that night's small hours, 11 is the evening", () => {
+    const one = resolveDate({ date_text: "last night at 1", date_iso: null }, NY);
+    expect(one.due_at).toBe("2026-10-05T05:00:00.000Z");
+    expect(one.not_sure.some((l) => l.includes("doesn't say AM or PM"))).toBe(true);
+    expect(resolveDate({ date_text: "last night at 11", date_iso: null }, NY).due_at).toBe("2026-10-05T03:00:00.000Z");
   });
 
   it("agrees with a model that read 'tonight at 1' as 1 AM the next day", () => {

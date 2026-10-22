@@ -140,6 +140,12 @@ describe("readDocument: TXT and MD", () => {
     expect(await readDocument(cp1252, "note.txt")).toEqual({ ok: true, text: "Café at 9 – Ana’s note", mimeType: "text/plain", pageOffsets: null, pageCount: null });
   });
 
+  it("UTF-8 with one stray byte stays UTF-8: valid letters kept, the stray byte becomes U+FFFD", async () => {
+    const b = Uint8Array.from([...bytes("Café – it’s due "), 0xe9, ...bytes(" Friday")]);
+    expect(sniffType(b)).toBe("text");
+    expect(await readDocument(b, "note.txt")).toMatchObject({ ok: true, text: "Café – it’s due � Friday" });
+  });
+
   it("bytes that are not UTF-8 and do not look like Windows-1252 text stay unsupported", async () => {
     const control = Uint8Array.from([...bytes("Caf"), 0xe9, 0x01, ...bytes(" note")]); // a control byte
     const undefinedByte = Uint8Array.from([...bytes("Caf"), 0xe9, 0x81, ...bytes(" note")]); // 0x81 is undefined in 1252

@@ -16,17 +16,23 @@ import { containsWholePhrase } from "./verifyQuotes";
 const SPAN_REFERENCE = parseInstant("2000-01-01T12:00:00Z");
 /** "now" is a figure of speech in an explanation, not a date claim. */
 const NOT_A_DATE = /^(right\s+)?now$/i;
-const AMOUNT = /(?:[$€£]\s?\d[\d,]*(?:\.\d+)?(?:\s?(?:million|billion|k)\b)?|\b\d[\d,]*(?:\.\d+)?\s?(?:dollars|euros|pounds|USD|EUR|GBP)\b)/giu;
+const AMOUNT = /(?:[$€£]\s?\d[\d,]*(?:\.\d+)?(?:\s?(?:million|billion|k)\b)?|\b\d[\d,]*(?:\.\d+)?\s?(?:(?:thousand|million|billion)\s+)?(?:dollars|euros|pounds|USD|EUR|GBP)\b)/giu;
 
 /** A percentage ("22.5%", "15 percent"); it must occur in the source as written. */
 const PERCENT = /\b\d[\d,]*(?:\.\d+)?\s?(?:%|per\s?cent\b)/giu;
 const NUMBER_WORD =
   "(?:zero|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|hundred|thousand|million|billion)";
-/** An amount in words ("fifteen hundred dollars", "two-hundred and fifty euros"). */
+/**
+ * An amount or percentage in words ("fifteen hundred dollars", "two-hundred and fifty euros",
+ * "twenty percent"). Not after a figure: "2.5 million dollars" is a figure amount (AMOUNT).
+ */
 const WORDS_AMOUNT = new RegExp(
-  `\\b${NUMBER_WORD}(?:[\\s-]+(?:and[\\s-]+)?${NUMBER_WORD})*\\s+(?:dollars?|euros?|pounds?|bucks|cents?)\\b`,
+  `(?<!\\p{N}[.,\\s]*)\\b${NUMBER_WORD}(?:[\\s-]+(?:and[\\s-]+)?${NUMBER_WORD})*\\s+(?:dollars?|euros?|pounds?|bucks|cents?|per\\s?cent)\\b`,
   "giu",
 );
+/** Word amounts compared whole: case, hyphens and "and" do not matter, a missing word does. */
+const wordAmounts = (s: string) =>
+  [...s.matchAll(WORDS_AMOUNT)].map((m) => m[0].toLowerCase().replace(/[\s-]+/g, " ").replace(/ and /g, " ").replace("per cent", "percent").trim());
 
 export type ClaimKind = "date" | "amount";
 
@@ -41,7 +47,12 @@ export function unsupportedClaims(line: string, sourceText: string): ClaimKind[]
   // ("October 31" from "October 31, 2026"): the same date, not an invented one. A line that adds a
   // year the source lacks still fails, because the year is part of the phrase it must find.
   if (dates.some((d) => !containsWholePhrase(sourceText, d, "text"))) out.push("date");
-  const amounts = amountPatterns.flatMap((re) => [...line.matchAll(re)].map((m) => m[0].trim()));
-  if (amounts.some((a) => !containsWholePhrase(sourceText, a, "amount"))) out.push("amount");
+  const amounts = [AMOUNT, PERCENT].flatMap((re) => [...line.matchAll(re)].map((m) => m[0].trim()));
+  // A word amount must be a whole word amount of the source: "five dollars" is not supported by
+  // "twenty-five dollars", nor "fifty euros" by "two hundred and fifty euros".
+  const sourceWords = new Set(wordAmounts(sourceText));
+  if (amounts.some((a) => !containsWholePhrase(sourceText, a, "amount")) || wordAmounts(line).some((w) => !sourceWords.has(w))) {
+    out.push("amount");
+  }
   return out;
 }

@@ -171,7 +171,7 @@ describe("tester: limits and their copy (SITE_CONTRACT §2.13)", () => {
   // user sees in the Explain card and Why panel. Before the fix the file was refused. Safe: valid
   // UTF-8 multi-byte sequences are decoded as UTF-8 (e.g. prefer UTF-8 when the bytes contain any
   // valid multi-byte sequence, or decode with replacement), never re-read as Windows-1252.
-  it.fails("a UTF-8 file with one stray Latin-1 byte keeps its UTF-8 letters (no mojibake)", async () => {
+  it("a UTF-8 file with one stray Latin-1 byte keeps its UTF-8 letters (no mojibake)", async () => {
     const b = Uint8Array.from([...utf8("Café – it’s due Friday. "), 0xe9, ...utf8(" end")]);
     const r = await readDocument(b, "note.txt");
     expect(r.ok && r.text.startsWith("Café – it’s due Friday.")).toBe(true);
@@ -232,16 +232,16 @@ describe("tester: rule 3 brief-claim filter edges (S7)", () => {
   // ("1.5 million dollars") is reduced to "million dollars" by the words pattern, so any figure in
   // front of a source's "million dollars" passes. A percentage in words is not checked at all.
   const WORDS_SRC = "The fee is twenty-five dollars. A refund of two hundred and fifty euros. Budget 2.5 million dollars.";
-  it.fails("a smaller word amount that is the tail of the source's amount is caught ('five dollars' vs 'twenty-five dollars')", () => {
+  it("a smaller word amount that is the tail of the source's amount is caught ('five dollars' vs 'twenty-five dollars')", () => {
     expect(unsupportedClaims("The fee is about five dollars.", WORDS_SRC)).toEqual(["amount"]);
   });
-  it.fails("'fifty euros' is caught when the source says 'two hundred and fifty euros'", () => {
+  it("'fifty euros' is caught when the source says 'two hundred and fifty euros'", () => {
     expect(unsupportedClaims("A refund of fifty euros.", WORDS_SRC)).toEqual(["amount"]);
   });
-  it.fails("'1.5 million dollars' is caught when the source says '2.5 million dollars'", () => {
+  it("'1.5 million dollars' is caught when the source says '2.5 million dollars'", () => {
     expect(unsupportedClaims("A budget of 1.5 million dollars.", WORDS_SRC)).toEqual(["amount"]);
   });
-  it.fails("an invented percentage in words ('twenty percent') is caught", () => {
+  it("an invented percentage in words ('twenty percent') is caught", () => {
     expect(unsupportedClaims("A twenty percent rise.", WORDS_SRC)).toEqual(["amount"]);
   });
 });

@@ -43,6 +43,17 @@ describe("rule 3 on Explain card lines (briefClaims)", () => {
     expect(unsupportedClaims("About two-hundred and fifty euros.", src)).toEqual(["amount"]);
   });
 
+  it("word amounts match whole: the source's own amount is kept in any spacing, a part of it is not", () => {
+    const src = "The fee is twenty-five dollars. A refund of two hundred and fifty euros. Budget 2.5 million dollars. Up twenty percent.";
+    expect(unsupportedClaims("The fee is Twenty Five dollars.", src)).toEqual([]);
+    expect(unsupportedClaims("A refund of two-hundred fifty euros.", src)).toEqual([]);
+    expect(unsupportedClaims("A budget of 2.5 million dollars.", src)).toEqual([]);
+    expect(unsupportedClaims("A twenty per cent rise.", src)).toEqual([]);
+    expect(unsupportedClaims("About five dollars.", src)).toEqual(["amount"]);
+    expect(unsupportedClaims("A budget of 1.5 million dollars.", src)).toEqual(["amount"]);
+    expect(unsupportedClaims("A thirty percent rise.", src)).toEqual(["amount"]);
+  });
+
   it("the source's own date repeated without its year is supported; a different year is not", () => {
     const src = "Your home policy renews on October 31, 2026.";
     expect(unsupportedClaims("Whether October 31 is a hard deadline.", src)).toEqual([]);

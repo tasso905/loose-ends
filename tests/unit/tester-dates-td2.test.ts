@@ -152,7 +152,7 @@ describe("T-D2 residual defects (non-blocking, pre-existing on main)", () => {
   // way, but "tonight at 05:00" / "06:00" are 5 PM / 6 PM on the written-on day with no AM/PM line
   // (chrono reads them as evening; the 12–16 window never sees them). Safe: either the next morning's
   // 05:00 (as for 01:00), or an AM/PM line saying the reading is a guess.
-  it.fails.each(["tonight at 05:00", "tonight at 06:00"])("'%s' is not silently read as an evening hour", (t) => {
+  it.each(["tonight at 05:00", "tonight at 06:00"])("'%s' is not silently read as an evening hour", (t) => {
     const x = r(t);
     const evening = Number(local(x.due_at)!.slice(-5, -3)) >= 12;
     expect(evening && !ampmLine(x)).toBe(false);
@@ -160,7 +160,7 @@ describe("T-D2 residual defects (non-blocking, pre-existing on main)", () => {
 
   // DEFECT: "last night at 1am" is now Mon Oct 5, 1:00 AM, but "last night at 1" is Sun Oct 4,
   // 1:00 AM: the night before last. Safe: both are the written-on day's 1:00 AM.
-  it.fails("'last night at 1' is the same night as 'last night at 1am'", () => {
+  it("'last night at 1' is the same night as 'last night at 1am'", () => {
     expect(local(r("last night at 1").due_at)).toBe("2026-10-05, 01:00");
   });
 });

@@ -230,20 +230,31 @@ function chronoResolve(text: string, ctx: DateContext): ChronoReading {
   const meridiemGuessed = timeKnown && !STATED_MERIDIEM.test(text) && !ZERO_PADDED_TIME.test(text) && rawHour >= 1 && rawHour <= 12;
   // User decision, Oct 21: a guessed hour from 1 to 6 is PM ("tomorrow at 5" → 5 PM), still inferred.
   const pmHour = meridiemGuessed && rawHour <= 6 ? rawHour + 12 : rawHour;
-  // T-D2 after "night"/"tonight": a 24-hour time ("13:00") says the half of the day and is kept as
-  // written. An explicit am hour ("1am") is the next morning, as stated (no AM/PM line). Otherwise
-  // a 12:00–16:59 reading is the next day's small hours; the AM/PM line is added unless the hour was
-  // written zero-padded ("01:00"), which states AM.
+  // T-D2 after "night"/"tonight"/"last night", where chrono's day is the night's day:
+  //  - a 24-hour time ("13:00") says the half of the day and is kept as written;
+  //  - an explicit am ("1am") or a zero-padded hour ("01:00", "05:00", which states AM) is the next
+  //    morning at the hour written, with no AM/PM line;
+  //  - otherwise the written hour 5–11 is the evening (chrono reads "last night at 11" as 11 AM),
+  //    and 12 or 1–4 is the next day's small hours, with the AM/PM line because it is a guess.
+  //    "tonight at 5" stays 5 PM with no line (D50 guard).
   const night = timeKnown && NIGHT.test(text) && !H24_TIME.test(text);
   let hour = pmHour;
   let smallHours = false;
   let nightGuessed = false;
   if (night && EXPLICIT_AMPM.test(text)) {
     smallHours = hour < 12;
-  } else if (night && pmHour >= 12 && pmHour <= 16) {
-    hour = pmHour - 12;
+  } else if (night && ZERO_PADDED_TIME.test(text)) {
+    hour = rawHour % 12;
     smallHours = true;
-    nightGuessed = !ZERO_PADDED_TIME.test(text);
+  } else if (night) {
+    const written = rawHour % 12;
+    if (written <= 4) {
+      hour = written;
+      smallHours = true;
+      nightGuessed = true;
+    } else {
+      hour = written + 12;
+    }
   }
   const time = timeKnown ? `${pad(hour)}:${pad(clock.get("minute") ?? 0)}` : null;
   // The small hours belong to the next calendar day.
