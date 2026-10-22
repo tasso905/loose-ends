@@ -1,4 +1,4 @@
-<!-- Temporary README (Oct 20). The full submission README is due by the Submission gate, Fri Oct 31 (PRD); README work is scheduled for Oct 29. -->
+<!-- Temporary README (Oct 20). The full submission README is due by the Submission gate, Sat Oct 31 (PRD); README work is scheduled for Oct 29. -->
 
 # Loose Ends
 
