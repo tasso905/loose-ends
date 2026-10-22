@@ -1,0 +1,18 @@
+From: Hannah Brooks <hannah.brooks@example.com>
+To: Kenji Mori <kenji.mori@example.com>
+Subject: Handover now that you're in Tokyo
+
+Hi Kenji,
+
+Welcome to the Tokyo office! To keep things simple, every time below is in your time, not New York time.
+
+Can you send me the revised Q4 deck by Monday at 8am? I'd like to read it before my evening call.
+
+I'll forward the vendor contacts by noon on Tuesday.
+
+The client review moved to Friday, October 30. Please add your notes to the shared doc before Friday, October 30.
+
+Our weekly sync stays on Wednesday at 7pm for you.
+
+Thanks,
+Hannah

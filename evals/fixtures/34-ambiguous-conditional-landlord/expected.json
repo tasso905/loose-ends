@@ -1,0 +1,73 @@
+{
+  "items": [
+    {
+      "type": "commitment",
+      "title": "Mr. Novak to fix the bathroom sink",
+      "owner": "other",
+      "quote": "If the plumber confirms the part is in stock, I'll have the bathroom sink fixed by Wednesday.",
+      "date_text": "by Wednesday",
+      "due_date": "2026-10-28",
+      "due_certainty": "explicit",
+      "certainty": "speculative",
+      "counterparty": "Mr. Novak",
+      "amount_text": null,
+      "band": "low",
+      "note": "Conditional promise: speculative even with a date. 0.30 + 0.05 + 0.05 + 0.05 = 0.45, Also noticed. Not an 'explicit dated commitment', so Low is correct here."
+    },
+    {
+      "type": "intention",
+      "title": "Repaint the hallways",
+      "owner": "other",
+      "quote": "Assuming the board approves the budget, we might repaint the hallways in the spring.",
+      "date_text": null,
+      "due_date": null,
+      "due_certainty": "none",
+      "counterparty": null,
+      "amount_text": null,
+      "band": "ignore",
+      "note": "The landlord's conditional, hedged building plan: not a loop for the user. Pass if left out or scored Ignore."
+    },
+    {
+      "type": "commitment",
+      "title": "Mr. Novak to return the $50 key deposit",
+      "owner": "other",
+      "quote": "I will return your key deposit of $50 when you move out.",
+      "date_text": null,
+      "due_date": null,
+      "due_certainty": "none",
+      "certainty": "explicit",
+      "counterparty": "Mr. Novak",
+      "amount_text": "$50",
+      "band": "high",
+      "note": "Firm promise, no date ('when you move out' names no day). 0.80 + 0.05 + 0.05 modal = 0.90."
+    },
+    {
+      "type": "request",
+      "title": "Leave the back gate unlocked for the gutter crew",
+      "owner": "user",
+      "quote": "Can you leave the back gate unlocked tomorrow morning for the gutter crew?",
+      "date_text": "tomorrow morning",
+      "due_date": "2026-10-27",
+      "due_certainty": "explicit",
+      "certainty": "explicit",
+      "counterparty": "Mr. Novak",
+      "amount_text": null,
+      "band": "high",
+      "note": "Tue Oct 27, no clock time. 0.90."
+    },
+    {
+      "type": "commitment",
+      "title": "Gutter crew returns",
+      "owner": "other",
+      "quote": "Unless I hear otherwise, I'll have the crew come again on Friday, November 13.",
+      "date_text": "on Friday, November 13",
+      "due_date": "2026-11-13",
+      "due_certainty": "explicit",
+      "certainty": "implied",
+      "counterparty": "Mr. Novak",
+      "amount_text": null,
+      "band": "medium",
+      "note": "Opt-out default: the plan holds unless the user objects, so implied. 0.55 + 0.05 + 0.05 + 0.05 = 0.70, Maybe. Weekday matches (Nov 13, 2026 is a Friday)."
+    }
+  ]
+}

@@ -1,0 +1,141 @@
+{
+  "description": "Synthetic decision memory for the Ask-why eval (PRD F12, Testing Strategy: 10 answerable + 10 unanswerable questions). One fictional user. Each record has the fields askWhy() receives (lib/ai/askWhy.ts RetrievedDecision); thread_title and counterparty come from the joined threads row (D31). Two decisions have no recorded reason (Skip), to test that no reason is invented.",
+  "user": { "display_name": "Jordan Ellis", "aliases": ["jordan.ellis@example.com", "Jordan"] },
+  "timezone": "America/New_York",
+  "asked_at": "2026-10-28T15:00:00.000Z",
+  "decisions": [
+    {
+      "id": "d0000000-0000-4000-8000-000000000001",
+      "thread_id": "a0000000-0000-4000-8000-000000000001",
+      "thread_title": "Car insurance renewal",
+      "counterparty": "Northwind Mutual",
+      "choice": "Renewed the auto policy with Northwind Mutual",
+      "reason_user": "The other quotes were higher and this policy covers windshield repair with no deductible.",
+      "decided_at": "2026-10-18T14:05:00.000Z",
+      "context_facts": [
+        { "text": "Renewal premium $1,284.00 for 12 months", "evidence_id": "e0000000-0000-4000-8000-000000000011" },
+        { "text": "Renews on November 30, 2026", "evidence_id": "e0000000-0000-4000-8000-000000000012" }
+      ]
+    },
+    {
+      "id": "d0000000-0000-4000-8000-000000000002",
+      "thread_id": "a0000000-0000-4000-8000-000000000002",
+      "thread_title": "Apartment lease renewal",
+      "counterparty": "Maple Court Apartments",
+      "choice": "Signed a 12-month lease renewal",
+      "reason_user": "Moving would cost more than the $75 rent increase, and the commute is short.",
+      "decided_at": "2026-10-20T01:30:00.000Z",
+      "context_facts": [
+        { "text": "New monthly rent $1,875 from February 1, 2027", "evidence_id": "e0000000-0000-4000-8000-000000000021" }
+      ]
+    },
+    {
+      "id": "d0000000-0000-4000-8000-000000000003",
+      "thread_id": "a0000000-0000-4000-8000-000000000003",
+      "thread_title": "Daycare for Mia",
+      "counterparty": "Little Acorns",
+      "choice": "Enrolled Mia at Little Acorns",
+      "reason_user": "It is on the way to the train and they have a spot in January.",
+      "decided_at": "2026-09-02T16:00:00.000Z",
+      "context_facts": []
+    },
+    {
+      "id": "d0000000-0000-4000-8000-000000000004",
+      "thread_id": "a0000000-0000-4000-8000-000000000004",
+      "thread_title": "Laptop replacement",
+      "counterparty": null,
+      "choice": "Bought the refurbished 14-inch laptop instead of a new one",
+      "reason_user": "Same specs for half the price, and it comes with a two-year warranty.",
+      "decided_at": "2026-06-11T22:10:00.000Z",
+      "context_facts": [
+        { "text": "Refurbished price $640", "evidence_id": null }
+      ]
+    },
+    {
+      "id": "d0000000-0000-4000-8000-000000000005",
+      "thread_id": "a0000000-0000-4000-8000-000000000005",
+      "thread_title": "Dental plan for 2027",
+      "counterparty": "Brightsmile Dental",
+      "choice": "Switched to the Brightsmile PPO plan",
+      "reason_user": null,
+      "decided_at": "2026-10-26T18:45:00.000Z",
+      "context_facts": [
+        { "text": "Monthly premium $38.50", "evidence_id": "e0000000-0000-4000-8000-000000000051" }
+      ]
+    },
+    {
+      "id": "d0000000-0000-4000-8000-000000000006",
+      "thread_id": "a0000000-0000-4000-8000-000000000006",
+      "thread_title": "Gym membership",
+      "counterparty": "Riverside Fitness",
+      "choice": "Cancelled the Riverside Fitness membership",
+      "reason_user": "I only went twice since June.",
+      "decided_at": "2026-08-30T12:00:00.000Z",
+      "context_facts": []
+    },
+    {
+      "id": "d0000000-0000-4000-8000-000000000007",
+      "thread_id": "a0000000-0000-4000-8000-000000000007",
+      "thread_title": "Kitchen faucet repair",
+      "counterparty": "Delgado Plumbing",
+      "choice": "Hired Delgado Plumbing for the faucet repair",
+      "reason_user": "They could come Saturday and the quote was fixed at $180.",
+      "decided_at": "2026-07-14T20:20:00.000Z",
+      "context_facts": [
+        { "text": "Fixed quote $180 including parts", "evidence_id": "e0000000-0000-4000-8000-000000000071" }
+      ]
+    },
+    {
+      "id": "d0000000-0000-4000-8000-000000000008",
+      "thread_id": "a0000000-0000-4000-8000-000000000008",
+      "thread_title": "Mobile phone plan",
+      "counterparty": "Clearwave",
+      "choice": "Moved both lines to the Clearwave family plan",
+      "reason_user": "Unlimited data for both lines costs less than my current single line.",
+      "decided_at": "2026-05-03T15:00:00.000Z",
+      "context_facts": []
+    },
+    {
+      "id": "d0000000-0000-4000-8000-000000000009",
+      "thread_id": "a0000000-0000-4000-8000-000000000009",
+      "thread_title": "Summer camp for Leo",
+      "counterparty": "Pine Hollow Camp",
+      "choice": "Signed Leo up for the two-week session at Pine Hollow",
+      "reason_user": "His friend Theo is going and the session ends before the family trip.",
+      "decided_at": "2026-03-21T13:30:00.000Z",
+      "context_facts": [
+        { "text": "Session runs July 6 to July 17", "evidence_id": "e0000000-0000-4000-8000-000000000091" }
+      ]
+    },
+    {
+      "id": "d0000000-0000-4000-8000-000000000010",
+      "thread_id": "a0000000-0000-4000-8000-000000000010",
+      "thread_title": "Electricity supplier",
+      "counterparty": "Front Range Water & Power",
+      "choice": "Kept the standard variable rate",
+      "reason_user": null,
+      "decided_at": "2026-04-09T17:00:00.000Z",
+      "context_facts": []
+    },
+    {
+      "id": "d0000000-0000-4000-8000-000000000011",
+      "thread_id": "a0000000-0000-4000-8000-000000000011",
+      "thread_title": "November book club",
+      "counterparty": null,
+      "choice": "Declined to host the November book club",
+      "reason_user": "The living room is being painted that week.",
+      "decided_at": "2026-10-05T23:15:00.000Z",
+      "context_facts": []
+    },
+    {
+      "id": "d0000000-0000-4000-8000-000000000012",
+      "thread_id": "a0000000-0000-4000-8000-000000000012",
+      "thread_title": "Retirement contribution",
+      "counterparty": "Harbor Benefits",
+      "choice": "Raised the 401(k) contribution to 8 percent",
+      "reason_user": "That is the most the employer matches.",
+      "decided_at": "2026-01-15T16:40:00.000Z",
+      "context_facts": []
+    }
+  ]
+}

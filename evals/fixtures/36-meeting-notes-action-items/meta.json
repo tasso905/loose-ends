@@ -1,0 +1,27 @@
+{
+  "description": "Meeting notes written Thu Oct 22, 2026, New York; the user is Rosa. Action items with owner labels: two for the user, two for others (one shared by two people). A made decision and the next meeting are decoys.",
+  "covers": [
+    "meeting_notes",
+    "action_items",
+    "owner_from_label",
+    "commitment_by_user",
+    "commitment_by_other",
+    "shared_owner",
+    "due_month_day",
+    "sequenced_undated_task",
+    "made_decision_decoy",
+    "next_meeting_decoy"
+  ],
+  "reference_date": "2026-10-22",
+  "reference_date_source": "user",
+  "timezone": "America/New_York",
+  "source_kind": "paste",
+  "user": {
+    "display_name": "Rosa Chen",
+    "aliases": [
+      "rosa.chen@example.org",
+      "Rosa"
+    ]
+  },
+  "ambiguous": false
+}

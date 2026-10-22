@@ -1,0 +1,47 @@
+{
+  "notes": "The two coverage bullets, last year's premium and the rental allowance are key facts (the runner drops key_fact proposals). 'If you decide not to renew, you do not need to do anything' is not a separate loop; a model may cite it as a second evidence quote on the decision.",
+  "items": [
+    {
+      "type": "deadline",
+      "title": "Pay the Northwind renewal premium",
+      "owner": "user",
+      "quote": "To keep your coverage without a gap, pay the renewal premium of $1,284.00 by November 30, 2026.",
+      "date_text": "by November 30, 2026",
+      "due_date": "2026-11-30",
+      "due_certainty": "explicit",
+      "certainty": "explicit",
+      "counterparty": "Northwind Mutual Insurance",
+      "amount_text": "$1,284.00",
+      "band": "high",
+      "note": "0.80 + 0.05 exact + 0.05 date agrees = 0.90. Amount is the renewal premium, not last year's $1,190.00."
+    },
+    {
+      "type": "request",
+      "title": "Confirm annual mileage for each vehicle",
+      "owner": "user",
+      "quote": "Please confirm the annual mileage for each vehicle on this policy by November 13, 2026.",
+      "date_text": "by November 13, 2026",
+      "due_date": "2026-11-13",
+      "due_certainty": "explicit",
+      "certainty": "explicit",
+      "counterparty": "Northwind Mutual Insurance",
+      "amount_text": null,
+      "band": "high",
+      "note": "0.90. The fallback ('we will use last year's mileage') is the consequence, not a second item."
+    },
+    {
+      "type": "decision",
+      "title": "Decide whether to renew or switch auto insurance",
+      "owner": "user",
+      "quote": "You can compare plans or decline renewal by calling 1-800-555-0136.",
+      "date_text": null,
+      "due_date": null,
+      "due_certainty": "none",
+      "certainty": "implied",
+      "counterparty": "Northwind Mutual Insurance",
+      "amount_text": null,
+      "band": "medium",
+      "note": "Implied decision, no date in the sentence ('by calling' is not a date): 0.55 + 0.05 = 0.60, Maybe. A model that dates it with 'November 30, 2026' from another sentence gets a date miss."
+    }
+  ]
+}

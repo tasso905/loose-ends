@@ -1,0 +1,32 @@
+{
+  "description": "Text layer of an uploaded two-page homeowners policy pack (synthetic), dated Fri Oct 9, 2026, New York. Page 1 is a cover letter with one dated request and one undated request; page 2 is standing policy wording ('within 14 days of any change') that is not an open loop and must never be dated from the letter date.",
+  "covers": [
+    "upload",
+    "page_breaks",
+    "page_offsets",
+    "insurance_policy",
+    "policy_wording",
+    "standing_obligation_not_a_loop",
+    "within_n_days_unanchored",
+    "request_to_user",
+    "undated_request",
+    "amounts_as_key_facts",
+    "brief_expected"
+  ],
+  "reference_date": "2026-10-09",
+  "reference_date_source": "detected",
+  "timezone": "America/New_York",
+  "source_kind": "upload",
+  "user": {
+    "display_name": "Sam Patel",
+    "aliases": [
+      "sam.patel@example.com",
+      "Sam"
+    ]
+  },
+  "ambiguous": false,
+  "page_offsets": [
+    0,
+    461
+  ]
+}

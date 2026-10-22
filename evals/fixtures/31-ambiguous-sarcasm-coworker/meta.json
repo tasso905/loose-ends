@@ -1,0 +1,25 @@
+{
+  "description": "Uncertainty eval (F19). Reply from a coworker (Jamal) to the user (Riley), written Mon Oct 19, 2026, Chicago. Sarcastic 'I'll just fix it myself' (must not be shown), a sarcastic thank-you, a conditional 'if they ever answer' promise, a plain request, and a dated commitment by Jamal as the control.",
+  "covers": [
+    "email",
+    "sarcasm",
+    "sarcastic_thanks_decoy",
+    "conditional_promise_by_other",
+    "request_to_user",
+    "explicit_dated_commitment_control",
+    "commitment_by_other",
+    "today"
+  ],
+  "reference_date": "2026-10-19",
+  "reference_date_source": "user",
+  "timezone": "America/Chicago",
+  "source_kind": "paste",
+  "user": {
+    "display_name": "Riley Shaw",
+    "aliases": [
+      "riley.shaw@example.org",
+      "Riley"
+    ]
+  },
+  "ambiguous": true
+}

@@ -1,0 +1,26 @@
+{
+  "description": "Insurance renewal notice (synthetic), auto policy, notice dated Wed Oct 14, 2026, New York. A premium deadline with an amount and a full date, a mileage confirmation request, and an implied renew-or-switch decision. Premiums and coverage changes are key facts. The renewal date appears three times (statement, deadline, lapse sentence); only the payment sentence is the loop.",
+  "covers": [
+    "notice_letter",
+    "insurance_policy",
+    "deadline_with_amount",
+    "full_date_with_year",
+    "request_to_user",
+    "decision_implied",
+    "amounts_as_key_facts",
+    "repeated_date_decoy",
+    "brief_expected"
+  ],
+  "reference_date": "2026-10-14",
+  "reference_date_source": "detected",
+  "timezone": "America/New_York",
+  "source_kind": "paste",
+  "user": {
+    "display_name": "Jordan Ellis",
+    "aliases": [
+      "jordan.ellis@example.com",
+      "Jordan"
+    ]
+  },
+  "ambiguous": false
+}

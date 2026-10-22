@@ -1,0 +1,33 @@
+{
+  "notes": "The expiry date and the $25.00 penalty are key facts / the consequence (brief 'if you don't'). 'Keep this notice' and 'Do not reply' are not loops.",
+  "items": [
+    {
+      "type": "request",
+      "title": "Pass an emissions test and submit the certificate",
+      "owner": "user",
+      "quote": "Please complete an emissions test at any certified station and submit the passing certificate by November 16, 2026.",
+      "date_text": "by November 16, 2026",
+      "due_date": "2026-11-16",
+      "due_certainty": "explicit",
+      "certainty": "explicit",
+      "counterparty": "Office of Vehicle Registration",
+      "amount_text": null,
+      "band": "high",
+      "note": "0.90."
+    },
+    {
+      "type": "deadline",
+      "title": "Pay the $96.00 registration renewal fee",
+      "owner": "user",
+      "quote": "You must also pay the renewal fee of $96.00 by November 30, 2026.",
+      "date_text": "by November 30, 2026",
+      "due_date": "2026-11-30",
+      "due_certainty": "explicit",
+      "certainty": "explicit",
+      "counterparty": "Office of Vehicle Registration",
+      "amount_text": "$96.00",
+      "band": "high",
+      "note": "0.90. Amount is the fee, not the $25.00 penalty."
+    }
+  ]
+}
