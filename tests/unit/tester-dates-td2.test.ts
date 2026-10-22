@@ -96,14 +96,14 @@ describe("T-D2 residual defects (non-blocking)", () => {
   // DEFECT: the fix skips any text with an explicit am/pm, so "tonight at 1am" stays at 1:00 AM on
   // the written-on day: the start of the day the message was written, before "tonight". The safe
   // reading is the next day's 1:00 AM, as for "tonight at 1".
-  it.fails.each(["tonight at 1am", "tonight at 1 am", "tonight at 2:30am"])("'%s' is the next day's small hours", (t) => {
+  it.each(["tonight at 1am", "tonight at 1 am", "tonight at 2:30am"])("'%s' is the next day's small hours", (t) => {
     expect(r(t).due_date).toBe("2026-10-06");
   });
 
   // DEFECT: a 24-hour time states the half of the day, but the fix turns "tonight at 13:00" into
   // 1:00 AM the next day and says the text "doesn't say AM or PM" (untrue). Safe: no AM/PM line for a
   // 24-hour time, and 13:00 is never read as 1:00 AM.
-  it.fails.each(["tonight at 13:00", "tonight at 14:30"])("'%s' is not rewritten as a small hour with an AM/PM line", (t) => {
+  it.each(["tonight at 13:00", "tonight at 14:30"])("'%s' is not rewritten as a small hour with an AM/PM line", (t) => {
     const x = r(t);
     expect(ampmLine(x)).toBe(false);
     expect(Number(local(x.due_at)!.slice(-5, -3))).toBeGreaterThanOrEqual(12);
@@ -112,7 +112,7 @@ describe("T-D2 residual defects (non-blocking)", () => {
   // DEFECT (copy): "tonight at 01:00" resolves correctly to 1:00 AM the next day, but the zero-padded
   // 24-hour time states AM; the line "doesn't say AM or PM" is untrue (outside T-D2, "at 01:00" gets
   // no such line: meridiemGuessed excludes 0d:dd).
-  it.fails("'tonight at 01:00' has no 'doesn't say AM or PM' line", () => {
+  it("'tonight at 01:00' has no 'doesn't say AM or PM' line", () => {
     const x = r("tonight at 01:00");
     expect(local(x.due_at)).toBe("2026-10-06, 01:00");
     expect(ampmLine(x)).toBe(false);

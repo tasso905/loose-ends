@@ -234,7 +234,7 @@ describe.skipIf(!live)("tester: submitUpload on real local Supabase", () => {
   // (a replayed or duplicated submit of the same source_id), the start fails on the primary key and
   // the EXISTING source's file is deleted, leaving a sources row whose storage_path points at nothing.
   // Safe behaviour: a failed start never removes a file that a source row owns.
-  it.fails("a repeated submit with an existing source id never deletes that source's file", async () => {
+  it("a repeated submit with an existing source id never deletes that source's file", async () => {
     const id = await upload(A, renewalPdf());
     expect((await as(A, () => submitUpload(form(id, "Renewal notice.pdf")))).ok).toBe(true);
     const again = await as(A, () => submitUpload(form(id, "Renewal notice.pdf")));
@@ -243,7 +243,9 @@ describe.skipIf(!live)("tester: submitUpload on real local Supabase", () => {
     expect(await files(A.id)).toEqual([id]);
   });
 
-  it("evidence for the DEFECT above: after the repeated submit the source row remains but its file is gone", async () => {
+  // Skipped by the lead developer when the fix landed (fix/upload-hardening): this test asserts the
+  // defective behaviour (file gone) and the pin above now covers the safe behaviour.
+  it.skip("evidence for the DEFECT above: after the repeated submit the source row remains but its file is gone", async () => {
     const id = await upload(A, renewalPdf());
     expect((await as(A, () => submitUpload(form(id, "Renewal notice.pdf")))).ok).toBe(true);
     await as(A, () => submitUpload(form(id, "Renewal notice.pdf")));

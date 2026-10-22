@@ -44,6 +44,14 @@ type Params = {
 export type InputField = "text" | "title" | "written_on";
 
 const num = (n: number) => n.toLocaleString("en-US");
+/**
+ * A size to one decimal that never rounds down onto the 10 MB limit: a file just over the limit
+ * reads "10.1 MB", not "10 MB. The limit is 10 MB."
+ */
+const sizeOverLimit = (mb: number) => {
+  const r = Math.round(mb * 10) / 10;
+  return mb > 10 && r <= 10 ? Math.ceil(mb * 10) / 10 : r;
+};
 
 const COPY: { [K in ErrorCode]: { retryable: boolean; status: number; message: (p: Params[K]) => string } } = {
   input_too_long: {
@@ -51,11 +59,11 @@ const COPY: { [K in ErrorCode]: { retryable: boolean; status: number; message: (
     status: 413,
     message: (p) => `That's ${num(p.n)} characters. The limit is 30,000 — trim it or split it into two pastes.`,
   },
-  unsupported_type: { retryable: false, status: 415, message: () => "Loose Ends can read PDF, TXT, MD and DOCX files." },
+  unsupported_type: { retryable: false, status: 415, message: () => "Loose Ends can read PDF, TXT and MD files." },
   file_too_large: {
     retryable: false,
     status: 413,
-    message: (p) => `This file is ${num(Math.round(p.sizeMb * 10) / 10)} MB. The limit is 10 MB.`,
+    message: (p) => `This file is ${num(sizeOverLimit(p.sizeMb))} MB. The limit is 10 MB.`,
   },
   too_many_pages: { retryable: false, status: 413, message: (p) => `This document has ${num(p.n)} pages. The limit is 30.` },
   unsupported_scan: { retryable: false, status: 422, message: () => "This looks like a scan. I can't read scans yet." },

@@ -32,6 +32,23 @@ describe("rule 3 on Explain card lines (briefClaims)", () => {
     expect(unsupportedClaims("That is about $1,500 a year.", TEXT)).toEqual(["amount"]);
     expect(unsupportedClaims("A rise of $270 on Nov 1.", TEXT)).toEqual(["date", "amount"]);
   });
+
+  it("percentages and amounts in words must be in the source as written", () => {
+    const src = "Rent goes up 4.5% from June 1, 2026. The deposit is two hundred dollars.";
+    expect(unsupportedClaims("That is a 4.5% rise.", src)).toEqual([]);
+    expect(unsupportedClaims("That is a 22.5% rise.", src)).toEqual(["amount"]);
+    expect(unsupportedClaims("That is 22 percent more.", src)).toEqual(["amount"]);
+    expect(unsupportedClaims("Keep the two hundred dollars deposit receipt.", src)).toEqual([]);
+    expect(unsupportedClaims("Expect fifteen hundred dollars.", src)).toEqual(["amount"]);
+    expect(unsupportedClaims("About two-hundred and fifty euros.", src)).toEqual(["amount"]);
+  });
+
+  it("the source's own date repeated without its year is supported; a different year is not", () => {
+    const src = "Your home policy renews on October 31, 2026.";
+    expect(unsupportedClaims("Whether October 31 is a hard deadline.", src)).toEqual([]);
+    expect(unsupportedClaims("Whether October 31, 2027 is a hard deadline.", src)).toEqual(["date"]);
+    expect(unsupportedClaims("Whether October 30 is a hard deadline.", src)).toEqual(["date"]);
+  });
 });
 
 describe("verifyBrief(): pages and rule 3", () => {

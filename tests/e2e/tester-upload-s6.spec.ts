@@ -135,7 +135,7 @@ test("rule 10: while the server action is in flight nothing claims success; the 
 // source row: it is not listed anywhere, not exported, and only account deletion removes it. Try
 // again uploads a second copy under a new id. Safe behaviour: a failed submit leaves no file behind
 // (e.g. the client removes its own upload on failure, and/or a sweep deletes unclaimed objects).
-test.fail("a submit that fails after the storage upload leaves no orphan file", async () => {
+test("a submit that fails after the storage upload leaves no orphan file", async () => {
   const before = await storedFiles();
   const sourcesBefore = await sourceIds();
   await page.goto("/add?mode=upload");

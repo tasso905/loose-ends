@@ -113,6 +113,10 @@ const EXPLICIT_AMPM = /\d\s*(a\.?m\.?|p\.?m\.?)(?![\p{L}])/iu;
  * "tonight at 5" (17:00, an early evening; the tester's D50 guard keeps it 5 PM with no line).
  */
 const NIGHT = /\b(tonight|night)\b/i;
+/** A 24-hour clock time past noon ("13:00", "23:45"): it states the half of the day. */
+const H24_TIME = /\b(1[3-9]|2[0-3]):\d{2}\b/;
+/** A zero-padded hour ("01:00", "06:30"): a 24-hour time before noon, so it states AM. */
+const ZERO_PADDED_TIME = /\b0\d:\d{2}\b/;
 /** Past window for a month-day with no year (user decision, Oct 18): up to 30 days back. */
 export const PAST_WINDOW_DAYS = 30;
 
@@ -223,15 +227,28 @@ function chronoResolve(text: string, ctx: DateContext): ChronoReading {
   const timeKnown = clock.isCertain("hour") && STATED_TIME.test(text);
   // No AM/PM stated and a 12-hour reading ("at 5", "by 6:00"; not "17:00" or a zero-padded "06:00"):
   // the meridiem is a guess, said so in "Not sure about".
-  const meridiemGuessed = timeKnown && !STATED_MERIDIEM.test(text) && !/\b0\d:\d{2}\b/.test(text) && rawHour >= 1 && rawHour <= 12;
+  const meridiemGuessed = timeKnown && !STATED_MERIDIEM.test(text) && !ZERO_PADDED_TIME.test(text) && rawHour >= 1 && rawHour <= 12;
   // User decision, Oct 21: a guessed hour from 1 to 6 is PM ("tomorrow at 5" → 5 PM), still inferred.
   const pmHour = meridiemGuessed && rawHour <= 6 ? rawHour + 12 : rawHour;
-  const smallHours = timeKnown && NIGHT.test(text) && !EXPLICIT_AMPM.test(text) && pmHour >= 12 && pmHour <= 16;
-  const hour = smallHours ? pmHour - 12 : pmHour;
+  // T-D2 after "night"/"tonight": a 24-hour time ("13:00") says the half of the day and is kept as
+  // written. An explicit am hour ("1am") is the next morning, as stated (no AM/PM line). Otherwise
+  // a 12:00–16:59 reading is the next day's small hours; the AM/PM line is added unless the hour was
+  // written zero-padded ("01:00"), which states AM.
+  const night = timeKnown && NIGHT.test(text) && !H24_TIME.test(text);
+  let hour = pmHour;
+  let smallHours = false;
+  let nightGuessed = false;
+  if (night && EXPLICIT_AMPM.test(text)) {
+    smallHours = hour < 12;
+  } else if (night && pmHour >= 12 && pmHour <= 16) {
+    hour = pmHour - 12;
+    smallHours = true;
+    nightGuessed = !ZERO_PADDED_TIME.test(text);
+  }
   const time = timeKnown ? `${pad(hour)}:${pad(clock.get("minute") ?? 0)}` : null;
-  // The small hours belong to the next calendar day; the reading is a guess either way.
+  // The small hours belong to the next calendar day.
   const nightDay = (day: string) => (smallHours ? new Date((dayNumber(day) + 1) * 86_400_000).toISOString().slice(0, 10) : day);
-  const guessed = meridiemGuessed || smallHours;
+  const guessed = meridiemGuessed || nightGuessed;
   const dayStated = (["year", "month", "day", "weekday"] as const).some((k) => start.isCertain(k));
   if (!dayStated) {
     // "this morning", "tonight at 8": the written-on day. A bare time ("at 5", "5pm") names no

@@ -111,7 +111,7 @@ describe("tester: limits and their copy (SITE_CONTRACT §2.13)", () => {
   // NON-BLOCKING copy defect: a file just over the limit (10 MB + up to ~50 KB) rounds to "10 MB",
   // so the user reads "This file is 10 MB. The limit is 10 MB." Safe copy never states a size equal
   // to the limit as the reason for refusal.
-  it.fails("a file barely over 10 MB never reads 'This file is 10 MB. The limit is 10 MB.'", () => {
+  it("a file barely over 10 MB never reads 'This file is 10 MB. The limit is 10 MB.'", () => {
     const sizeMb = (10 * 1024 * 1024 + 1) / (1024 * 1024);
     expect(apiError("file_too_large", { sizeMb }).error.message).not.toBe("This file is 10 MB. The limit is 10 MB.");
   });
@@ -131,7 +131,7 @@ describe("tester: limits and their copy (SITE_CONTRACT §2.13)", () => {
 
   // NON-BLOCKING: a Windows-1252 / Latin-1 .txt (common for exported notes) is refused as "not a
   // PDF, TXT or MD file", which is untrue for the user: it IS a TXT file.
-  it.fails("a Latin-1 .txt with an accented letter is read, not refused as an unsupported type", async () => {
+  it("a Latin-1 .txt with an accented letter is read, not refused as an unsupported type", async () => {
     const r = await readDocument(Uint8Array.from([0x43, 0x61, 0x66, 0xe9, 0x20, 0x61, 0x74, 0x20, 0x39]), "cafe.txt");
     expect(r.ok).toBe(true);
   });
@@ -154,16 +154,16 @@ describe("tester: rule 3 brief-claim filter edges (S7)", () => {
 
   // NON-BLOCKING (rule 3 gaps; the line is shown under an Interpretation label): figures the
   // filter does not recognise as a date or amount pass through even though the source lacks them.
-  it.fails("an invented percentage is caught", () => {
+  it("an invented percentage is caught", () => {
     expect(unsupportedClaims("That is a 22.5% increase.", SRC)).not.toEqual([]);
   });
-  it.fails("an invented amount in words is caught", () => {
+  it("an invented amount in words is caught", () => {
     expect(unsupportedClaims("That is fifteen hundred dollars.", SRC)).not.toEqual([]);
   });
 
   // NON-BLOCKING (over-dropping): the source's own date without its year is treated as invented, so
   // a correct Interpretation / Not sure about line is lost.
-  it.fails("a date the source states, quoted without its year, is kept", () => {
+  it("a date the source states, quoted without its year, is kept", () => {
     expect(unsupportedClaims("Whether October 31 is a hard deadline.", SRC)).toEqual([]);
   });
 });

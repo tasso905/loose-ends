@@ -132,6 +132,23 @@ describe("readDocument: TXT and MD", () => {
     const r = await readDocument(bytes("b".repeat(30_000)), "max.txt");
     expect(r.ok).toBe(true);
   });
+
+  it("a Windows-1252 / Latin-1 file that is not valid UTF-8 is decoded as Windows-1252", async () => {
+    // "Café at 9 – Ana’s note" in Windows-1252: é = E9, en dash = 96, right quote = 92.
+    const cp1252 = Uint8Array.from([...bytes("Caf"), 0xe9, ...bytes(" at 9 "), 0x96, ...bytes(" Ana"), 0x92, ...bytes("s note\r\n")]);
+    expect(sniffType(cp1252)).toBe("text1252");
+    expect(await readDocument(cp1252, "note.txt")).toEqual({ ok: true, text: "Café at 9 – Ana’s note", mimeType: "text/plain", pageOffsets: null, pageCount: null });
+  });
+
+  it("bytes that are not UTF-8 and do not look like Windows-1252 text stay unsupported", async () => {
+    const control = Uint8Array.from([...bytes("Caf"), 0xe9, 0x01, ...bytes(" note")]); // a control byte
+    const undefinedByte = Uint8Array.from([...bytes("Caf"), 0xe9, 0x81, ...bytes(" note")]); // 0x81 is undefined in 1252
+    const mostlyHigh = Uint8Array.from([0xe9, 0xe8, 0xf1, 0x41]); // mostly high bytes: not prose
+    for (const b of [control, undefinedByte, mostlyHigh]) {
+      expect(sniffType(b)).toBe("unknown");
+      expect(await readDocument(b, "x.txt")).toEqual({ ok: false, reason: "unsupported_type" });
+    }
+  });
 });
 
 describe("helpers", () => {

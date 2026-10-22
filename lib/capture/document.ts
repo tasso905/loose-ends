@@ -22,7 +22,8 @@ export const SCAN_MIN_CHARS_PER_PAGE = 25;
 const PAGE_SEPARATOR = "\n\n";
 
 export type UploadMimeType = "application/pdf" | "text/plain" | "text/markdown";
-export type SniffedType = "pdf" | "text" | "zip" | "unknown";
+/** "text" is UTF-8; "text1252" is a Windows-1252 / Latin-1 text file (not valid UTF-8). */
+export type SniffedType = "pdf" | "text" | "text1252" | "zip" | "unknown";
 
 export type ReadFailure =
   | { reason: "file_too_large"; sizeMb: number }
@@ -64,8 +65,28 @@ export function sniffType(bytes: Uint8Array): SniffedType {
     new TextDecoder("utf-8", { fatal: true }).decode(bytes);
     return "text";
   } catch {
-    return "unknown";
+    return isWindows1252Text(bytes) ? "text1252" : "unknown";
   }
+}
+
+/** Bytes Windows-1252 leaves undefined. */
+const CP1252_UNDEFINED = new Set([0x81, 0x8d, 0x8f, 0x90, 0x9d]);
+/** Latin-1 prose has a few accented letters, not a majority of high bytes. */
+const CP1252_MAX_HIGH_SHARE = 0.3;
+
+/**
+ * Not UTF-8, but plausibly a Windows-1252 / Latin-1 text file (common for exported notes): no
+ * control bytes other than tab, line breaks and form feed, no byte 1252 leaves undefined, and
+ * mostly ASCII. Binary formats almost always fail the control-byte check.
+ */
+function isWindows1252Text(bytes: Uint8Array): boolean {
+  let high = 0;
+  for (const b of bytes) {
+    if (b < 0x20 && b !== 0x09 && b !== 0x0a && b !== 0x0c && b !== 0x0d) return false;
+    if (b === 0x7f || CP1252_UNDEFINED.has(b)) return false;
+    if (b >= 0x80) high++;
+  }
+  return bytes.length > 0 && high / bytes.length <= CP1252_MAX_HIGH_SHARE;
 }
 
 /** Word documents name their main part `word/document.xml` in the ZIP directory (stored uncompressed). */
@@ -117,9 +138,9 @@ export async function readDocument(bytes: Uint8Array, fileName: string): Promise
   const type = sniffType(bytes);
   if (type === "pdf") return readPdf(bytes);
   if (type === "zip") return isDocx(bytes) ? { ok: false, reason: "docx" } : { ok: false, reason: "unsupported_type" };
-  if (type !== "text") return { ok: false, reason: "unsupported_type" };
+  if (type !== "text" && type !== "text1252") return { ok: false, reason: "unsupported_type" };
 
-  const text = cleanText(new TextDecoder("utf-8").decode(bytes));
+  const text = cleanText(new TextDecoder(type === "text" ? "utf-8" : "windows-1252").decode(bytes));
   if (text.trim() === "") return { ok: false, reason: "empty" };
   if (text.length > PASTE_MAX_CHARS) return { ok: false, reason: "too_long", n: text.length };
   const mimeType: UploadMimeType = /\.(md|markdown)$/i.test(fileName) ? "text/markdown" : "text/plain";

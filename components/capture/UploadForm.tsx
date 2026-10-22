@@ -18,6 +18,20 @@ import { TitleField, WrittenOnField } from "./SourceFields";
 type Failure = ApiError["error"];
 
 /**
+ * Best effort: removes this attempt's file after a failed submit, but only when no source row owns
+ * it (the storage delete policy refuses an owned file too). Any error leaves the file in place.
+ */
+async function removeOwnUpload(supabase: ReturnType<typeof createClient>, userId: string, sourceId: string) {
+  try {
+    const { data, error } = await supabase.from("sources").select("id").eq("id", sourceId).maybeSingle();
+    if (error || data) return;
+    await supabase.storage.from(SOURCES_BUCKET).remove([`${userId}/${sourceId}`]);
+  } catch {
+    // Offline or the request failed: nothing more to do here.
+  }
+}
+
+/**
  * Upload mode (F3; SITE_CONTRACT §2.2, DESIGN_STANDARD "File drop zone"). One file, picked or
  * dropped. A file over 10 MB is refused here before anything is sent. Otherwise the file goes
  * straight to the private bucket at sources/{uid}/{source_id} with the user's session (storage RLS),
@@ -95,10 +109,12 @@ export function UploadForm({ today, userId }: { today: string; userId: string })
         setFailure(apiError("offline").error);
         return;
       }
+      // A new id per attempt: a refused or failed attempt's file is removed by the server, and by
+      // this page when the submit itself fails after the upload (no orphan file).
+      const sourceId = crypto.randomUUID();
+      const supabase = createClient();
+      let uploaded = false;
       try {
-        // A new id per attempt: a refused or failed attempt's file is removed by the server.
-        const sourceId = crypto.randomUUID();
-        const supabase = createClient();
         const up = await supabase.storage
           .from(SOURCES_BUCKET)
           // Stored as opaque bytes: the type is sniffed on the server, never trusted from the browser.
@@ -113,6 +129,7 @@ export function UploadForm({ today, userId }: { today: string; userId: string })
           }
           return;
         }
+        uploaded = true;
         form.set("source_id", sourceId);
         form.set("file_name", file.name);
         const result = await submitUpload(form);
@@ -124,9 +141,11 @@ export function UploadForm({ today, userId }: { today: string; userId: string })
           router.push(`/sign-in?next=${encodeURIComponent("/add?mode=upload")}`);
           return;
         }
+        await removeOwnUpload(supabase, userId, sourceId);
         setFailure(result.error);
         setFailedField(result.field ?? null);
       } catch {
+        if (uploaded) await removeOwnUpload(supabase, userId, sourceId);
         setFailure(apiError(navigator.onLine ? "save_failed" : "offline").error);
       }
     });

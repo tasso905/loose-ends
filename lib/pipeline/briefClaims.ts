@@ -18,16 +18,30 @@ const SPAN_REFERENCE = parseInstant("2000-01-01T12:00:00Z");
 const NOT_A_DATE = /^(right\s+)?now$/i;
 const AMOUNT = /(?:[$€£]\s?\d[\d,]*(?:\.\d+)?(?:\s?(?:million|billion|k)\b)?|\b\d[\d,]*(?:\.\d+)?\s?(?:dollars|euros|pounds|USD|EUR|GBP)\b)/giu;
 
+/** A percentage ("22.5%", "15 percent"); it must occur in the source as written. */
+const PERCENT = /\b\d[\d,]*(?:\.\d+)?\s?(?:%|per\s?cent\b)/giu;
+const NUMBER_WORD =
+  "(?:zero|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|hundred|thousand|million|billion)";
+/** An amount in words ("fifteen hundred dollars", "two-hundred and fifty euros"). */
+const WORDS_AMOUNT = new RegExp(
+  `\\b${NUMBER_WORD}(?:[\\s-]+(?:and[\\s-]+)?${NUMBER_WORD})*\\s+(?:dollars?|euros?|pounds?|bucks|cents?)\\b`,
+  "giu",
+);
+
 export type ClaimKind = "date" | "amount";
 
 /** The kinds of claim in `line` that the source does not support (empty when the line is fine). */
 export function unsupportedClaims(line: string, sourceText: string): ClaimKind[] {
   const out: ClaimKind[] = [];
+  const amountPatterns = [AMOUNT, PERCENT, WORDS_AMOUNT];
   // Amounts are blanked before the date search: chrono reads "$1,500 a year" as the time "500 a".
-  const withoutAmounts = line.replace(AMOUNT, (m) => " ".repeat(m.length));
+  const withoutAmounts = amountPatterns.reduce((l, re) => l.replace(re, (m) => " ".repeat(m.length)), line);
   const dates = chrono.parse(withoutAmounts, SPAN_REFERENCE).map((r) => r.text.trim()).filter((t) => t !== "" && !NOT_A_DATE.test(t));
-  if (dates.some((d) => !containsWholePhrase(sourceText, d, "date"))) out.push("date");
-  const amounts = [...line.matchAll(AMOUNT)].map((m) => m[0].trim());
+  // Whole words, but the source may write a year after the date the line repeats without one
+  // ("October 31" from "October 31, 2026"): the same date, not an invented one. A line that adds a
+  // year the source lacks still fails, because the year is part of the phrase it must find.
+  if (dates.some((d) => !containsWholePhrase(sourceText, d, "text"))) out.push("date");
+  const amounts = amountPatterns.flatMap((re) => [...line.matchAll(re)].map((m) => m[0].trim()));
   if (amounts.some((a) => !containsWholePhrase(sourceText, a, "amount"))) out.push("amount");
   return out;
 }
