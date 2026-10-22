@@ -151,9 +151,8 @@ function AnswerCard({ view, timezone }: { view: AskView; timezone: string }) {
             {d.interpretations.map((t) => (
               <Interpretation key={t} text={t} />
             ))}
-            <Link href={`/threads/${d.thread_id}`} className="focus-ring inline-flex min-h-11 items-center rounded-control text-body-strong text-le-accent underline-offset-4 hover:underline md:min-h-0">
+            <Link href={`/threads/${d.thread_id}`} aria-label={`${D.openThread}: ${d.thread_title}`} className="focus-ring inline-flex min-h-11 items-center rounded-control text-body-strong text-le-accent underline-offset-4 hover:underline md:min-h-0">
               {D.openThread}
-              <span className="sr-only">: {d.thread_title}</span>
             </Link>
           </article>
         );

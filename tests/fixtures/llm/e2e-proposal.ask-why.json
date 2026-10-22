@@ -1,0 +1,17 @@
+{
+  "name": "e2e-proposal-ask-why",
+  "task": "ask_why",
+  "input": "Why did I send the revised proposal to Mike?",
+  "responses": [
+    {
+      "answer_found": true,
+      "decision_ids": ["e2e5a9a0-0000-4000-8000-000000000001", "e2e5a9a0-0000-4000-8000-0000000000ff"],
+      "answer_parts": [
+        { "kind": "user_reason", "text": "Mike asked for it twice", "ref": "e2e5a9a0-0000-4000-8000-000000000001" },
+        { "kind": "source_fact", "text": "send you the revised proposal", "ref": "e2e5a9a0-0000-4000-8000-0000000000e1" },
+        { "kind": "user_reason", "text": "Blue is calming.", "ref": "e2e5a9a0-0000-4000-8000-0000000000ff" },
+        { "kind": "inference", "text": "Getting the price right seems to have mattered most.", "ref": "e2e5a9a0-0000-4000-8000-000000000001" }
+      ]
+    }
+  ]
+}

@@ -24,7 +24,7 @@ export function AppHeader({ current }: { current: NavItem }) {
       <Link href="/today" className="focus-ring rounded-control" aria-label="Loose Ends, go to Today">
         <Wordmark />
       </Link>
-      <nav aria-label="Primary" className="flex items-center gap-1">
+      <nav aria-label="Primary" className="flex flex-wrap items-center gap-1">
         {ITEMS.map(({ key, href, label, Icon }) => {
           const active = current === key;
           return (
