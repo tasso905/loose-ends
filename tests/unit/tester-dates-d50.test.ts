@@ -217,7 +217,7 @@ describe("round 3 (bb20ada): parts of the day (REGRESSION GUARDS)", () => {
   it("the AM/PM line still appears when no part of the day is stated ('tomorrow at 5')", () => expect(hasAmPmLine(r("tomorrow at 5"))).toBe(true));
 });
 
-describe("OPEN DEFECT T-D2 (pre-existing, not introduced by this branch): night + a small hour becomes the afternoon", () => {
+describe("T-D2 REGRESSION GUARDS (was OPEN DEFECT, fixed on fix/toast-11s-and-night-hours): night + a small hour is never the afternoon", () => {
   // chrono adds 12 to every hour after "night"/"tonight", so "tonight at 1" is read as 1 PM, which
   // contradicts "tonight". STATED_MERIDIEM (correctly) treats "night" as stating the meridiem, so no
   // AM/PM line is shown either, and chrono wins over the model (rule 3): a model that says Tue 1:00 AM
@@ -226,8 +226,8 @@ describe("OPEN DEFECT T-D2 (pre-existing, not introduced by this branch): night 
   // about" line; either the small-hours reading (next day, AM) or no clock time.
   const localHour = (iso: string | null) =>
     iso ? Number(new Date(iso).toLocaleString("en-US", { timeZone: "America/New_York", hour: "numeric", hourCycle: "h23" })) : null;
-  it.fails.each(["tonight at 1", "tonight at 2:30", "tonight at 12", "Friday night at 2", "tomorrow night at 3"])(
-    "DEFECT: %s is never read as an afternoon time without a 'Not sure about' line",
+  it.each(["tonight at 1", "tonight at 2:30", "tonight at 12", "Friday night at 2", "tomorrow night at 3"])(
+    "%s is never read as an afternoon time without a 'Not sure about' line",
     (t) => {
       const x = r(t);
       const h = localHour(x.due_at);
@@ -235,7 +235,7 @@ describe("OPEN DEFECT T-D2 (pre-existing, not introduced by this branch): night 
       expect(afternoon && !hasAmPmLine(x), `${t} → ${x.due_at} ${JSON.stringify(x.not_sure)}`).toBe(false);
     },
   );
-  it.fails("DEFECT: a model saying Tue 1:00 AM for 'tonight at 1' is not overridden by Mon 1:00 PM", () => {
+  it("a model saying Tue 1:00 AM for 'tonight at 1' is not overridden by Mon 1:00 PM", () => {
     expect(r("tonight at 1", "2026-10-06T01:00:00").due_at).not.toBe("2026-10-05T17:00:00.000Z");
   });
 });

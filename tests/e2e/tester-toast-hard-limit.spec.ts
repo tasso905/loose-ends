@@ -5,7 +5,8 @@ import { localSupabase } from "./localSupabase";
 
 /**
  * Lead-tester, independent of the developer's specs: the Undo toast's hard limit (D49, Oct 21).
- * The toast closes 12 s after the Done click even while hover or focus pauses it; the pause and the
+ * The toast closes 11 s after the Done click even while hover or focus pauses it (12 s until the
+ * user's Oct 21 decision for a 1 s buffer inside the server's 12 s window); the pause and the
  * 8 s countdown still apply inside that limit; an Undo already in flight is left to finish; focus
  * never falls to <body>; a late Undo is never reported as a success (rule 10).
  *
@@ -105,7 +106,7 @@ test("unpaused: the toast closes at 8 s (countdown still applies inside the hard
   expect(elapsed, `closed ${Math.round(elapsed)} ms after Done`).toBeLessThan(9_500);
 });
 
-test("hover-paused: the toast closes 12 s after the Done click (not later), focus is not on <body>", async () => {
+test("hover-paused: the toast closes 11 s after the Done click (not later), focus is not on <body>", async () => {
   test.setTimeout(60_000);
   const t = await freshThread();
   await page.goto(`/threads/${t.id}`);
@@ -115,18 +116,18 @@ test("hover-paused: the toast closes 12 s after the Done click (not later), focu
   await expect(undo).toBeVisible();
   await watchRemoval(label);
   await undo.hover();
-  await waitUntil(at, 10_000);
+  await waitUntil(at, 9_500);
   await expect(undo).toBeVisible(); // paused past 8 s
   await expect.poll(goneAt, { timeout: 5_000 }).not.toBeNull();
   const elapsed = (await goneAt())! - at;
   test.info().annotations.push({ type: "toast removed after Done (ms)", description: String(Math.round(elapsed)) });
-  expect(elapsed, `closed ${Math.round(elapsed)} ms after Done`).toBeGreaterThan(11_900);
-  expect(elapsed, `closed ${Math.round(elapsed)} ms after Done`).toBeLessThan(12_600);
+  expect(elapsed, `closed ${Math.round(elapsed)} ms after Done`).toBeGreaterThan(10_900);
+  expect(elapsed, `closed ${Math.round(elapsed)} ms after Done`).toBeLessThan(11_600);
   expect(await page.evaluate(() => document.activeElement?.tagName)).not.toBe("BODY");
   expect(await status(t.id)).toMatchObject({ status: "resolved", resolution: "done" });
 });
 
-test("focus-paused: closes at 12 s; focus moves to the status line; no error banner; thread stays Done", async () => {
+test("focus-paused: closes at 11 s; focus moves to the status line; no error banner; thread stays Done", async () => {
   test.setTimeout(60_000);
   const t = await freshThread();
   await page.goto(`/threads/${t.id}`);
@@ -139,15 +140,15 @@ test("focus-paused: closes at 12 s; focus moves to the status line; no error ban
   await expect.poll(goneAt, { timeout: 14_000 }).not.toBeNull();
   const elapsed = (await goneAt())! - at;
   test.info().annotations.push({ type: "toast removed after Done (ms)", description: String(Math.round(elapsed)) });
-  expect(elapsed, `closed ${Math.round(elapsed)} ms after Done`).toBeGreaterThan(11_900);
-  expect(elapsed, `closed ${Math.round(elapsed)} ms after Done`).toBeLessThan(12_600);
+  expect(elapsed, `closed ${Math.round(elapsed)} ms after Done`).toBeGreaterThan(10_900);
+  expect(elapsed, `closed ${Math.round(elapsed)} ms after Done`).toBeLessThan(11_600);
   await expect(page.locator("#thread-status")).toBeFocused();
   await expect(page.getByRole("alert").filter({ hasText: INVALID })).toHaveCount(0);
   expect(await status(t.id)).toMatchObject({ status: "resolved", resolution: "done" });
   expect((await eventTypes(t.id)).filter((x) => x === "undone")).toHaveLength(0);
 });
 
-test("boundary: an Undo pressed at ~11.3 s after Done (normal network) is accepted by the server", async () => {
+test("boundary: an Undo pressed at ~10.5 s after Done (normal network, last moment before the 11 s close) is accepted by the server", async () => {
   test.setTimeout(60_000);
   const t = await freshThread();
   await page.goto(`/threads/${t.id}`);
@@ -155,7 +156,7 @@ test("boundary: an Undo pressed at ~11.3 s after Done (normal network) is accept
   const undo = page.getByRole("button", { name: `Undo done: ${t.title}` });
   await expect(undo).toBeVisible();
   await undo.focus();
-  await waitUntil(at, 11_300);
+  await waitUntil(at, 10_500);
   await page.keyboard.press("Enter");
   await expect(page.locator("#thread-status")).toHaveText("Open");
   await expect(page.getByRole("alert").filter({ hasText: INVALID })).toHaveCount(0);
@@ -166,7 +167,7 @@ test("boundary: an Undo pressed at ~11.3 s after Done (normal network) is accept
 /**
  * The developer's open risk: an Undo clicked just before the hard limit on a slow network reaches
  * the server after its 12 s window. Simulated by holding the Undo request 2.5 s in the browser and
- * pressing Undo at ~11 s (arrives ~13.5 s after Done). Returns the thread and the Undo locator after
+ * pressing Undo at ~10.5 s, just before the 11 s close (arrives ~13 s after Done). Returns the thread and the Undo locator after
  * the refusal has rendered.
  */
 async function slowLateUndo() {
@@ -181,7 +182,7 @@ async function slowLateUndo() {
   });
   try {
     await undo.focus();
-    await waitUntil(at, 11_000);
+    await waitUntil(at, 10_500);
     await page.keyboard.press("Enter");
     await waitUntil(at, 12_400);
     // Past the hard limit with the request still held: the toast stays (busy), not yanked away.
@@ -196,7 +197,7 @@ async function slowLateUndo() {
 
 // Required: the in-flight Undo is left to finish, and the refusal is honest with §2.13 copy and
 // Refresh; never a success (rule 10). REGRESSION GUARD.
-test("slow network: an Undo sent at ~11 s arriving after 12 s finishes in place and is refused honestly (rule 10)", async () => {
+test("slow network: an Undo sent at ~10.5 s arriving after 12 s finishes in place and is refused honestly (rule 10)", async () => {
   test.setTimeout(60_000);
   const { t, undo } = await slowLateUndo();
   await expect(page.getByRole("button", { name: "Refresh" })).toBeVisible();
