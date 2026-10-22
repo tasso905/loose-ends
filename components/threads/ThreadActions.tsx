@@ -98,10 +98,18 @@ export function ThreadActions({
     });
   }
 
+  // Focus returns to Resolve… once the dialog has really closed (the page behind a modal dialog is
+  // inert, so focusing it earlier does nothing). The sheet's own effect closes it first.
+  const focusResolveOnClose = useRef(false);
   function closeSheet() {
+    focusResolveOnClose.current = true;
     setSheetOpen(false);
-    resolveRef.current?.focus();
   }
+  useEffect(() => {
+    if (sheetOpen || !focusResolveOnClose.current) return;
+    focusResolveOnClose.current = false;
+    resolveRef.current?.focus();
+  }, [sheetOpen]);
 
   async function undo(eventId: number) {
     setError(null);

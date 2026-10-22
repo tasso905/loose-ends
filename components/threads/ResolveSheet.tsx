@@ -184,7 +184,7 @@ export function ResolveSheet({
             <label
               key={o}
               className={cn(
-                "flex min-h-11 cursor-pointer items-center rounded-card border border-le-border bg-le-surface p-4 text-body-strong text-le-text",
+                "relative flex min-h-11 cursor-pointer items-center rounded-card border border-le-border bg-le-surface p-4 text-body-strong text-le-text",
                 "has-checked:border-le-accent has-checked:bg-le-accent-subtle has-checked:ring-1 has-checked:ring-le-accent",
                 "has-focus-visible:outline-2 has-focus-visible:outline-offset-2 has-focus-visible:outline-le-accent",
               )}
@@ -199,7 +199,7 @@ export function ResolveSheet({
                   if (o === "decided") focusDecided.current = true;
                   setResolution(o);
                 }}
-                className="sr-only"
+                className="absolute inset-0 m-0 cursor-pointer appearance-none rounded-card focus-visible:outline-none"
               />
               {R.options[o]}
             </label>
