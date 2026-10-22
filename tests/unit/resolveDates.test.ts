@@ -376,6 +376,38 @@ describe("resolveDate(): a part of the day states AM or PM (T-D1)", () => {
   });
 });
 
+describe("resolveDate(): night + a small hour is the next day's small hours (T-D2)", () => {
+  // Written Mon Oct 5, 2026, New York (UTC-4).
+  it.each([
+    ["tonight at 1", "2026-10-06", "2026-10-06T05:00:00.000Z"],
+    ["tonight at 2:30", "2026-10-06", "2026-10-06T06:30:00.000Z"],
+    ["tonight at 12", "2026-10-06", "2026-10-06T04:00:00.000Z"],
+    ["Friday night at 2", "2026-10-10", "2026-10-10T06:00:00.000Z"],
+    ["tomorrow night at 3", "2026-10-07", "2026-10-07T07:00:00.000Z"],
+  ])("'%s' → %s, small hours, inferred with the AM/PM line", (t, day, at) => {
+    const r = resolveDate({ date_text: t, date_iso: null }, NY);
+    expect(r.due_date).toBe(day);
+    expect(r.due_at).toBe(at);
+    expect(r.due_certainty).toBe("inferred");
+    expect(r.not_sure.some((l) => l.includes("doesn't say AM or PM"))).toBe(true);
+  });
+
+  it.each([
+    ["tonight at 8", "2026-10-06T00:00:00.000Z"],
+    ["tonight at 5", "2026-10-05T21:00:00.000Z"],
+    ["tonight at 1pm", "2026-10-05T17:00:00.000Z"],
+    ["Friday night at 11", "2026-10-10T03:00:00.000Z"],
+  ])("'%s' is unchanged (evening hour, or PM written out)", (t, at) => {
+    expect(resolveDate({ date_text: t, date_iso: null }, NY).due_at).toBe(at);
+  });
+
+  it("agrees with a model that read 'tonight at 1' as 1 AM the next day", () => {
+    const r = resolveDate({ date_text: "tonight at 1", date_iso: "2026-10-06T01:00:00" }, NY);
+    expect(r.agreement).toBe("agree");
+    expect(r.due_at).toBe("2026-10-06T05:00:00.000Z");
+  });
+});
+
 describe("resolveDate(): vague amounts", () => {
   it.each(["a few days", "in a few days", "a couple of days", "several weeks", "the past few days"])("'%s' gives no date", (t) => {
     expect(resolveDate({ date_text: t, date_iso: "2026-10-08" }, NY).due_date).toBeNull();

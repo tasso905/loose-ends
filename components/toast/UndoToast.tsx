@@ -12,15 +12,19 @@ import { cn } from "@/lib/utils";
  *
  * The live region (role=status) is always mounted, so a screen reader announces the message when it
  * appears. Errors never go in a toast (SITE_CONTRACT §2.13): the caller shows them on the page.
- * The server decides whether an undo is still valid: 8 s + 4 s grace (D44 a). So the toast never
- * outlives that window: whatever the pauses, it closes TOAST_HARD_LIMIT_MS after the user acted
- * (`actionAt`, user decision (a), Oct 21), and an Undo it offers is always one the server accepts.
+ * The server decides whether an undo is still valid: 8 s + 4 s grace = 12 s (D44 a). The toast
+ * closes TOAST_HARD_LIMIT_MS = 11 s after the user acted (`actionAt`), whatever the pauses: 1 s
+ * inside the server window, so an Undo pressed at the last moment still has time to reach the
+ * server (user decisions (a) and 11 s, Oct 21; D49).
  * The 8 s countdown and the hover/focus pause work as before inside that limit.
  */
 
 export const TOAST_MS = 8_000;
-/** The toast closes this long after the action even while paused (= UNDO_WINDOW_MS + UNDO_GRACE_MS). */
-export const TOAST_HARD_LIMIT_MS = 12_000;
+/**
+ * The toast closes this long after the action even while paused: 1 s less than the server's
+ * UNDO_WINDOW_MS + UNDO_GRACE_MS (12 s), a buffer for the request's round trip (user decision, Oct 21).
+ */
+export const TOAST_HARD_LIMIT_MS = 11_000;
 
 export interface ToastData {
   /** Changes for each new toast. */
