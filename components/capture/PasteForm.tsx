@@ -6,8 +6,9 @@ import { Spinner } from "@/components/auth/Spinner";
 import { useHydrated } from "@/components/auth/useHydrated";
 import { ErrorBanner, FieldError } from "@/components/Notice";
 import { Button } from "@/components/ui/button";
-import { Input, Textarea } from "@/components/ui/input";
-import { formatWrittenOn, normalizeLineBreaks, pasteCounter, TITLE_MAX_CHARS } from "@/lib/capture/pasteInput";
+import { Textarea } from "@/components/ui/input";
+import { normalizeLineBreaks, pasteCounter, TITLE_MAX_CHARS } from "@/lib/capture/pasteInput";
+import { TitleField, WrittenOnField } from "./SourceFields";
 import { apiError, type ApiError, type InputField } from "@/lib/errors";
 
 type Failure = ApiError["error"];
@@ -136,76 +137,30 @@ export function PasteForm({ today }: { today: string }) {
         {fieldError ? <FieldError id="text-error">{fieldError}</FieldError> : null}
       </div>
 
-      <details className="group" open={dateError ? true : undefined}>
-        <summary className="focus-ring flex min-h-11 cursor-pointer items-center gap-2 rounded-control text-body-strong text-le-text md:min-h-0">
-          When was this written?
-          <span className="text-small font-normal text-le-text-secondary tabular-nums">{formatWrittenOn(writtenOn, today)}</span>
-          {!writtenOnSet ? <AssumedChip /> : null}
-        </summary>
-        <div className="mt-3">
-          <label htmlFor="written_on" className="block text-small text-le-text-secondary">
-            {writtenOnSet ? "Written on" : "I assumed this was written today. Change it if it wasn't."}
-          </label>
-          <Input
-            id="written_on"
-            name="written_on"
-            type="date"
-            value={writtenOn}
-            required
-            min="1900-01-01"
-            max="2100-12-31"
-            onChange={(e) => {
-              if (!e.currentTarget.value) return;
-              setWrittenOn(e.currentTarget.value);
-              setWrittenOnSet(true);
-              if (failedField === "written_on") setFailure(null);
-            }}
-            className="mt-2 w-auto tabular-nums"
-            aria-invalid={dateError ? true : undefined}
-            aria-describedby={dateError ? "written-on-error" : undefined}
-          />
-          {dateError ? <FieldError id="written-on-error">{dateError}</FieldError> : null}
-          <input type="hidden" name="written_on_set" value={writtenOnSet ? "1" : "0"} readOnly />
-        </div>
-      </details>
+      <WrittenOnField
+        today={today}
+        value={writtenOn}
+        set={writtenOnSet}
+        error={dateError}
+        onChange={(v) => {
+          setWrittenOn(v);
+          setWrittenOnSet(true);
+          if (failedField === "written_on") setFailure(null);
+        }}
+      />
 
-      <details open={titleError ? true : undefined}>
-        <summary className="focus-ring flex min-h-11 cursor-pointer items-center rounded-control text-body-strong text-le-text md:min-h-0">
-          Add a title
-        </summary>
-        <div className="mt-3">
-          <label htmlFor="title" className="block text-small text-le-text-secondary">
-            Title (optional)
-          </label>
-          <Input
-            id="title"
-            name="title"
-            autoComplete="off"
-            className="mt-2"
-            onInput={(e) => {
-              setTitleLength(e.currentTarget.value.trim().length);
-              if (failedField === "title") setFailure(null);
-            }}
-            aria-invalid={titleError ? true : undefined}
-            aria-describedby={titleError ? "title-error" : undefined}
-          />
-          {titleError ? <FieldError id="title-error">{titleError}</FieldError> : null}
-        </div>
-      </details>
+      <TitleField
+        error={titleError}
+        onInput={(n) => {
+          setTitleLength(n);
+          if (failedField === "title") setFailure(null);
+        }}
+      />
 
       <Button type="submit" disabled={!hydrated || pending || blank || counter.over || titleLength > TITLE_MAX_CHARS}>
         {pending ? <Spinner /> : null}
         Review source
       </Button>
     </form>
-  );
-}
-
-/** `Assumed` chip: dotted 1px --border-strong outline, no icon (DESIGN_STANDARD Due chip). */
-export function AssumedChip() {
-  return (
-    <span className="inline-flex h-6 items-center rounded-control border border-dotted border-le-border-strong px-2 text-label text-le-text-secondary">
-      Assumed
-    </span>
   );
 }

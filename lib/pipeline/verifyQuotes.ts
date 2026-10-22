@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import type { Brief, BriefLine, Item } from "@/lib/ai/schema";
 import { log as defaultLog, type Logger } from "@/lib/log";
+import { unsupportedClaims } from "./briefClaims";
 import { normalizeForMatch, normalizeText, pageForOffset, toOriginalRange, type Normalized } from "./normalize";
 
 /**
@@ -228,21 +229,32 @@ function verifyFields(item: Item, normalizedSource: string, itemIndex: number, o
 
 export interface VerifiedBriefLine extends BriefLine {
   match: QuoteMatch | null;
+  /** 1-based page of a source line's quote (PDF sources); null otherwise. */
+  page?: number | null;
 }
 
 export type VerifiedBrief = { [K in keyof Omit<Brief, "not_sure_about">]: VerifiedBriefLine[] } & { not_sure_about: string[] };
 
 /**
  * Explain card lines: a `source` line keeps its place only if its quote verifies (it then
- * carries the verbatim span); otherwise it is dropped. `worth_considering` is interpretation by
- * definition. Interpretation lines never carry a quote (DESIGN_STANDARD "Three voices").
+ * carries the verbatim span and its page); otherwise it is dropped. `worth_considering` is
+ * interpretation by definition. Interpretation lines never carry a quote (DESIGN_STANDARD "Three
+ * voices"). Rule 3: an interpretation or "Not sure about" line that states a date or amount the
+ * source does not contain is dropped and logged as `brief_line_unverified` (briefClaims.ts).
  */
 export function verifyBrief(brief: Brief, sourceText: string, opts: VerifyOptions = {}): VerifiedBrief {
   const logger = opts.logger ?? defaultLog;
   const normalized = normalizeForMatch(sourceText);
+  const supported = (text: string, name: string, i: number): boolean => {
+    const claims = unsupportedClaims(text, sourceText);
+    if (claims.length === 0) return true;
+    logger("brief_line_unverified", { extraction_id: opts.extractionId ?? null, brief_section: name, line_index: i, claim: claims.join(",") });
+    return false;
+  };
   const section = (lines: BriefLine[], name: string, forceInterpretation = false): VerifiedBriefLine[] =>
     lines.flatMap((line, i): VerifiedBriefLine[] => {
       if (forceInterpretation || line.basis === "interpretation") {
+        if (!supported(line.text, name, i)) return [];
         return [{ text: line.text, basis: "interpretation" as const, quote: null, match: null }];
       }
       const m = line.quote ? locateQuote(line.quote, sourceText, normalized) : null;
@@ -250,7 +262,7 @@ export function verifyBrief(brief: Brief, sourceText: string, opts: VerifyOption
         logger("quote_unverified", { extraction_id: opts.extractionId ?? null, brief_section: name, line_index: i, similarity: null });
         return [];
       }
-      return [{ text: line.text, basis: "source" as const, quote: m.quote, match: m }];
+      return [{ text: line.text, basis: "source" as const, quote: m.quote, match: m, page: pageForOffset(opts.pageOffsets, m.start_offset) }];
     });
 
   return {
@@ -259,6 +271,6 @@ export function verifyBrief(brief: Brief, sourceText: string, opts: VerifyOption
     by_when: section(brief.by_when, "by_when"),
     if_you_dont: section(brief.if_you_dont, "if_you_dont"),
     worth_considering: section(brief.worth_considering, "worth_considering", true),
-    not_sure_about: [...brief.not_sure_about],
+    not_sure_about: brief.not_sure_about.filter((line, i) => supported(line, "not_sure_about", i)),
   };
 }

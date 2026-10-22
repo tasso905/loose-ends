@@ -3,6 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { z } from "zod";
 import { log } from "@/lib/log";
 import { Band, DueCertainty, ThreadKind, ThreadStatus } from "@/lib/schemas";
+import { StoredOrigin, threadNotSure } from "./explain";
 import { FILTER_STATUSES, sortThreads, type ThreadFilter } from "./view";
 
 /**
@@ -71,8 +72,11 @@ const Event = z.object({
 
 const Item = z.object({
   band: Band,
+  extraction_id: z.uuid(),
   payload: z.object({ label: z.object({ word: z.string(), reason: z.string() }).nullable().optional() }).loose(),
 });
+
+const Extraction = z.object({ brief: z.unknown().nullable(), source_id: z.uuid() });
 
 const Source = z.object({ id: z.uuid(), title: z.string().nullable(), kind: z.string(), reference_date: z.string() });
 
@@ -84,6 +88,10 @@ export interface ThreadDetail {
   /** The stored F19 label of the proposal it came from (rule 6: never recomputed). */
   origin: { band: z.infer<typeof Band>; label: { word: string; reason: string } | null } | null;
   sources: Record<string, z.infer<typeof Source>>;
+  /** F7: the stored, verified brief of the extraction this thread came from (null: none). */
+  brief: { brief: unknown; sourceId: string } | null;
+  /** F7 "Not sure about" lines for this thread, from the stored proposal (lib/threads/explain.ts). */
+  notSure: string[];
 }
 
 export type DetailResult = { ok: true; detail: ThreadDetail } | { ok: false; reason: "not_found" | "failed" };
@@ -102,7 +110,7 @@ export async function getThreadDetail(client: SupabaseClient, id: string): Promi
   const [ev, events, items] = await Promise.all([
     client.from("evidence").select("id, quote, page, source_id, extraction_item_id").eq("thread_id", id).order("id"),
     client.from("thread_events").select("id, type, actor, before, after, created_at").eq("thread_id", id).order("id"),
-    client.from("extraction_items").select("band, payload").eq("thread_id", id).limit(1),
+    client.from("extraction_items").select("band, extraction_id, payload").eq("thread_id", id).limit(1),
   ]);
   if (ev.error || events.error || items.error) return fail("related");
   const evidence = z.array(Evidence).safeParse(ev.data);
@@ -110,7 +118,19 @@ export async function getThreadDetail(client: SupabaseClient, id: string): Promi
   if (!evidence.success || !history.success) return fail("related_parse");
   const item = items.data?.[0] ? Item.safeParse(items.data[0]) : null;
 
-  const sourceIds = [...new Set(evidence.data.map((e) => e.source_id).filter((s): s is string => s !== null))];
+  let brief: ThreadDetail["brief"] = null;
+  if (item?.success) {
+    const x = await client.from("extractions").select("brief, source_id").eq("id", item.data.extraction_id).maybeSingle();
+    if (x.error) return fail("brief");
+    const parsed = x.data ? Extraction.safeParse(x.data) : null;
+    if (parsed && !parsed.success) return fail("brief_parse");
+    if (parsed?.success && parsed.data.brief !== null) brief = { brief: parsed.data.brief, sourceId: parsed.data.source_id };
+  }
+  const origin = item?.success ? StoredOrigin.safeParse(item.data.payload) : null;
+
+  const sourceIds = [
+    ...new Set([...evidence.data.map((e) => e.source_id), brief?.sourceId ?? null].filter((s): s is string => s !== null)),
+  ];
   let sources: ThreadDetail["sources"] = {};
   if (sourceIds.length > 0) {
     const s = await client.from("sources").select("id, title, kind, reference_date").in("id", sourceIds);
@@ -127,6 +147,8 @@ export async function getThreadDetail(client: SupabaseClient, id: string): Promi
       events: history.data,
       origin: item?.success ? { band: item.data.band, label: item.data.payload.label ?? null } : null,
       sources,
+      brief,
+      notSure: threadNotSure(origin?.success ? origin.data : null, thread.data),
     },
   };
 }

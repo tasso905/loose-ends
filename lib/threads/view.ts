@@ -150,3 +150,26 @@ export const THREADS_COPY = {
   todayEmpty: "Nothing needs you right now.",
   todayListLabel: "Active threads",
 } as const;
+
+export interface SourceRef {
+  title: string | null;
+  kind: string;
+  /** YYYY-MM-DD, the written-on date. */
+  reference_date: string;
+}
+
+/**
+ * The label above a quote (DESIGN_STANDARD "Three voices"): the source's name, then its page for a
+ * PDF or its written-on date otherwise ("Renewal notice · p. 2", "Pasted text · Oct 5"). A deleted
+ * source reads `Source deleted` (D47). `Uploaded file` is PROPOSED copy, used only for an upload
+ * with no title (an upload's title defaults to its file name).
+ */
+export function sourceCaption(source: SourceRef | null | undefined, page: number | null | undefined): string {
+  if (!source) return "Source deleted";
+  const name =
+    source.title ??
+    (source.kind === "paste" ? "Pasted text" : source.kind === "quick_add" ? "Quick add" : source.kind === "upload" ? "Uploaded file" : "Source");
+  if (page) return `${name} · p. ${page}`;
+  const date = formatInTimeZone(parseInstant(`${source.reference_date}T12:00:00Z`), "UTC", "MMM d");
+  return `${name} · ${date}`;
+}

@@ -1,0 +1,82 @@
+{
+  "name": "renewal-pdf",
+  "task": "extract",
+  "input": "Harbor Mutual Insurance (synthetic example)\nPolicy renewal notice for policy HM-000-TEST\nYour home policy renews on October 31, 2026.\nYour annual premium will change from $1,200 to $1,470.\n\nWhat you need to do\nIf you want to keep this policy, no action is needed and it will auto-renew.\nTo cancel or change your cover, call us before October 31, 2026.\nIf you do nothing, the new premium of $1,470 will be charged.",
+  "responses": [
+    {
+      "source_summary": "Renewal notice from Harbor Mutual",
+      "participants": [
+        {
+          "name": "Harbor Mutual Insurance",
+          "is_user": "no"
+        }
+      ],
+      "items": [
+        {
+          "type": "deadline",
+          "title": "Decide on the home policy renewal",
+          "owner": "user",
+          "counterparty": "Harbor Mutual",
+          "action": "Call to cancel or change cover, or let it renew",
+          "date_text": "October 31, 2026",
+          "date_iso": "2026-10-31",
+          "amount_text": "$1,470",
+          "certainty": "explicit",
+          "uncertainty_notes": [],
+          "matches_thread_id": null,
+          "evidence": [
+            {
+              "quote": "To cancel or change your cover, call us before October 31, 2026.",
+              "speaker": "Harbor Mutual"
+            }
+          ]
+        }
+      ],
+      "brief": {
+        "what_this_is": [
+          {
+            "text": "A renewal notice for your home policy",
+            "basis": "source",
+            "quote": "Policy renewal notice for policy HM-000-TEST"
+          }
+        ],
+        "what_to_do": [
+          {
+            "text": "Call before the renewal date to cancel or change",
+            "basis": "source",
+            "quote": "To cancel or change your cover, call us before October 31, 2026."
+          },
+          {
+            "text": "If the new price is fine, you don't need to do anything.",
+            "basis": "interpretation",
+            "quote": null
+          }
+        ],
+        "by_when": [
+          {
+            "text": "Renews Oct 31, 2026",
+            "basis": "source",
+            "quote": "Your home policy renews on October 31, 2026."
+          }
+        ],
+        "if_you_dont": [
+          {
+            "text": "The higher premium is charged",
+            "basis": "source",
+            "quote": "If you do nothing, the new premium of $1,470 will be charged."
+          }
+        ],
+        "worth_considering": [
+          {
+            "text": "Compare the new premium with other insurers.",
+            "basis": "interpretation",
+            "quote": null
+          }
+        ],
+        "not_sure_about": [
+          "Whether the premium can be paid monthly"
+        ]
+      }
+    }
+  ]
+}
