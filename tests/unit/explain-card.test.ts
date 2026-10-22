@@ -54,6 +54,12 @@ describe("rule 3 on Explain card lines (briefClaims)", () => {
     expect(unsupportedClaims("A thirty percent rise.", src)).toEqual(["amount"]);
   });
 
+  it("a word amount after a year, page or list number is still checked, on both sides", () => {
+    expect(unsupportedClaims("By 2027, fifty dollars more.", "The fee is ten dollars.")).toEqual(["amount"]);
+    expect(unsupportedClaims("Page 3. Twenty dollars is due.", "The fee is ten dollars.")).toEqual(["amount"]);
+    expect(unsupportedClaims("Pay two hundred dollars.", "On Oct 5, two hundred dollars was paid.")).toEqual([]);
+  });
+
   it("the source's own date repeated without its year is supported; a different year is not", () => {
     const src = "Your home policy renews on October 31, 2026.";
     expect(unsupportedClaims("Whether October 31 is a hard deadline.", src)).toEqual([]);

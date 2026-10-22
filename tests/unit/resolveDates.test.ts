@@ -406,13 +406,27 @@ describe("resolveDate(): night + a small hour is the next day's small hours (T-D
     ["tonight at 2:30 a.m.", "2026-10-06T06:30:00.000Z"],
     ["Friday night at 2am", "2026-10-10T06:00:00.000Z"],
     ["tonight at 01:00", "2026-10-06T05:00:00.000Z"],
-    ["tonight at 05:00", "2026-10-06T09:00:00.000Z"],
-    ["tonight at 06:00", "2026-10-06T10:00:00.000Z"],
+    ["tonight at 04:59", "2026-10-06T08:59:00.000Z"],
     ["last night at 1am", "2026-10-05T05:00:00.000Z"],
   ])("'%s' (AM stated, by am or a zero-padded hour) is the next morning with no AM/PM line", (t, at) => {
     const r = resolveDate({ date_text: t, date_iso: null }, NY);
     expect(r.due_at).toBe(at);
     expect(r.not_sure.some((l) => l.includes("AM or PM"))).toBe(false);
+  });
+
+  it.each([
+    ["tonight at 05:00", "2026-10-06T09:00:00.000Z"],
+    ["tonight at 09:00", "2026-10-06T13:00:00.000Z"],
+    ["tonight at 07:30", "2026-10-06T11:30:00.000Z"],
+  ])("'%s' (zero-padded 05:00–11:59 after tonight) keeps the morning reading but says it is a guess", (t, at) => {
+    const r = resolveDate({ date_text: t, date_iso: null }, NY);
+    expect(r.due_at).toBe(at);
+    expect(r.due_certainty).toBe("inferred");
+    expect(r.not_sure.some((l) => l.includes("doesn't say AM or PM"))).toBe(true);
+  });
+
+  it("'tonight at noon' is noon on the written-on day", () => {
+    expect(resolveDate({ date_text: "tonight at noon", date_iso: null }, NY).due_at).toBe("2026-10-05T16:00:00.000Z");
   });
 
   it.each([

@@ -146,6 +146,23 @@ describe("readDocument: TXT and MD", () => {
     expect(await readDocument(b, "note.txt")).toMatchObject({ ok: true, text: "Café – it’s due � Friday" });
   });
 
+  it("an accidental valid UTF-8 pair in a Windows-1252 file does not switch it to UTF-8", async () => {
+    // "RÉSUMÉ : rendez-vous à 9h" in Windows-1252: the second É (C9) + NBSP (A0) is a valid UTF-8 pair.
+    const b = Uint8Array.from([0x52, 0xc9, 0x53, 0x55, 0x4d, 0xc9, 0xa0, 0x3a, ...bytes(" rendez-vous "), 0xe0, ...bytes(" 9h")]);
+    expect(sniffType(b)).toBe("text1252");
+    expect(await readDocument(b, "x.txt")).toMatchObject({ ok: true, text: "R\u00c9SUM\u00c9\u00a0: rendez-vous \u00e0 9h" });
+  });
+
+  it("random buffers without control bytes are not read as UTF-8 text", () => {
+    let accepted = 0;
+    for (let n = 0; n < 20_000; n++) {
+      // Control bytes are lifted out of range, so only the encoding checks decide.
+      const b = crypto.getRandomValues(new Uint8Array(64)).map((x) => (x < 0x20 ? x + 0x20 : x));
+      if (sniffType(b) === "text") accepted++;
+    }
+    expect(accepted).toBe(0);
+  });
+
   it("bytes that are not UTF-8 and do not look like Windows-1252 text stay unsupported", async () => {
     const control = Uint8Array.from([...bytes("Caf"), 0xe9, 0x01, ...bytes(" note")]); // a control byte
     const undefinedByte = Uint8Array.from([...bytes("Caf"), 0xe9, 0x81, ...bytes(" note")]); // 0x81 is undefined in 1252
