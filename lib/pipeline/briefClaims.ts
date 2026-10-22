@@ -24,10 +24,12 @@ const NUMBER_WORD =
   "(?:zero|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|hundred|thousand|million|billion)";
 /**
  * An amount or percentage in words ("fifteen hundred dollars", "two-hundred and fifty euros",
- * "twenty percent"). Not after a figure: "2.5 million dollars" is a figure amount (AMOUNT).
+ * "twenty percent"). Not directly after a figure: in "2.5 million dollars" the scale word belongs
+ * to the figure amount (AMOUNT). A word amount after other punctuation ("By 2027, fifty dollars")
+ * is still checked.
  */
 const WORDS_AMOUNT = new RegExp(
-  `(?<!\\p{N}[.,\\s]*)\\b${NUMBER_WORD}(?:[\\s-]+(?:and[\\s-]+)?${NUMBER_WORD})*\\s+(?:dollars?|euros?|pounds?|bucks|cents?|per\\s?cent)\\b`,
+  `(?<!\\p{N}\\s?)\\b${NUMBER_WORD}(?:[\\s-]+(?:and[\\s-]+)?${NUMBER_WORD})*\\s+(?:dollars?|euros?|pounds?|bucks|cents?|per\\s?cent)\\b`,
   "giu",
 );
 /** Word amounts compared whole: case, hyphens and "and" do not matter, a missing word does. */

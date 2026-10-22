@@ -198,14 +198,14 @@ describe("T-D2 follow-up risks (non-blocking)", () => {
   // a day. On fix/upload-hardening "tonight at 09:00" was 9 PM. Safe (tester recommendation): a
   // zero-padded 05:00–11:59 after "tonight" keeps a reading but always gets the AM/PM line;
   // 00:00–04:59 stays the small hours with no line.
-  it.fails.each(["tonight at 09:00", "tonight at 07:30", "tonight at 05:00"])("'%s' is never a silent morning reading", (t) => {
+  it.each(["tonight at 09:00", "tonight at 07:30", "tonight at 05:00"])("'%s' is never a silent morning reading", (t) => {
     const x = r(t);
     const morning = Number(local(x.due_at)!.slice(-5, -3)) < 12;
     expect(morning && !ampmLine(x)).toBe(false);
   });
 
   // Pre-existing (also on main): "tonight at noon" is read as midnight with an AM/PM line.
-  it.fails("'tonight at noon' is noon, not midnight", () => {
+  it("'tonight at noon' is noon, not midnight", () => {
     expect(local(r("tonight at noon").due_at)).toBe("2026-10-05, 12:00");
   });
 });

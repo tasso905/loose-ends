@@ -115,6 +115,8 @@ const EXPLICIT_AMPM = /\d\s*(a\.?m\.?|p\.?m\.?)(?![\p{L}])/iu;
 const NIGHT = /\b(tonight|night)\b/i;
 /** A 24-hour clock time past noon ("13:00", "23:45"): it states the half of the day. */
 const H24_TIME = /\b(1[3-9]|2[0-3]):\d{2}\b/;
+/** "noon" stated in the phrase. */
+const NOON = /\bnoon\b/i;
 /** A zero-padded hour ("01:00", "06:30"): a 24-hour time before noon, so it states AM. */
 const ZERO_PADDED_TIME = /\b0\d:\d{2}\b/;
 /** Past window for a month-day with no year (user decision, Oct 18): up to 30 days back. */
@@ -243,9 +245,15 @@ function chronoResolve(text: string, ctx: DateContext): ChronoReading {
   let nightGuessed = false;
   if (night && EXPLICIT_AMPM.test(text)) {
     smallHours = hour < 12;
+  } else if (night && NOON.test(text)) {
+    // "tonight at noon": the clock time is stated, and noon is never the small hours.
+    hour = 12;
   } else if (night && ZERO_PADDED_TIME.test(text)) {
     hour = rawHour % 12;
     smallHours = true;
+    // 00:00-04:59 is the night's small hours. 05:00-11:59 fits "tonight" badly, so the morning
+    // reading is kept but marked a guess with the AM/PM line (tester recommendation).
+    nightGuessed = hour >= 5;
   } else if (night) {
     const written = rawHour % 12;
     if (written <= 4) {

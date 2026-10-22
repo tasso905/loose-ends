@@ -190,7 +190,7 @@ describe("tester: limits and their copy (SITE_CONTRACT §2.13)", () => {
   // branch these files were read correctly. Safe: prefer UTF-8 only when its valid multi-byte
   // sequences clearly outnumber the invalid bytes (a UTF-8 file with a stray byte has many valid
   // sequences and one invalid byte; a 1252 file has the reverse).
-  it.fails.each([
+  it.each([
     "RÉSUMÉ : rendez-vous à 9h, réunion déplacée.",
     "CAFÉ’S menu: crème brûlée, déjà vu.",
     "Dijo “ALLÍ” y se fue. Mañana será otro día.",
@@ -295,7 +295,7 @@ describe("tester: rule 3 brief-claim filter edges (S7)", () => {
   // word amount that follows a digit and then spaces or "." / ",", so an invented word amount after
   // a year, page or list number is never checked. All three lines were dropped on fix/upload-
   // hardening. Safe: only a figure directly before the scale word is excluded, e.g. `(?<!\p{N}\s?)`.
-  it.fails.each([
+  it.each([
     "By 2027, fifty dollars more.",
     "Page 3. Twenty dollars is due.",
     "The fee rose 5, twenty dollars total.",
@@ -305,7 +305,7 @@ describe("tester: rule 3 brief-claim filter edges (S7)", () => {
 
   // Same lookbehind on the source side (over-drop): the source's own word amount after "Oct 5," is
   // not collected, so a correct line repeating it is dropped. It was kept on fix/upload-hardening.
-  it.fails("a word amount the source states after a date is supported", () => {
+  it("a word amount the source states after a date is supported", () => {
     expect(unsupportedClaims("Pay two hundred dollars.", "On Oct 5, two hundred dollars was paid.")).toEqual([]);
   });
 });
