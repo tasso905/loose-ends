@@ -20,6 +20,9 @@ import { canMarkDone, THREADS_COPY as C } from "@/lib/threads/view";
 
 const failure = (code: "save_failed") => apiError(typeof navigator !== "undefined" && !navigator.onLine ? "offline" : code).error;
 
+/** Monotonic ms for the toast's hard limit; called from the Done click handler, never in render. */
+const actionClock = () => performance.now();
+
 export function ThreadActions({ threadId, title, status, kind }: { threadId: string; title: string; status: ThreadStatus; kind: ThreadKind }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -30,9 +33,15 @@ export function ThreadActions({ threadId, title, status, kind }: { threadId: str
   // Set by a successful Undo: Done returns only after router.refresh() re-renders with the server's
   // status, so the focus move waits for that render (doneRef is null until then).
   const focusDoneOnReturn = useRef(false);
+  // Set by a refused or failed Undo: the toast (which held focus) closes, so focus moves to the
+  // error banner once it renders, or the status line without one; never <body> (T-U1).
+  const focusErrorOnRender = useRef(false);
+  const bannerRef = useRef<HTMLDivElement>(null);
 
   function done() {
     setError(null);
+    // The toast's 12 s hard limit counts from the action, which is before the server's event time.
+    const actionAt = actionClock();
     startTransition(async () => {
       try {
         const res = await markDoneAction(threadId, status);
@@ -42,7 +51,14 @@ export function ThreadActions({ threadId, title, status, kind }: { threadId: str
         // 8 s timer runs unless the user moves to the toast.
         document.getElementById("thread-status")?.focus();
         toastId.current += 1;
-        setToast({ id: toastId.current, message: C.doneToast(title), onUndo: () => undo(res.eventId), undoLabel: `Undo done: ${title}` });
+        setToast({
+          id: toastId.current,
+          message: C.doneToast(title),
+          onUndo: () => undo(res.eventId),
+          undoLabel: `Undo done: ${title}`,
+          actionAt,
+          restoreFocus: () => document.getElementById("thread-status")?.focus(),
+        });
       } catch {
         setError(failure("save_failed"));
       }
@@ -53,15 +69,25 @@ export function ThreadActions({ threadId, title, status, kind }: { threadId: str
     setError(null);
     try {
       const res = await undoAction(threadId, eventId);
-      if (!res.ok) return setError(res.error);
+      if (!res.ok) {
+        focusErrorOnRender.current = true;
+        return setError(res.error);
+      }
       // Done comes back after the refresh; until then focus waits on the status line, never <body>.
       focusDoneOnReturn.current = true;
       document.getElementById("thread-status")?.focus();
       router.refresh();
     } catch {
+      focusErrorOnRender.current = true;
       setError(failure("save_failed"));
     }
   }
+
+  useEffect(() => {
+    if (!focusErrorOnRender.current) return;
+    focusErrorOnRender.current = false;
+    (bannerRef.current ?? document.getElementById("thread-status"))?.focus();
+  }, [error]);
 
   const showDone = canMarkDone({ status, kind });
   useEffect(() => {
@@ -75,7 +101,7 @@ export function ThreadActions({ threadId, title, status, kind }: { threadId: str
   return (
     <div>
       {error ? (
-        <div className="mb-4">
+        <div ref={bannerRef} tabIndex={-1} className="focus-ring mb-4 rounded-card">
           <ErrorBanner
             action={
               error.code === "invalid_transition" ? (
