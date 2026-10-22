@@ -1,0 +1,25 @@
+{
+  "name": "ask-why-eval-a07",
+  "task": "ask_why",
+  "input": "Why did I go with Delgado Plumbing?",
+  "responses": [
+    {
+      "answer_found": true,
+      "decision_ids": [
+        "d0000000-0000-4000-8000-000000000007"
+      ],
+      "answer_parts": [
+        {
+          "kind": "user_reason",
+          "text": "They could come Saturday and the quote was fixed at $180.",
+          "ref": "d0000000-0000-4000-8000-000000000007"
+        },
+        {
+          "kind": "source_fact",
+          "text": "Fixed quote $180 including parts",
+          "ref": "e0000000-0000-4000-8000-000000000071"
+        }
+      ]
+    }
+  ]
+}

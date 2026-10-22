@@ -11,6 +11,7 @@ import { ThreadActions } from "@/components/threads/ThreadActions";
 import { DueChip, StatusChip } from "@/components/threads/ThreadBits";
 import { buttonVariants } from "@/components/ui/button";
 import { requireUser } from "@/lib/auth/session";
+import { DECISIONS_COPY } from "@/lib/decisions/copy";
 import { createClient } from "@/lib/supabase/server";
 import { getThreadDetail, userTimezone, type ThreadDetail } from "@/lib/threads/read";
 import { RESOLVE_COPY } from "@/lib/threads/resolve";
@@ -109,7 +110,7 @@ function Thread({ detail, timezone, openResolve }: { detail: ThreadDetail; timez
         <ThreadActions threadId={t.id} title={t.title} status={t.status} kind={t.kind} openResolve={openResolve} />
       </div>
 
-      {decision ? <DecisionBlock decision={decision} timezone={timezone} /> : null}
+      {decision ? <DecisionBlock decision={decision} title={t.title} timezone={timezone} /> : null}
 
       {brief && parseBrief(brief.brief) ? (
         <ExplainBrief brief={brief.brief} source={sources[brief.sourceId] ?? null} notSure={notSure} className="mt-10" />
@@ -213,7 +214,7 @@ const EXPLAIN_COMPACT_TITLE = "About this";
  * the You wrote voice (DESIGN_STANDARD Three voices), with the date. No reason (Skip) shows no
  * reason line and no prompt to add one: Skip never asks again.
  */
-function DecisionBlock({ decision, timezone }: { decision: NonNullable<ThreadDetail["decision"]>; timezone: string }) {
+function DecisionBlock({ decision, title, timezone }: { decision: NonNullable<ThreadDetail["decision"]>; title: string; timezone: string }) {
   const date = formatDecisionDate(decision.decided_at, timezone);
   return (
     <section aria-labelledby="decision" className="mt-10">
@@ -233,6 +234,13 @@ function DecisionBlock({ decision, timezone }: { decision: NonNullable<ThreadDet
           <blockquote className="mt-1 text-body whitespace-pre-wrap text-le-text">{decision.reason_user}</blockquote>
         </figure>
       ) : null}
+      {/* SITE_CONTRACT §3.1: thread detail links a decision to Ask Why, prefilled with the title. */}
+      <Link
+        href={`/decisions?q=${encodeURIComponent(title)}`}
+        className="focus-ring mt-3 inline-flex min-h-11 items-center rounded-control text-body-strong text-le-accent underline-offset-4 hover:underline md:min-h-0"
+      >
+        {DECISIONS_COPY.askWhyLink}
+      </Link>
     </section>
   );
 }

@@ -1,0 +1,20 @@
+{
+  "name": "ask-why-eval-a08",
+  "task": "ask_why",
+  "input": "Why did we move to the Clearwave family plan?",
+  "responses": [
+    {
+      "answer_found": true,
+      "decision_ids": [
+        "d0000000-0000-4000-8000-000000000008"
+      ],
+      "answer_parts": [
+        {
+          "kind": "user_reason",
+          "text": "Unlimited data for both lines costs less than my current single line.",
+          "ref": "d0000000-0000-4000-8000-000000000008"
+        }
+      ]
+    }
+  ]
+}

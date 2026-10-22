@@ -18,8 +18,11 @@
  * Exit codes: 0 pass; 1 fail (a gate missed, any non-quota extraction failure, no fixtures, or a
  * crash); 3 incomplete because only provider quota failed (not a pass, not judged).
  *
- * Ask-why eval (10 answerable + 10 unanswerable questions) is not wired yet (F12, slice S9). The
- * question set, its format and the fabrication judge are in evals/ask-why (see its README.md).
+ * Ask-why eval (F12, S9): after the extraction fixtures, the 20 questions in evals/ask-why are
+ * retrieved with the real F12 query (public.search_decisions over a seeded in-process Postgres) and
+ * answered by askWhy() with the same model and throttle; gate 0 fabrications (README.md there).
+ * Its report is evals/results/ask-why-<timestamp>.json and its row is in the scorecard. The run
+ * passes only if both evals pass; quota-only failures in either make it incomplete (exit 3).
  */
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
@@ -27,6 +30,9 @@ import { parseEnv } from "node:util";
 import { AiConfigError, getModel } from "@/lib/ai/provider";
 import { safeErrorFields } from "@/lib/ai/safeError";
 import { getNow } from "@/lib/time";
+import { runAskWhyEval } from "./ask-why/harness";
+import { pgliteRetriever } from "./ask-why/retrieve";
+import { loadAskWhySet } from "./ask-why/set";
 import { createThrottle, EvalRpmError, evalRpm, NO_THROTTLE, renderScorecard, runEval } from "./harness";
 
 /** Fills unset variables from .env.local; returns how many were filled (names and values stay unprinted). */
@@ -54,13 +60,19 @@ async function main() {
   const rpm = evalRpm(process.env);
   const runAt = getNow().toISOString();
 
+  const throttle = rpm === null ? NO_THROTTLE : createThrottle(rpm);
   const report = await runEval({
     fixturesDir,
     model: resolved.model,
     modelLabel: resolved.label,
-    throttle: rpm === null ? NO_THROTTLE : createThrottle(rpm),
+    throttle,
     runAt,
   });
+  const askSet = loadAskWhySet();
+  const retriever = await pgliteRetriever(askSet);
+  const ask = await runAskWhyEval({ set: askSet, retrieve: retriever.retrieve, model: resolved.model, modelLabel: resolved.label, throttle }).finally(
+    () => retriever.close(),
+  );
   if (report.fixtures === 0) {
     console.error("No fixtures in evals/fixtures: nothing was measured, so this is not a pass.");
     process.exit(1);
@@ -71,25 +83,32 @@ async function main() {
   const stamp = runAt.replace(/[:.]/g, "-");
   const out = join(dir, `extract-${stamp}.json`);
   const card = join(dir, `scorecard-${stamp}.md`);
-  const markdown = renderScorecard(report);
+  const askOut = join(dir, `ask-why-${stamp}.json`);
+  const markdown = renderScorecard(report, ask);
   writeFileSync(out, JSON.stringify(report, null, 2));
+  writeFileSync(askOut, JSON.stringify(ask, null, 2));
   writeFileSync(card, markdown);
   const isFake = process.env.AI_PROVIDER.trim() === "fake";
   const publicCard = join(process.cwd(), "evals", "SCORECARD.md");
   if (!isFake || process.env.EVAL_WRITE_SCORECARD === "1") writeFileSync(publicCard, markdown);
   console.log(JSON.stringify({ ...report, perFixture: undefined }, null, 2));
-  console.log(`Full report: ${out}\nScorecard: ${card}`);
+  console.log(JSON.stringify({ ask_why: { ...ask, perQuestion: undefined } }, null, 2));
+  console.log(`Full report: ${out}\nAsk-why report: ${askOut}\nScorecard: ${card}`);
   console.log(isFake && process.env.EVAL_WRITE_SCORECARD !== "1" ? "evals/SCORECARD.md not updated (fake provider)." : `Public scorecard: ${publicCard}`);
 
-  if (report.result === "incomplete_quota") {
-    console.error(
-      `Eval incomplete: quota. ${report.scores.extraction_failures} fixture(s) hit the provider quota, so the run is not judged. Lower EVAL_RPM and re-run.`,
-    );
-    process.exit(3);
-  }
-  if (!report.pass) {
+  if (report.result === "fail") {
     console.error(`Eval FAIL${report.scores.extraction_failures ? ` (${report.scores.extraction_failures} extraction failure(s))` : ""}.`);
     process.exit(1);
+  }
+  if (ask.result === "fail") {
+    console.error(`Ask-why eval FAIL (${ask.fabrications} fabrication(s), ${ask.failures} failed call(s)).`);
+    process.exit(1);
+  }
+  if (report.result === "incomplete_quota" || ask.result === "incomplete_quota") {
+    console.error(
+      `Eval incomplete: quota. ${report.scores.extraction_failures} fixture(s) and ${ask.failures} Ask-why question(s) hit the provider quota, so the run is not judged. Lower EVAL_RPM and re-run.`,
+    );
+    process.exit(3);
   }
   console.log("Eval PASS.");
 }

@@ -29,7 +29,7 @@ const WRITERS = [
 ].sort();
 
 /** Read-only public functions `authenticated` may execute (invoker, RLS applies). */
-const READERS = ["extraction_context"];
+const READERS = ["extraction_context", "search_decisions"]; // S9 (F12): invoker, read-only
 
 const TRUST_TABLES = ["extractions", "extraction_items", "evidence", "threads", "thread_events", "suppressions"];
 

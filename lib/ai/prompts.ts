@@ -3,7 +3,7 @@ import { join } from "node:path";
 
 /** Versioned prompt files in /prompts. The version recorded on each extraction is the file stem. */
 export const EXTRACT_PROMPT_VERSION = "extract.v1";
-export const ASK_WHY_PROMPT_VERSION = "ask-why.v1";
+export const ASK_WHY_PROMPT_VERSION = "ask-why.v2";
 
 const cache = new Map<string, string>();
 

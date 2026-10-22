@@ -12,6 +12,8 @@ export type LogEvent =
   | "ask_why_ref_rejected"
   | "ask_why_retry"
   | "ask_why_failed"
+  | "ask_failed"
+  | "decisions_load_failed"
   | "account_delete_late_objects"
   | "account_delete_sweep_failed"
   | "sign_in_link_failed"
