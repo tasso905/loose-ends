@@ -164,17 +164,38 @@ describe("tester: limits and their copy (SITE_CONTRACT §2.13)", () => {
     }
   });
 
-  // NON-BLOCKING (new in fix/upload-hardening): a UTF-8 file with ONE stray non-UTF-8 byte (a mixed-
-  // encoding export, or a file cut mid-character) now fails strict UTF-8 and is decoded wholesale as
-  // Windows-1252, so every correct accented letter, dash and curly quote becomes mojibake
-  // ("CafÃ©", "itâ€™s"). Extraction then runs and quotes verify against the garbled text, which the
-  // user sees in the Explain card and Why panel. Before the fix the file was refused. Safe: valid
-  // UTF-8 multi-byte sequences are decoded as UTF-8 (e.g. prefer UTF-8 when the bytes contain any
-  // valid multi-byte sequence, or decode with replacement), never re-read as Windows-1252.
+  // REGRESSION GUARD (fixed in fix/upload-followups): a UTF-8 file with one stray non-UTF-8 byte used
+  // to be decoded wholesale as Windows-1252 ("CafÃ©", "itâ€™s"). It is now UTF-8 with U+FFFD.
   it("a UTF-8 file with one stray Latin-1 byte keeps its UTF-8 letters (no mojibake)", async () => {
     const b = Uint8Array.from([...utf8("Café – it’s due Friday. "), 0xe9, ...utf8(" end")]);
     const r = await readDocument(b, "note.txt");
     expect(r.ok && r.text.startsWith("Café – it’s due Friday.")).toBe(true);
+  });
+
+  /** Windows-1252 bytes for test strings (the few punctuation marks outside Latin-1 mapped by hand). */
+  const cp1252 = (s: string) =>
+    Uint8Array.from([...s].map((c) => ({ "’": 0x92, "–": 0x96, "—": 0x97, "€": 0x80, "“": 0x93, "”": 0x94 })[c] ?? c.charCodeAt(0)));
+
+  it("pure Windows-1252 prose with no accidental UTF-8 pair is still decoded as Windows-1252", async () => {
+    for (const s of ["GRÜßE – bis Freitag. Straße, Größe.", "Café at 9 – Ana’s note", "Señor Núñez paga 20 € mañana."]) {
+      expect(await readDocument(cp1252(s), "x.txt"), s).toMatchObject({ ok: true, text: s });
+    }
+  });
+
+  // NON-BLOCKING (new in fix/upload-followups; wider than the developer's stated "literal Ã©" risk):
+  // ONE accidental well-formed UTF-8 pair switches a whole Windows-1252 file to UTF-8, and every
+  // other accented letter becomes U+FFFD. The pair arises naturally when an accented capital
+  // (Â–ß, 0xC2–0xDF) is followed by a byte in 0x80–0xBF: NBSP before ":" in French typography
+  // ("RÉSUMÉ :"), a curly quote or dash ("CAFÉ’S", "ALLÍ”", "ÉTÉ –"), «», ©, °. Before this
+  // branch these files were read correctly. Safe: prefer UTF-8 only when its valid multi-byte
+  // sequences clearly outnumber the invalid bytes (a UTF-8 file with a stray byte has many valid
+  // sequences and one invalid byte; a 1252 file has the reverse).
+  it.fails.each([
+    "RÉSUMÉ : rendez-vous à 9h, réunion déplacée.",
+    "CAFÉ’S menu: crème brûlée, déjà vu.",
+    "Dijo “ALLÍ” y se fue. Mañana será otro día.",
+  ])("Windows-1252 '%s' is decoded as written", async (s) => {
+    expect(await readDocument(cp1252(s), "x.txt")).toMatchObject({ ok: true, text: s });
   });
 });
 
@@ -225,12 +246,10 @@ describe("tester: rule 3 brief-claim filter edges (S7)", () => {
     expect(unsupportedClaims("Three hundred dollars is due.", src)).toEqual(["amount"]);
   });
 
-  // NON-BLOCKING (rule 3 gaps remaining after fix/upload-hardening; lines show under an Interpretation
-  // label). A word amount that is the TAIL of a longer source amount passes, because the phrase
-  // check treats "-" and spaces as word boundaries: "five dollars" is found inside "twenty-five
-  // dollars", "fifty euros" inside "two hundred and fifty euros". A digit-and-scale amount
-  // ("1.5 million dollars") is reduced to "million dollars" by the words pattern, so any figure in
-  // front of a source's "million dollars" passes. A percentage in words is not checked at all.
+  // REGRESSION GUARDS (fixed in fix/upload-followups): a word amount that was the tail of a longer
+  // source amount used to pass ("five dollars" in "twenty-five dollars", "fifty euros" in "two
+  // hundred and fifty euros"); "1.5 million dollars" was reduced to "million dollars"; percentages in
+  // words were not checked. Word amounts are now compared whole.
   const WORDS_SRC = "The fee is twenty-five dollars. A refund of two hundred and fifty euros. Budget 2.5 million dollars.";
   it("a smaller word amount that is the tail of the source's amount is caught ('five dollars' vs 'twenty-five dollars')", () => {
     expect(unsupportedClaims("The fee is about five dollars.", WORDS_SRC)).toEqual(["amount"]);
@@ -243,5 +262,50 @@ describe("tester: rule 3 brief-claim filter edges (S7)", () => {
   });
   it("an invented percentage in words ('twenty percent') is caught", () => {
     expect(unsupportedClaims("A twenty percent rise.", WORDS_SRC)).toEqual(["amount"]);
+  });
+
+  it("whole-amount matching keeps the source's own word amounts in any case, spacing, hyphenation or 'and'", () => {
+    const keep: Array<[string, string]> = [
+      ["Fifteen hundred dollars.", "Fifteen Hundred Dollars."],
+      ["twenty percent.", "TWENTY PERCENT"],
+      ["Two hundred and fifty euros.", "two hundred fifty euros"],
+      ["Twenty-five dollars.", "twenty five dollars"],
+      ["Ten dollars.", "Ten\ndollars."],
+      ["Ten dollars and fifty cents.", "ten dollars and fifty cents"],
+      ["2.5 million dollars.", "2.5 million dollars"],
+      ["3 thousand dollars.", "3 thousand dollars"],
+      ["Item 4: forty dollars.", "Item 4: forty dollars."],
+    ];
+    for (const [line, src] of keep) expect(unsupportedClaims(line, src), `${line} | ${src}`).toEqual([]);
+  });
+
+  it("other spellings of the same amount are dropped (safe over-drop, recorded for awareness)", () => {
+    const drop: Array<[string, string]> = [
+      ["A one hundred dollars deposit.", "A hundred dollars deposit."],
+      ["Five dollars.", "A five-dollar fee."],
+      ["Twenty percent.", "Twenty-percent."],
+      ["three thousand dollars", "3 thousand dollars"],
+      ["2.5 million dollars.", "$2.5 million"],
+    ];
+    for (const [line, src] of drop) expect(unsupportedClaims(line, src), `${line} | ${src}`).toEqual(["amount"]);
+  });
+
+  // REGRESSION (new in fix/upload-followups; rule 3): WORDS_AMOUNT gained the lookbehind
+  // `(?<!\p{N}[.,\s]*)` so "2.5 million dollars" is not read as "million dollars". It also skips ANY
+  // word amount that follows a digit and then spaces or "." / ",", so an invented word amount after
+  // a year, page or list number is never checked. All three lines were dropped on fix/upload-
+  // hardening. Safe: only a figure directly before the scale word is excluded, e.g. `(?<!\p{N}\s?)`.
+  it.fails.each([
+    "By 2027, fifty dollars more.",
+    "Page 3. Twenty dollars is due.",
+    "The fee rose 5, twenty dollars total.",
+  ])("an invented word amount after a number is caught: '%s'", (line) => {
+    expect(unsupportedClaims(line, "The fee is ten dollars.")).toEqual(["amount"]);
+  });
+
+  // Same lookbehind on the source side (over-drop): the source's own word amount after "Oct 5," is
+  // not collected, so a correct line repeating it is dropped. It was kept on fix/upload-hardening.
+  it.fails("a word amount the source states after a date is supported", () => {
+    expect(unsupportedClaims("Pay two hundred dollars.", "On Oct 5, two hundred dollars was paid.")).toEqual([]);
   });
 });

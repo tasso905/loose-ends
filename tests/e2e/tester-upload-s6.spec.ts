@@ -164,10 +164,10 @@ test("a server error response (500) after the upload leaves no orphan file", asy
   await page.unrouteAll();
 });
 
-// The server saved, but the response was lost: the page's cleanup must see the row and keep the file
-// (no data loss: the new source's storage_path still resolves). The page then shows "That didn't
-// save" although the source exists (see report: a retry makes a second source).
-test("a lost response after the server saved keeps the saved source's file", async () => {
+// REGRESSION GUARD (fix/upload-followups): the server saved, but the response was lost. The page
+// must see the row, keep the file (its storage_path still resolves) and go to that source's review,
+// never claim "That didn't save" (a retry would add a second source and a second usage count).
+test("a lost response after the server saved keeps the saved source's file and goes to its review", async () => {
   const before = await storedFiles();
   const sourcesBefore = await sourceIds();
   await page.unrouteAll();
@@ -179,13 +179,18 @@ test("a lost response after the server saved keeps the saved source's file", asy
     await route.abort("connectionreset");
   });
   await page.getByRole("button", { name: "Review source" }).click();
-  await expect(page.getByText("That didn't save. Try again.")).toBeVisible({ timeout: 15_000 });
+  await expect(page).toHaveURL(/\/review\/[0-9a-f-]{36}/, { timeout: 20_000 });
+  await page.unrouteAll();
+  await expect(page.getByText("That didn't save. Try again.")).toHaveCount(0);
   const added = (await sourceIds()).filter((id) => !sourcesBefore.includes(id));
   expect(added).toHaveLength(1);
   expect((await storedFiles()).filter((n) => !before.includes(n))).toEqual(added);
   const { data } = await admin().from("sources").select("storage_path").eq("id", added[0]).single();
   expect((await admin().storage.from("sources").download(data!.storage_path as string)).error).toBeNull();
-  await page.unrouteAll();
+  // The review it opened is the saved source's own extraction (not some other one).
+  const reviewId = new URL(page.url()).pathname.split("/").pop();
+  const { data: ex } = await admin().from("extractions").select("source_id").eq("id", reviewId!).single();
+  expect(ex?.source_id).toBe(added[0]);
 });
 
 test("refusal states: encrypted PDF copy, Choose another file, Remove returns focus to the picker; axe passes", async () => {

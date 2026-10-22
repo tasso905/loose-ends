@@ -147,20 +147,65 @@ describe("T-D2 residuals: regression guards (fixed in fix/upload-hardening)", ()
   });
 });
 
-describe("T-D2 residual defects (non-blocking, pre-existing on main)", () => {
-  // DEFECT: fix/upload-hardening says a zero-padded hour "states AM", and 01:00–04:59 are read that
-  // way, but "tonight at 05:00" / "06:00" are 5 PM / 6 PM on the written-on day with no AM/PM line
-  // (chrono reads them as evening; the 12–16 window never sees them). Safe: either the next morning's
-  // 05:00 (as for 01:00), or an AM/PM line saying the reading is a guess.
+describe("T-D2 follow-ups: regression guards (fixed in fix/upload-followups)", () => {
+  // Before the fix "tonight at 05:00" / "06:00" were 5 PM / 6 PM with no AM/PM line, although a
+  // zero-padded hour states AM.
   it.each(["tonight at 05:00", "tonight at 06:00"])("'%s' is not silently read as an evening hour", (t) => {
     const x = r(t);
     const evening = Number(local(x.due_at)!.slice(-5, -3)) >= 12;
     expect(evening && !ampmLine(x)).toBe(false);
   });
 
-  // DEFECT: "last night at 1am" is now Mon Oct 5, 1:00 AM, but "last night at 1" is Sun Oct 4,
-  // 1:00 AM: the night before last. Safe: both are the written-on day's 1:00 AM.
+  // Before the fix "last night at 1" was Sun Oct 4, 1:00 AM (the night before last).
   it("'last night at 1' is the same night as 'last night at 1am'", () => {
     expect(local(r("last night at 1").due_at)).toBe("2026-10-05, 01:00");
+    expect(ampmLine(r("last night at 1"))).toBe(true);
+  });
+
+  it.each([
+    ["last night at 11", "2026-10-04, 23:00", false],
+    ["last night at 8", "2026-10-04, 20:00", false],
+    ["last night at 01:00", "2026-10-05, 01:00", false],
+    ["last night at 23:00", "2026-10-04, 23:00", false],
+    ["tonight at 7", "2026-10-05, 19:00", false],
+    ["tonight at 11", "2026-10-05, 23:00", false],
+    ["tonight at 7:45", "2026-10-05, 19:45", false],
+    ["Friday night at 9", "2026-10-09, 21:00", false],
+    ["tomorrow night at 8", "2026-10-06, 20:00", false],
+    ["tonight at 12", "2026-10-06, 00:00", true],
+    ["tonight at 4:30", "2026-10-06, 04:30", true],
+    ["Friday night at 3", "2026-10-10, 03:00", true],
+    ["tonight at 00:30", "2026-10-06, 00:30", false],
+    ["tonight at 9pm", "2026-10-05, 21:00", false],
+  ] as const)("'%s' → %s (AM/PM line: %s)", (t, at, line) => {
+    const x = r(t);
+    expect(local(x.due_at)).toBe(at);
+    expect(ampmLine(x)).toBe(line);
+  });
+
+  it("the D50 guard and the non-night guess are unchanged: 'tomorrow at 5' is 5 PM with the AM/PM line", () => {
+    expect(local(r("tomorrow at 5").due_at)).toBe("2026-10-06, 17:00");
+    expect(ampmLine(r("tomorrow at 5"))).toBe(true);
+    expect(local(r("tonight at 5").due_at)).toBe("2026-10-05, 17:00");
+    expect(ampmLine(r("tonight at 5"))).toBe(false);
+  });
+});
+
+describe("T-D2 follow-up risks (non-blocking)", () => {
+  // RISK (new in fix/upload-followups; needs a product call): "tonight at 09:00" is 9:00 AM the NEXT
+  // day with no AM/PM line, about 12 hours after "tonight". "tonight at 10:00" and "11:00" (not
+  // zero-padded) are 10 PM / 11 PM tonight, so one digit of padding moves the time by 12 hours and
+  // a day. On fix/upload-hardening "tonight at 09:00" was 9 PM. Safe (tester recommendation): a
+  // zero-padded 05:00–11:59 after "tonight" keeps a reading but always gets the AM/PM line;
+  // 00:00–04:59 stays the small hours with no line.
+  it.fails.each(["tonight at 09:00", "tonight at 07:30", "tonight at 05:00"])("'%s' is never a silent morning reading", (t) => {
+    const x = r(t);
+    const morning = Number(local(x.due_at)!.slice(-5, -3)) < 12;
+    expect(morning && !ampmLine(x)).toBe(false);
+  });
+
+  // Pre-existing (also on main): "tonight at noon" is read as midnight with an AM/PM line.
+  it.fails("'tonight at noon' is noon, not midnight", () => {
+    expect(local(r("tonight at noon").due_at)).toBe("2026-10-05, 12:00");
   });
 });
