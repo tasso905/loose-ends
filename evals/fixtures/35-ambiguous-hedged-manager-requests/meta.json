@@ -1,0 +1,23 @@
+{
+  "description": "Uncertainty eval (F19). Direct messages from a manager (Aisha) to the user (Ben), Wed Oct 21, 2026, New York. A hedged request ('maybe ... when you have a minute'), a soft request with a day ('no pressure, but it would be great'), a hedged team plan, and one explicit dated request with a stated time as the control.",
+  "covers": [
+    "chat",
+    "hedged_request",
+    "soft_request_with_date",
+    "hedged_intention",
+    "explicit_dated_request_control",
+    "stated_time_pm_today"
+  ],
+  "reference_date": "2026-10-21",
+  "reference_date_source": "user",
+  "timezone": "America/New_York",
+  "source_kind": "paste",
+  "user": {
+    "display_name": "Ben Carter",
+    "aliases": [
+      "ben.carter@example.com",
+      "Ben"
+    ]
+  },
+  "ambiguous": true
+}

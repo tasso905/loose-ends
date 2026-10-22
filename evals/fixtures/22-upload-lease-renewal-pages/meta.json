@@ -1,0 +1,32 @@
+{
+  "description": "Text layer of an uploaded two-page lease renewal letter (synthetic), dated Fri Oct 16, 2026, Chicago. Pages are joined exactly as lib/capture/document.ts joinPages() does (a blank line between pages) and meta.page_offsets gives each page's start, so evidence pages are checked (page 1: renewal, page 2: parking permit). 'no later than' is a deadline idiom around a full date. The furnace inspection carries a correct weekday + month-day and says no action is needed.",
+  "covers": [
+    "upload",
+    "page_breaks",
+    "page_offsets",
+    "lease",
+    "deadline_no_later_than",
+    "full_date_with_year",
+    "month_day_no_year",
+    "weekday_date_consistent_decoy",
+    "no_action_needed_decoy",
+    "amounts_as_key_facts",
+    "brief_expected"
+  ],
+  "reference_date": "2026-10-16",
+  "reference_date_source": "detected",
+  "timezone": "America/Chicago",
+  "source_kind": "upload",
+  "user": {
+    "display_name": "Priya Raman",
+    "aliases": [
+      "priya.raman@example.net",
+      "Priya"
+    ]
+  },
+  "ambiguous": false,
+  "page_offsets": [
+    0,
+    549
+  ]
+}

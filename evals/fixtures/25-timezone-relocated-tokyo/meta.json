@@ -1,0 +1,27 @@
+{
+  "description": "Timezone change: the user (Kenji) has moved from New York to Tokyo; his profile timezone is Asia/Tokyo and the colleague writes every time in his new local time. Written Fri Oct 23, 2026 (Tokyo). 'Monday at 8am' JST is Sunday 23:00 UTC, so the stored instant falls on the previous UTC day while due_date stays the local Monday. Times stated with a zone abbreviation ('3pm GMT') are deliberately absent: see DEFECT T-D3 in tests/unit/tester-dates-timezone.test.ts.",
+  "covers": [
+    "email",
+    "timezone_change",
+    "timezone_asia_tokyo",
+    "utc_date_differs_from_local_date",
+    "stated_times",
+    "noon",
+    "weekday_date_consistent",
+    "commitment_by_other",
+    "request_to_user",
+    "recurring_event_decoy"
+  ],
+  "reference_date": "2026-10-23",
+  "reference_date_source": "user",
+  "timezone": "Asia/Tokyo",
+  "source_kind": "paste",
+  "user": {
+    "display_name": "Kenji Mori",
+    "aliases": [
+      "kenji.mori@example.com",
+      "Kenji"
+    ]
+  },
+  "ambiguous": false
+}

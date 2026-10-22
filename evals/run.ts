@@ -18,7 +18,8 @@
  * Exit codes: 0 pass; 1 fail (a gate missed, any non-quota extraction failure, no fixtures, or a
  * crash); 3 incomplete because only provider quota failed (not a pass, not judged).
  *
- * Ask-why eval (10 answerable + 10 unanswerable questions) is not wired yet.
+ * Ask-why eval (10 answerable + 10 unanswerable questions) is not wired yet (F12, slice S9). The
+ * question set, its format and the fabrication judge are in evals/ask-why (see its README.md).
  */
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";

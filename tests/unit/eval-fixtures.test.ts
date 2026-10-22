@@ -6,6 +6,7 @@ import { extract } from "@/lib/ai/extract";
 import { createRecordedModel, type Recording } from "@/lib/ai/fake";
 import { Certainty, Extraction, ItemType, Owner, type Item } from "@/lib/ai/schema";
 import { normalizeText } from "@/lib/pipeline/normalize";
+import { joinPages } from "@/lib/capture/document";
 import { processExtraction } from "@/lib/pipeline/proposals";
 import { containsWholePhrase } from "@/lib/pipeline/verifyQuotes";
 import { Band, DueCertainty } from "@/lib/schemas";
@@ -15,14 +16,17 @@ import { Band, DueCertainty } from "@/lib/schemas";
  *
  * 1. Format: meta.json and expected.json match the format evals/run.ts reads, plus the tester
  *    extensions (title, certainty, date_text, due_certainty, due_at, counterparty, amount_text, note,
- *    fuzzy_quote).
+ *    fuzzy_quote, page, model_date_iso). Uploads may carry meta.page_offsets: page starts in input.txt,
+ *    joined as lib/capture/document.ts joinPages() does (a blank line between pages).
  * 2. Every golden quote is a verbatim substring of input.txt, no two golden quotes overlap (the
  *    runner matches by quote containment), and golden date/amount/name phrases appear in the source.
  * 3. Synthetic only: every email address and web domain uses a reserved example domain, and
  *    phone numbers use the fictional 555-01xx range.
  * 4. "Perfect model" replay: the golden items are turned into a model response, replayed through
  *    extract() with the fake recorded provider (schema validation included), then through the real
- *    pipeline. Band, due date, date certainty and (where given) due_at must equal the golden values.
+ *    pipeline. Band, due date, date certainty and (where given) due_at and evidence page must equal the
+ *    golden values. `model_date_iso` replaces the golden due_date as the model's date_iso where a
+ *    correct model's reading differs from the pipeline's (a weekday that contradicts its date).
  *    This proves the goldens are reachable under the PRD scoring and date rules, so a live-eval miss
  *    is a model miss, not a golden error. Items with a `fuzzy_quote` are replayed a second time
  *    quoting that near-miss copy: it must verify as fuzzy (>= 0.9), map back onto the golden span
@@ -45,6 +49,7 @@ const Meta = z
     source_kind: z.enum(["paste", "upload", "quick_add"]),
     user: z.object({ display_name: z.string().min(1), aliases: z.array(z.string().min(1)).max(20) }).strict(),
     ambiguous: z.boolean(),
+    page_offsets: z.array(z.number().int().min(0)).min(1).optional(),
   })
   .strict();
 
@@ -68,6 +73,11 @@ const ExpectedItem = z
     // A near-miss copy of `quote` (e.g. typos "corrected") that a model might return. Not verbatim;
     // the replay below checks it verifies only by fuzzy match and lands on the golden span and band.
     fuzzy_quote: z.string().min(3).max(400).optional(),
+    // 1-based page of the quote, for uploads with meta.page_offsets.
+    page: z.number().int().min(1).optional(),
+    // The date_iso a correct model gives when it differs from the pipeline's due_date (e.g. a
+    // weekday that contradicts its date: the model reads the date, chrono refuses the phrase).
+    model_date_iso: YMD.optional(),
   })
   .strict()
   .refine((e) => e.band === "ignore" || e.certainty !== undefined, { message: "shown items need the expected model certainty" })
@@ -109,7 +119,7 @@ function perfectOutput(f: Fixture, fuzzy = false) {
       counterparty: e.counterparty ?? null,
       action: null,
       date_text: e.date_text,
-      date_iso: e.due_date,
+      date_iso: e.model_date_iso ?? e.due_date,
       amount_text: e.amount_text ?? null,
       certainty: e.certainty!,
       uncertainty_notes: [],
@@ -121,7 +131,7 @@ function perfectOutput(f: Fixture, fuzzy = false) {
 
 describe("eval fixtures", () => {
   it("there are fixtures, each with input.txt, meta.json and expected.json", () => {
-    expect(names.length).toBeGreaterThanOrEqual(20); // Core-loop checkpoint: `pnpm eval` runs on >= 20 fixtures
+    expect(names.length).toBeGreaterThanOrEqual(40); // Eval gate (Oct 28): the 40-fixture golden set
     for (const n of names) {
       for (const file of ["input.txt", "meta.json", "expected.json"]) {
         expect(existsSync(join(root, n, file)), `${n}/${file}`).toBe(true);
@@ -144,6 +154,25 @@ describe("eval fixtures", () => {
       for (let i = 0; i < q.length; i++) for (let j = i + 1; j < q.length; j++) expect(overlaps(q[i]!, q[j]!), `${q[i]} / ${q[j]}`).toBe(false);
     });
 
+    it("page offsets (uploads) are page starts joined as joinPages() joins them", () => {
+      const offsets = f.meta.page_offsets;
+      const pages = f.expected.items.filter((e) => e.page !== undefined);
+      if (!offsets) {
+        expect(pages, "golden pages need meta.page_offsets").toEqual([]);
+        return;
+      }
+      expect(f.meta.source_kind).toBe("upload");
+      expect(offsets[0]).toBe(0);
+      for (let i = 1; i < offsets.length; i++) {
+        expect(offsets[i]!).toBeGreaterThan(offsets[i - 1]!);
+        expect(offsets[i]!).toBeLessThan(f.text.length);
+        expect(f.text.slice(offsets[i]! - 2, offsets[i]!), `separator before page ${i + 1}`).toBe("\n\n");
+      }
+      for (const e of pages) expect(e.page!).toBeLessThanOrEqual(offsets.length);
+      const parts = offsets.map((o, i) => f.text.slice(o, i + 1 < offsets.length ? offsets[i + 1]! - 2 : f.text.length));
+      expect(joinPages(parts)).toEqual({ text: f.text, pageOffsets: offsets });
+    });
+
     it("is synthetic: reserved example domains and fictional phone numbers only", () => {
       const all = `${f.text}\n${JSON.stringify(f.meta)}`;
       const reserved = /(^|\.)(example\.(com|org|net)|example|test|invalid|localhost)$/i;
@@ -164,11 +193,12 @@ describe("eval fixtures", () => {
         referenceDateSource: f.meta.reference_date_source,
         timezone: f.meta.timezone,
       };
+      const pageOffsets = f.meta.page_offsets ?? null;
       const run = await extract(
         { sourceText: f.text, sourceKind: f.meta.source_kind, ...ctx, user: { displayName: f.meta.user.display_name, aliases: f.meta.user.aliases } },
         { model: createRecordedModel({ recordings: [recording] }), logger: () => {} },
       );
-      const out = processExtraction(run.output, { sourceText: f.text, ...ctx, logger: () => {} });
+      const out = processExtraction(run.output, { sourceText: f.text, ...ctx, pageOffsets, logger: () => {} });
       expect(out.droppedItemIndexes).toEqual([]);
       expect(out.unverifiedQuoteCount).toBe(0);
 
@@ -182,6 +212,7 @@ describe("eval fixtures", () => {
         const got = { band: p!.band, due_date: p!.date.due_date, due_certainty: p!.date.due_certainty, owner: p!.item.owner };
         expect(got, e.quote).toEqual({ band: e.band, due_date: e.due_date, due_certainty: e.due_certainty, owner: e.owner });
         if (e.due_at) expect(p!.date.due_at, `due_at for ${e.quote}`).toBe(e.due_at);
+        if (e.page !== undefined) expect(p!.evidence[0]!.page, `page for ${e.quote}`).toBe(e.page);
         expect(p!.evidence[0]!.match_kind).toBe("exact");
         expect(p!.item.amount_text).toBe(e.amount_text ?? null);
         expect(p!.item.counterparty).toBe(e.counterparty ?? null);
@@ -190,7 +221,7 @@ describe("eval fixtures", () => {
       if (f.expected.items.some((e) => e.fuzzy_quote !== undefined)) {
         // Near-miss quotes: not verbatim, verified by fuzzy match only, stored as the source span
         // (so the runner's containment match still finds the golden), same band and due date.
-        const fuzzyOut = processExtraction(perfectOutput(f, true), { sourceText: f.text, ...ctx, logger: () => {} });
+        const fuzzyOut = processExtraction(perfectOutput(f, true), { sourceText: f.text, ...ctx, pageOffsets, logger: () => {} });
         expect(fuzzyOut.droppedItemIndexes).toEqual([]);
         for (const e of f.expected.items.filter((x) => x.fuzzy_quote !== undefined)) {
           expect(norm(f.text).includes(norm(e.fuzzy_quote!)), `fuzzy_quote is verbatim: ${e.fuzzy_quote}`).toBe(false);
@@ -214,8 +245,15 @@ describe("eval fixtures", () => {
     const all = names.map(load);
     const bands = all.flatMap((f) => f.expected.items.map((e) => e.band));
     const count = (b: string) => bands.filter((x) => x === b).length;
-    // The 40-fixture target needs >= 12 ambiguous (PRD Testing Strategy); this set is 1-20 (8 ambiguous).
-    expect(all.filter((f) => f.meta.ambiguous).length).toBeGreaterThanOrEqual(8);
+    // F19 / PRD Testing Strategy: at least 12 of the 40 fixtures are deliberately ambiguous.
+    expect(all.filter((f) => f.meta.ambiguous).length).toBeGreaterThanOrEqual(12);
+    // F19 zero-tolerance gates hold for the goldens themselves.
+    const items = all.flatMap((f) => f.expected.items);
+    expect(items.filter((e) => e.certainty === "speculative" && e.band === "high")).toEqual([]);
+    expect(items.filter((e) => e.type === "commitment" && e.certainty === "explicit" && e.due_date !== null && (e.band === "low" || e.band === "ignore"))).toEqual([]);
+    // PRD fixture mix and the gap list (quick add, uploads with page breaks).
+    expect(all.some((f) => f.meta.source_kind === "quick_add")).toBe(true);
+    expect(all.filter((f) => f.meta.page_offsets && f.meta.page_offsets.length > 1).length).toBeGreaterThanOrEqual(1);
     expect(count("high") + count("medium") + count("low") + count("ignore")).toBe(bands.length);
     expect(all.some((f) => f.expected.items.length === 0)).toBe(true); // at least one no-item fixture
   });

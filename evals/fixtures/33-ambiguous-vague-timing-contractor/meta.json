@@ -1,0 +1,26 @@
+{
+  "description": "Uncertainty eval (F19). Contractor email written Thu Oct 15, 2026, New York; the user is Morgan. Vague timing ('next couple of weeks', 'early next week', 'soon') never becomes a date; a hedged suggestion, a conditional call-back, and one explicit request dated 'by the end of the month' (Oct 31, inferred because it names a period) as the control.",
+  "covers": [
+    "email",
+    "contractor",
+    "vague_timing_next_couple_of_weeks",
+    "vague_timing_early_next_week",
+    "vague_timing_soon",
+    "hedged_suggestion",
+    "conditional_promise_by_other",
+    "end_of_the_month_inferred",
+    "explicit_dated_request_control"
+  ],
+  "reference_date": "2026-10-15",
+  "reference_date_source": "user",
+  "timezone": "America/New_York",
+  "source_kind": "paste",
+  "user": {
+    "display_name": "Morgan Lee",
+    "aliases": [
+      "morgan.lee@example.com",
+      "Morgan"
+    ]
+  },
+  "ambiguous": true
+}

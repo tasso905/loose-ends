@@ -1,0 +1,105 @@
+{
+  "description": "Ask-why eval questions against evals/ask-why/decisions.json. 10 answerable (a recorded decision answers them) and 10 unanswerable (no recorded decision; full-text retrieval must return zero rows, so the answer is the no-record message with no LLM call). Format: evals/ask-why/README.md.",
+  "questions": [
+    {
+      "id": "a01",
+      "question": "Why did I choose this car insurance?",
+      "answerable": true,
+      "expect": { "decision_ids": ["d0000000-0000-4000-8000-000000000001"], "user_reason": "required" },
+      "note": "Matches the thread title (car, insurance). The PRD's own example question."
+    },
+    {
+      "id": "a02",
+      "question": "Why did we renew the apartment lease?",
+      "answerable": true,
+      "expect": { "decision_ids": ["d0000000-0000-4000-8000-000000000002"], "user_reason": "required" },
+      "note": "'renew' also matches the car insurance decision ('Renewed'), so two candidates are retrieved; the answer must cite only the lease."
+    },
+    {
+      "id": "a03",
+      "question": "Why did I pick Little Acorns for Mia?",
+      "answerable": true,
+      "expect": { "decision_ids": ["d0000000-0000-4000-8000-000000000003"], "user_reason": "required" },
+      "note": "Counterparty and child's name."
+    },
+    {
+      "id": "a04",
+      "question": "Why did I get a refurbished laptop?",
+      "answerable": true,
+      "expect": { "decision_ids": ["d0000000-0000-4000-8000-000000000004"], "user_reason": "required" },
+      "note": "The decision's only fact has no evidence ID; a source_fact part citing the decision resolves to it (singleFact)."
+    },
+    {
+      "id": "a05",
+      "question": "Why did I switch dental plans?",
+      "answerable": true,
+      "expect": { "decision_ids": ["d0000000-0000-4000-8000-000000000005"], "user_reason": "absent" },
+      "note": "Reason was skipped (reason_user null). The answer shows the decision and date with the no-recorded-reason state; any user_reason part, or an inference presented as the user's reason, is a fabrication."
+    },
+    {
+      "id": "a06",
+      "question": "Why did I cancel the gym?",
+      "answerable": true,
+      "expect": { "decision_ids": ["d0000000-0000-4000-8000-000000000006"], "user_reason": "required" },
+      "note": "Short reason; must be quoted whole."
+    },
+    {
+      "id": "a07",
+      "question": "Why did I go with Delgado Plumbing?",
+      "answerable": true,
+      "expect": { "decision_ids": ["d0000000-0000-4000-8000-000000000007"], "user_reason": "required" },
+      "note": "Counterparty match."
+    },
+    {
+      "id": "a08",
+      "question": "Why did we move to the Clearwave family plan?",
+      "answerable": true,
+      "expect": { "decision_ids": ["d0000000-0000-4000-8000-000000000008"], "user_reason": "required" },
+      "note": "'plan' also matches the dental decision and 'move' the lease reason ('Moving'); the answer must cite only Clearwave."
+    },
+    {
+      "id": "a09",
+      "question": "Why is Leo going to Pine Hollow?",
+      "answerable": true,
+      "expect": { "decision_ids": ["d0000000-0000-4000-8000-000000000009"], "user_reason": "required" },
+      "note": "Phrased without 'choose' or 'decide'."
+    },
+    {
+      "id": "a10",
+      "question": "Why did I keep the variable electricity rate?",
+      "answerable": true,
+      "expect": { "decision_ids": ["d0000000-0000-4000-8000-000000000010"], "user_reason": "absent" },
+      "note": "Second skipped reason. Must not invent one (e.g. 'because it was cheaper')."
+    },
+    {
+      "id": "u01",
+      "question": "Why did I choose a hybrid SUV?",
+      "answerable": false,
+      "note": "Tempting near-miss: a car insurance decision exists, but no vehicle purchase was recorded."
+    },
+    {
+      "id": "u02",
+      "question": "Why did we skip the beach vacation?",
+      "answerable": false,
+      "note": "Near-miss: the camp reason mentions a family trip."
+    },
+    { "id": "u03", "question": "Why did I sell the piano?", "answerable": false },
+    { "id": "u04", "question": "Why did I turn down the promotion?", "answerable": false },
+    { "id": "u05", "question": "Why did we adopt a dog?", "answerable": false },
+    { "id": "u06", "question": "Why did I stop taking Spanish lessons?", "answerable": false },
+    {
+      "id": "u07",
+      "question": "Why did I refinance the mortgage?",
+      "answerable": false,
+      "note": "Near-miss: housing decisions exist (lease)."
+    },
+    { "id": "u08", "question": "Why did I choose solar panels?", "answerable": false },
+    {
+      "id": "u09",
+      "question": "Why didn't I attend the reunion?",
+      "answerable": false,
+      "note": "Near-miss: a declined social event exists (book club)."
+    },
+    { "id": "u10", "question": "Why did I buy a scooter?", "answerable": false }
+  ]
+}

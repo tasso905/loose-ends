@@ -1,0 +1,49 @@
+{
+  "notes": "'yes, I'll dial in' accepts the deploy-call request; a model may cite it as a second quote on that item. A separate item for it duplicates the request (extra).",
+  "items": [
+    {
+      "type": "commitment",
+      "title": "Pick Marcus up at JFK",
+      "owner": "user",
+      "quote": "no problem, I'll pick you up tonight at 1",
+      "date_text": "tonight at 1",
+      "due_date": "2026-10-22",
+      "due_certainty": "inferred",
+      "due_at": "2026-10-22T05:00:00.000Z",
+      "certainty": "explicit",
+      "counterparty": "Marcus",
+      "amount_text": null,
+      "band": "high",
+      "note": "T-D2: 1:00 AM Thu Oct 22 EDT (05:00Z), inferred with the AM/PM line. 0.95 (modal)."
+    },
+    {
+      "type": "request",
+      "title": "Join the deploy call",
+      "owner": "user",
+      "quote": "can you be on the deploy call Friday night at 2?",
+      "date_text": "Friday night at 2",
+      "due_date": "2026-10-24",
+      "due_certainty": "inferred",
+      "due_at": "2026-10-24T06:00:00.000Z",
+      "certainty": "explicit",
+      "counterparty": "Marcus",
+      "amount_text": null,
+      "band": "high",
+      "note": "Friday night at 2 = 2:00 AM Sat Oct 24 EDT (06:00Z), inferred. 0.90."
+    },
+    {
+      "type": "commitment",
+      "title": "Marcus to send the call link",
+      "owner": "other",
+      "quote": "I'll send the call link tomorrow",
+      "date_text": "tomorrow",
+      "due_date": "2026-10-22",
+      "due_certainty": "explicit",
+      "certainty": "explicit",
+      "counterparty": "Marcus",
+      "amount_text": null,
+      "band": "high",
+      "note": "Written by Marcus: owner other. 0.95."
+    }
+  ]
+}

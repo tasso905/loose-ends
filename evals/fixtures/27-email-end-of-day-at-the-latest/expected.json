@@ -1,0 +1,61 @@
+{
+  "items": [
+    {
+      "type": "request",
+      "title": "Send Grace the signed budget page",
+      "owner": "user",
+      "quote": "Please send me the signed budget page by the end of the day.",
+      "date_text": "by the end of the day",
+      "due_date": "2026-10-20",
+      "due_certainty": "explicit",
+      "certainty": "explicit",
+      "counterparty": "Grace",
+      "amount_text": null,
+      "band": "high",
+      "note": "End of the day = the written-on day, Tue Oct 20; no clock time stated. 0.90."
+    },
+    {
+      "type": "commitment",
+      "title": "Grace to send the narrative draft",
+      "owner": "other",
+      "quote": "I'll have the narrative draft to you Thursday at the latest.",
+      "date_text": "Thursday at the latest",
+      "due_date": "2026-10-22",
+      "due_certainty": "explicit",
+      "certainty": "explicit",
+      "counterparty": "Grace",
+      "amount_text": null,
+      "band": "high",
+      "note": "'at the latest' is masked; Thu Oct 22. 0.95."
+    },
+    {
+      "type": "request",
+      "title": "Meet Grace to walk through the numbers",
+      "owner": "user",
+      "quote": "Can we meet tomorrow morning at 8 to walk through the numbers?",
+      "date_text": "tomorrow morning at 8",
+      "due_date": "2026-10-21",
+      "due_certainty": "explicit",
+      "due_at": "2026-10-21T13:00:00.000Z",
+      "certainty": "explicit",
+      "counterparty": "Grace",
+      "amount_text": null,
+      "band": "high",
+      "note": "'morning' states AM: 8:00 AM CDT = 13:00Z, explicit, no AM/PM line. 0.90."
+    },
+    {
+      "type": "request",
+      "title": "Ask Dev for the updated headcount figures",
+      "owner": "user",
+      "quote": "Also, could you ask Dev for the updated headcount figures by Friday?",
+      "date_text": "by Friday",
+      "due_date": "2026-10-23",
+      "due_certainty": "explicit",
+      "certainty": "explicit",
+      "counterparty": "Grace",
+      "amount_text": null,
+      "band": "high",
+      "note": "0.90. Dev is who the user must ask; the request comes from Grace."
+    }
+  ]
+}
