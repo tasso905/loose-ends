@@ -1,0 +1,59 @@
+{
+  "items": [
+    {
+      "type": "commitment",
+      "title": "Fix the third-floor printer",
+      "owner": "other",
+      "quote": "Oh sure, I'll just fix the third-floor printer myself, since IT clearly has nothing better to do.",
+      "date_text": null,
+      "due_date": null,
+      "due_certainty": "none",
+      "counterparty": null,
+      "amount_text": null,
+      "band": "ignore",
+      "note": "Sarcasm: not a commitment. Pass if left out or scored Ignore; shown as Likely breaks the F19 zero-tolerance gate."
+    },
+    {
+      "type": "commitment",
+      "title": "Jamal to file the IT ticket",
+      "owner": "other",
+      "quote": "Seriously though, I'll file the ticket with IT today.",
+      "date_text": "today",
+      "due_date": "2026-10-19",
+      "due_certainty": "explicit",
+      "certainty": "explicit",
+      "counterparty": "Jamal",
+      "amount_text": null,
+      "band": "high",
+      "note": "Control: explicit dated commitment. 0.95."
+    },
+    {
+      "type": "request",
+      "title": "Send Jamal the printer's model number",
+      "owner": "user",
+      "quote": "Could you send me the model number from the sticker on the back of the printer?",
+      "date_text": null,
+      "due_date": null,
+      "due_certainty": "none",
+      "certainty": "explicit",
+      "counterparty": "Jamal",
+      "amount_text": null,
+      "band": "high",
+      "note": "Plain request, no date: 0.85."
+    },
+    {
+      "type": "commitment",
+      "title": "Jamal to pass on what Facilities says",
+      "owner": "other",
+      "quote": "And if Facilities ever answers, I'll let you know what they say.",
+      "date_text": null,
+      "due_date": null,
+      "due_certainty": "none",
+      "certainty": "speculative",
+      "counterparty": "Jamal",
+      "amount_text": null,
+      "band": "low",
+      "note": "Conditional, and doubtful ('ever'). 0.30 + 0.05 + 0.05 = 0.40, Also noticed."
+    }
+  ]
+}

@@ -1,0 +1,34 @@
+{
+  "notes": "model_date_iso is what a correct model returns for the contradictory phrase (its own reading of 'November 4'); the replay sends it so the date is 'model_only' (discarded, -0.15), as it would be live.",
+  "items": [
+    {
+      "type": "request",
+      "title": "Return the signed permission slip",
+      "owner": "user",
+      "quote": "The signed permission slip for the science museum trip is due Thursday, November 4.",
+      "date_text": "Thursday, November 4",
+      "due_date": null,
+      "due_certainty": "none",
+      "model_date_iso": "2026-11-04",
+      "certainty": "explicit",
+      "counterparty": null,
+      "amount_text": null,
+      "band": "medium",
+      "note": "Weekday contradicts date: no due date (rule 3: never guess between the two readings). Model date discarded: 0.80 + 0.05 - 0.15 = 0.70, Maybe. A predicted due date here is an 'invented' date error."
+    },
+    {
+      "type": "request",
+      "title": "Pay the $12 field trip fee",
+      "owner": "user",
+      "quote": "The trip fee of $12 can be paid online or in cash by Wednesday, November 11.",
+      "date_text": "by Wednesday, November 11",
+      "due_date": "2026-11-11",
+      "due_certainty": "explicit",
+      "certainty": "explicit",
+      "counterparty": null,
+      "amount_text": "$12",
+      "band": "high",
+      "note": "Control: weekday matches (Nov 11, 2026 is a Wednesday). 0.90."
+    }
+  ]
+}

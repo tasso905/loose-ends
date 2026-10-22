@@ -1,0 +1,16 @@
+From: Grace Liu <grace.liu@example.org>
+To: Tomás Rivera <tomas.rivera@example.org>
+Subject: Grant report this week
+
+Hi Tomás,
+
+Please send me the signed budget page by the end of the day. The foundation portal closes tonight and I need to upload it.
+
+I'll have the narrative draft to you Thursday at the latest.
+
+Can we meet tomorrow morning at 8 to walk through the numbers?
+
+Also, could you ask Dev for the updated headcount figures by Friday?
+
+Thanks,
+Grace

@@ -1,0 +1,74 @@
+{
+  "items": [
+    {
+      "type": "commitment",
+      "title": "Luis to start the deck repair",
+      "owner": "other",
+      "quote": "We should be able to start the deck repair in the next couple of weeks, weather permitting.",
+      "date_text": null,
+      "due_date": null,
+      "due_certainty": "none",
+      "certainty": "speculative",
+      "counterparty": "Luis Ferreira",
+      "amount_text": null,
+      "band": "low",
+      "note": "'should be able to', 'weather permitting': speculative. 'next couple of weeks' is never a date (vague amount). 0.35, Also noticed."
+    },
+    {
+      "type": "commitment",
+      "title": "Luis to send a written estimate",
+      "owner": "other",
+      "quote": "I'll get you a written estimate early next week.",
+      "date_text": null,
+      "due_date": null,
+      "due_certainty": "none",
+      "certainty": "explicit",
+      "counterparty": "Luis Ferreira",
+      "amount_text": null,
+      "band": "high",
+      "note": "Clear promise; 'early next week' names no day, so no date (chrono refuses the leftover 'early'). 0.80 + 0.05 + 0.05 modal = 0.90. A model that dates it gets a date error, and a model_only date costs 0.15 (0.75, still High)."
+    },
+    {
+      "type": "intention",
+      "title": "Apply for the deck permit",
+      "owner": "user",
+      "quote": "The permit office usually takes a while, so you might want to apply for the permit soon.",
+      "date_text": null,
+      "due_date": null,
+      "due_certainty": "none",
+      "certainty": "speculative",
+      "counterparty": "Luis Ferreira",
+      "amount_text": null,
+      "band": "low",
+      "note": "A hedged suggestion: as an intention 0.35, Also noticed. Typed request, 'might' costs 0.15 (0.20, Ignore): a recall miss."
+    },
+    {
+      "type": "commitment",
+      "title": "Luis to call about the stain color",
+      "owner": "other",
+      "quote": "Once the lumber is in, I'll call you to pick a stain color.",
+      "date_text": null,
+      "due_date": null,
+      "due_certainty": "none",
+      "certainty": "speculative",
+      "counterparty": "Luis Ferreira",
+      "amount_text": null,
+      "band": "low",
+      "note": "Conditional on the lumber arriving: speculative. 0.40, Also noticed."
+    },
+    {
+      "type": "request",
+      "title": "Send Luis the HOA approval letter",
+      "owner": "user",
+      "quote": "Please send me the HOA approval letter by the end of the month.",
+      "date_text": "by the end of the month",
+      "due_date": "2026-10-31",
+      "due_certainty": "inferred",
+      "certainty": "explicit",
+      "counterparty": "Luis Ferreira",
+      "amount_text": null,
+      "band": "high",
+      "note": "Control. 'end of the month' names a period: Sat Oct 31, inferred with a 'doesn't name a day' line. Band 0.90 (date agrees). Must not score Low."
+    }
+  ]
+}

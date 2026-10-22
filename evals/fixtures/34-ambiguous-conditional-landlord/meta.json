@@ -1,0 +1,26 @@
+{
+  "description": "Uncertainty eval (F19). Text from a landlord (Mr. Novak) to the user (Chris), written Mon Oct 26, 2026, New York. Conditional promise with a date, a building plan that is not the user's loop, an undated firm promise, a plain request, and an opt-out default ('unless I hear otherwise').",
+  "covers": [
+    "text_message",
+    "conditional_promise_by_other",
+    "conditional_with_date",
+    "not_users_loop_ignore",
+    "explicit_undated_promise",
+    "request_to_user",
+    "tomorrow_morning_no_time",
+    "opt_out_default_implied",
+    "weekday_date_consistent"
+  ],
+  "reference_date": "2026-10-26",
+  "reference_date_source": "user",
+  "timezone": "America/New_York",
+  "source_kind": "paste",
+  "user": {
+    "display_name": "Chris Adeyemi",
+    "aliases": [
+      "chris.adeyemi@example.com",
+      "Chris"
+    ]
+  },
+  "ambiguous": true
+}

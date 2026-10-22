@@ -1,0 +1,26 @@
+{
+  "description": "Chat written Wed Oct 21, 2026, New York; the user is Elena. Night hours (T-D2): 'tonight at 1' is 1:00 AM Thu Oct 22 and 'Friday night at 2' is 2:00 AM Sat Oct 24, each inferred with the AM/PM 'Not sure about' line. A plain 'tomorrow' commitment by the other person is the control.",
+  "covers": [
+    "chat",
+    "tonight_at_1_small_hours",
+    "friday_night_at_2",
+    "night_hour_next_day",
+    "ampm_line_inferred",
+    "commitment_by_user",
+    "request_to_user",
+    "commitment_by_other",
+    "acceptance_duplicate_lure"
+  ],
+  "reference_date": "2026-10-21",
+  "reference_date_source": "user",
+  "timezone": "America/New_York",
+  "source_kind": "paste",
+  "user": {
+    "display_name": "Elena Sousa",
+    "aliases": [
+      "elena.sousa@example.com",
+      "Elena"
+    ]
+  },
+  "ambiguous": false
+}

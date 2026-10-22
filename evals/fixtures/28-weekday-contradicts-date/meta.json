@@ -1,0 +1,24 @@
+{
+  "description": "School email written Tue Oct 20, 2026, New York; the user is a parent (Nadia). 'Thursday, November 4' contradicts itself (Nov 4, 2026 is a Wednesday), so chrono refuses it: no due date and a 'Not sure about' line, even though the model gives a date. 'Wednesday, November 11' is consistent and is the control.",
+  "covers": [
+    "email",
+    "school_notice",
+    "weekday_contradicts_date",
+    "model_only_date_discarded",
+    "weekday_date_consistent",
+    "deadline_with_amount",
+    "past_event_decoy"
+  ],
+  "reference_date": "2026-10-20",
+  "reference_date_source": "user",
+  "timezone": "America/New_York",
+  "source_kind": "paste",
+  "user": {
+    "display_name": "Nadia Petrova",
+    "aliases": [
+      "nadia.petrova@example.net",
+      "Nadia"
+    ]
+  },
+  "ambiguous": false
+}

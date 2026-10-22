@@ -1,0 +1,33 @@
+{
+  "notes": "The enrollment window (a range) and the subject line restate the deadline. The webinar is optional ('if you have questions').",
+  "items": [
+    {
+      "type": "decision",
+      "title": "Choose a 2027 medical plan",
+      "owner": "user",
+      "quote": "For 2027 coverage, you need to choose a medical plan by Friday, November 13.",
+      "date_text": "by Friday, November 13",
+      "due_date": "2026-11-13",
+      "due_certainty": "explicit",
+      "certainty": "explicit",
+      "counterparty": null,
+      "amount_text": null,
+      "band": "high",
+      "note": "Weekday matches (Nov 13, 2026 is a Friday). 0.90."
+    },
+    {
+      "type": "decision",
+      "title": "Decide whether to re-enroll in the FSA",
+      "owner": "user",
+      "quote": "If you want to keep your flexible spending account, you must re-enroll; FSA elections do not carry over.",
+      "date_text": null,
+      "due_date": null,
+      "due_certainty": "none",
+      "certainty": "implied",
+      "counterparty": null,
+      "amount_text": null,
+      "band": "medium",
+      "note": "Conditional on the user's wish, no date in the sentence: 0.55 + 0.05 = 0.60, Maybe."
+    }
+  ]
+}

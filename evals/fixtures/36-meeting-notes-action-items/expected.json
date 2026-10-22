@@ -1,0 +1,60 @@
+{
+  "items": [
+    {
+      "type": "commitment",
+      "title": "Email the city about the water hookup",
+      "owner": "user",
+      "quote": "Rosa: email the city about the water hookup by Monday.",
+      "date_text": "by Monday",
+      "due_date": "2026-10-26",
+      "due_certainty": "explicit",
+      "certainty": "explicit",
+      "counterparty": null,
+      "amount_text": null,
+      "band": "high",
+      "note": "0.90."
+    },
+    {
+      "type": "commitment",
+      "title": "Jae to pick up the compost bins",
+      "owner": "other",
+      "quote": "Jae: pick up the compost bins from the depot on Saturday.",
+      "date_text": "on Saturday",
+      "due_date": "2026-10-24",
+      "due_certainty": "explicit",
+      "certainty": "explicit",
+      "counterparty": "Jae",
+      "amount_text": null,
+      "band": "high",
+      "note": "0.90."
+    },
+    {
+      "type": "commitment",
+      "title": "Wen and Okon to draft the volunteer schedule",
+      "owner": "other",
+      "quote": "Wen + Okon: draft the volunteer schedule for November, due Nov 2.",
+      "date_text": "due Nov 2",
+      "due_date": "2026-11-02",
+      "due_certainty": "explicit",
+      "certainty": "explicit",
+      "counterparty": null,
+      "amount_text": null,
+      "band": "high",
+      "note": "'November' names the schedule's month, not the deadline. 0.90."
+    },
+    {
+      "type": "commitment",
+      "title": "Send the plot renewal reminder",
+      "owner": "user",
+      "quote": "Rosa: send the plot renewal reminder to all members after the schedule is done.",
+      "date_text": null,
+      "due_date": null,
+      "due_certainty": "none",
+      "certainty": "explicit",
+      "counterparty": null,
+      "amount_text": null,
+      "band": "high",
+      "note": "Sequenced after another item, no date of its own: 0.85."
+    }
+  ]
+}

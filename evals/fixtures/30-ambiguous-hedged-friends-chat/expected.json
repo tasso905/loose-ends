@@ -1,0 +1,75 @@
+{
+  "notes": "Bands follow the PRD weights with the certainty the prompt asks for (hedged, conditional or 'try ... soon' = speculative). 'no rush on the dish' is a reply, not an item.",
+  "items": [
+    {
+      "type": "intention",
+      "title": "Dinner with Noor",
+      "owner": "user",
+      "quote": "we should really do dinner sometime after the holidays, it's been forever",
+      "date_text": null,
+      "due_date": null,
+      "due_certainty": "none",
+      "certainty": "speculative",
+      "counterparty": "Noor",
+      "amount_text": null,
+      "band": "low",
+      "note": "Hedged plan, vague timing (no date). Intention: no hedge penalty. 0.30 + 0.05 = 0.35, Also noticed."
+    },
+    {
+      "type": "intention",
+      "title": "Drop off Noor's casserole dish",
+      "owner": "user",
+      "quote": "maybe I can swing by Saturday to drop off your casserole dish",
+      "date_text": "Saturday",
+      "due_date": "2026-10-24",
+      "due_certainty": "explicit",
+      "certainty": "speculative",
+      "counterparty": "Noor",
+      "amount_text": null,
+      "band": "low",
+      "note": "Hedged offer. As an intention 0.30 + 0.05 + 0.05 = 0.40, Low. Typed commitment, 'maybe' costs 0.15 (0.25, Ignore): the type sensitivity fixture 09 also measures."
+    },
+    {
+      "type": "commitment",
+      "title": "Send Noor the wedding photos",
+      "owner": "user",
+      "quote": "I'll try to send you the photos from the wedding soon",
+      "date_text": null,
+      "due_date": null,
+      "due_certainty": "none",
+      "certainty": "speculative",
+      "counterparty": "Noor",
+      "amount_text": null,
+      "band": "low",
+      "note": "'try' + 'soon': speculative, no date ('soon' is never a date). 0.30 + 0.05 + 0.05 modal = 0.40, Also noticed."
+    },
+    {
+      "type": "commitment",
+      "title": "Noor to book the cabin",
+      "owner": "other",
+      "quote": "also, I'll book the cabin for the March trip on Monday",
+      "date_text": "on Monday",
+      "due_date": "2026-10-26",
+      "due_certainty": "explicit",
+      "certainty": "explicit",
+      "counterparty": "Noor",
+      "amount_text": null,
+      "band": "high",
+      "note": "Control: explicit dated commitment by Noor. 0.95. Must not score Low (F19)."
+    },
+    {
+      "type": "commitment",
+      "title": "Pay Noor half of the cabin",
+      "owner": "user",
+      "quote": "perfect, I'll pay you my half once you book",
+      "date_text": null,
+      "due_date": null,
+      "due_certainty": "none",
+      "certainty": "speculative",
+      "counterparty": "Noor",
+      "amount_text": null,
+      "band": "low",
+      "note": "Conditional promise ('once you book'): speculative per prompt rule 7. 0.40, Also noticed."
+    }
+  ]
+}

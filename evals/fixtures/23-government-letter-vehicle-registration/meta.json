@@ -1,0 +1,24 @@
+{
+  "description": "Government letter (synthetic county vehicle-registration office), dated Mon Oct 19, 2026, Los Angeles time. Two dated obligations with full dates, a fee amount, a penalty as consequence, and bureaucratic noise ('Do not reply'). The expiry sentence repeats the fee deadline's date.",
+  "covers": [
+    "government_letter",
+    "request_to_user",
+    "deadline_with_amount",
+    "full_date_with_year",
+    "consequence_penalty",
+    "do_not_reply_decoy",
+    "brief_expected"
+  ],
+  "reference_date": "2026-10-19",
+  "reference_date_source": "detected",
+  "timezone": "America/Los_Angeles",
+  "source_kind": "paste",
+  "user": {
+    "display_name": "Daniel Okafor",
+    "aliases": [
+      "daniel.okafor@example.com",
+      "Daniel"
+    ]
+  },
+  "ambiguous": false
+}

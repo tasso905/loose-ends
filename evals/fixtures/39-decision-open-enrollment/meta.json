@@ -1,0 +1,26 @@
+{
+  "description": "HR open-enrollment email written Mon Oct 26, 2026, New York. One dated decision with a default consequence, one conditional decision (FSA) with no date of its own, a date range and an optional webinar as decoys, and prices as key facts.",
+  "covers": [
+    "email",
+    "decision",
+    "decision_with_deadline",
+    "default_consequence",
+    "conditional_decision",
+    "date_range_decoy",
+    "optional_event_decoy",
+    "amounts_as_key_facts",
+    "weekday_date_consistent"
+  ],
+  "reference_date": "2026-10-26",
+  "reference_date_source": "user",
+  "timezone": "America/New_York",
+  "source_kind": "paste",
+  "user": {
+    "display_name": "Jordan Ellis",
+    "aliases": [
+      "jordan.ellis@example.com",
+      "Jordan"
+    ]
+  },
+  "ambiguous": false
+}

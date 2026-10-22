@@ -1,0 +1,35 @@
+{
+  "notes": "The lease end (Jan 31, 2027), new rent ($1,875) and start date are key facts. The lapse sentence restates the renewal deadline ('by that date') and is not a second item. The inspection is the landlord's work; 'No action is needed from you.' makes it a non-item.",
+  "items": [
+    {
+      "type": "deadline",
+      "title": "Sign and return the lease renewal agreement",
+      "owner": "user",
+      "quote": "If you wish to renew, please sign and return the enclosed renewal agreement no later than December 1, 2026.",
+      "date_text": "no later than December 1, 2026",
+      "due_date": "2026-12-01",
+      "due_certainty": "explicit",
+      "certainty": "explicit",
+      "counterparty": "Maple Court Apartments",
+      "amount_text": null,
+      "band": "high",
+      "page": 1,
+      "note": "0.90. 'no later than' is filler around the date. Page 1. Could be typed decision (renew or not); type is informational."
+    },
+    {
+      "type": "request",
+      "title": "Return the parking permit renewal form",
+      "owner": "user",
+      "quote": "Please return your parking permit renewal form to the leasing office by November 6.",
+      "date_text": "by November 6",
+      "due_date": "2026-11-06",
+      "due_certainty": "explicit",
+      "certainty": "explicit",
+      "counterparty": "Maple Court Apartments",
+      "amount_text": null,
+      "band": "high",
+      "page": 2,
+      "note": "0.90. Month-day with no year, 21 days ahead: this year. Page 2 (after the page break)."
+    }
+  ]
+}

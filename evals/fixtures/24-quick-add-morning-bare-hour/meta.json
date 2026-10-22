@@ -1,0 +1,23 @@
+{
+  "description": "Quick add typed by the user (Tue Oct 20, 2026, New York): one lowercase line with 'morning' and a bare hour. 'morning' states AM (T-D1), so 9 is 9:00 AM with no AM/PM line, and with an agreeing model the date is explicit. High, so quick add would auto-create it (with undo).",
+  "covers": [
+    "quick_add",
+    "self_note",
+    "morning_bare_hour",
+    "stated_meridiem_morning",
+    "due_at_time",
+    "lowercase"
+  ],
+  "reference_date": "2026-10-20",
+  "reference_date_source": "user",
+  "timezone": "America/New_York",
+  "source_kind": "quick_add",
+  "user": {
+    "display_name": "Grace Park",
+    "aliases": [
+      "grace.park@example.com",
+      "Grace"
+    ]
+  },
+  "ambiguous": false
+}
