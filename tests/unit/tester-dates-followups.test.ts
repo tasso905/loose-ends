@@ -100,38 +100,45 @@ describe("dates: DST, year rollover and timezone (REGRESSION GUARDS)", () => {
   });
 });
 
-describe("rule 3 OPEN DEFECTS found in follow-up verification", () => {
-  // DEFECT T-C1 (pre-existing, not introduced by C): "end of the day" written Mon Oct 5 resolves to
+describe("rule 3 defects found in follow-up verification (fixed on fix/dates-and-toast)", () => {
+  // REGRESSION GUARD (was DEFECT T-C1, pre-existing, not introduced by C): "end of the day" written Mon Oct 5 resolves to
   // Tue Oct 6. chrono wins on disagreement, so a model that correctly says Oct 5 is overridden with
   // the wrong day. "by the end of the day" is a common deadline phrase.
-  it.fails("DEFECT: 'by the end of the day' written Mon Oct 5 is Oct 5 or no date, never Oct 6", () => {
+  it("'by the end of the day' written Mon Oct 5 is Oct 5 or no date, never Oct 6", () => {
     for (const t of ["by the end of the day", "the end of the day", "end of the day"]) {
       const d = resolveDate({ date_text: t, date_iso: "2026-10-05" }, NY).due_date;
       expect(d === null || d === "2026-10-05", `${t} → ${d}`).toBe(true);
     }
   });
 
-  // DEFECT T-C2 (pre-existing): a weekday that contradicts the date is resolved silently. With an
+  // REGRESSION GUARD (was DEFECT T-C2, pre-existing): a weekday that contradicts the date is resolved silently. With an
   // agreeing model the result is `explicit` with no "Not sure about" line, though the source is
   // self-contradictory ("Monday Oct 9": Oct 9, 2026 is a Friday; "Friday the 13th" → Tue Oct 13).
-  it.fails("DEFECT: a weekday that contradicts the date is rejected or flagged, never explicit", () => {
+  it("a weekday that contradicts the date is rejected or flagged, never explicit", () => {
     for (const [t, iso] of [["Monday Oct 9", "2026-10-09"], ["Friday the 13th", "2026-10-13"], ["Fri Oct 10", "2026-10-10"]] as const) {
       const r = resolveDate({ date_text: t, date_iso: iso }, NY);
       expect(r.due_date === null || (r.due_certainty === "inferred" && r.not_sure.length > 0), `${t} → ${r.due_date} ${r.due_certainty}`).toBe(true);
     }
   });
 
-  // DEFECT T-C3: follow-up C says bare durations give no date, and "one day", "few days", "2 days"
+  // REGRESSION GUARD (was DEFECT T-C3): follow-up C says bare durations give no date, and "one day", "few days", "2 days"
   // do not; but "a few days", "a couple of days", "a couple days" and "several days" still become
   // a date (Oct 7 / Oct 8 / Oct 12), as does "the past few days" (Oct 2).
-  it.fails("DEFECT: 'a few days', 'a couple of days', 'several days', 'the past few days' give no date", () => {
+  it("'a few days', 'a couple of days', 'several days', 'the past few days' give no date", () => {
     for (const t of ["a few days", "a couple of days", "a couple days", "several days", "the past few days"]) noDate(t);
   });
 });
 
-describe("observed: safe but lower recall after C (for the date-accuracy eval)", () => {
-  // These were resolved to the right day before C and now give no date. Not a trust-rule breach
-  // (no date beats a wrong date), but common deadline phrasing; "at the latest" appears in eval
-  // fixture 05 and a model may return it inside date_text.
-  it.each(["Friday at the latest", "Oct 31 at the latest", "first thing Friday", "Saturday at 6pm at the latest"])("'%s' currently gives no date", (t) => noDate(t));
+describe("recall restored after C (was observed: no date)", () => {
+  // Deadline idioms around the day are ignored again ("at the latest" appears in eval fixture 05).
+  it.each([
+    ["Friday at the latest", "2026-10-09", null],
+    ["Oct 31 at the latest", "2026-10-31", null],
+    ["first thing Friday", "2026-10-09", null],
+    ["Saturday at 6pm at the latest", "2026-10-10", "2026-10-10T22:00:00.000Z"],
+  ] as const)("'%s' → %s", (t, day, at) => {
+    const r = resolveDate({ date_text: t, date_iso: null }, NY);
+    expect(r.due_date).toBe(day);
+    if (at) expect(r.due_at).toBe(at);
+  });
 });

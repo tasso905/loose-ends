@@ -300,7 +300,7 @@ Rules that apply to all of them:
 | Accept selected | Accepted cards collapse (height + opacity, `--dur-slow`), then one line appears in their place: "2 threads added · View in Today". |
 | Reject | Card drops to 50% opacity with an inline "Rejected · Undo"; it does not disappear until the tray is left. |
 | Done / Resolve from a row | Checkmark draws in (stroke-dashoffset, `--dur-slow`), the row holds for 600ms, then collapses; an Undo toast appears. |
-| Undo toast | Enters 8px up + fade, `--dur-base`; stays 8s; the timer pauses while hovered or focused, but the toast always closes 12s after the action, when the server stops accepting the undo (D44, D49). No countdown bar. |
+| Undo toast | Enters 8px up + fade, `--dur-base`; stays 8s; the timer pauses while hovered or focused, but the toast always closes 11s after the action, 1s before the server stops accepting the undo at 12s (D44, D49, D51). No countdown bar. |
 | Open evidence | Source viewer scrolls the quoted span into view (`smooth`, centred); `--highlight` appears at full strength and settles to 60% over 600ms, then stays while the panel is open. |
 | Overdue, due today | Never animated. A thread becoming overdue changes its chip colour on next render and nothing else. |
 
