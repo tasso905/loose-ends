@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { Resolution, ThreadStatus } from "@/lib/schemas";
-import { charCount, DECISION_CHOICE_MAX, DECISION_REASON_MAX } from "./transition";
+import { charCount, DECISION_CHOICE_MAX, DECISION_REASON_MAX, isBlankText } from "./transition";
 
 /**
  * F11 Resolve sheet: input validation and copy (SITE_CONTRACT §2.10, CONTENT_MODEL §9,
@@ -10,13 +10,17 @@ import { charCount, DECISION_CHOICE_MAX, DECISION_REASON_MAX } from "./transitio
  * `Want me to remember why?`, `Save`, `Skip`; on Thread detail `Decision`, `You decided · {date}`
  * and `You wrote · {date}` (DESIGN_STANDARD Three voices and Ask Why answer card).
  *
- * PROPOSED copy (not in the docs; needs the user's approval):
+ * APPROVED copy (S8 wording; user, D56):
  *   - undo toast after Decided or Not needed: `Resolved: "{title}"` (Done keeps the approved
  *     `Marked done: "{title}"`)
  *   - the sheet's close button: `Cancel`
  *   - Save with Decided and an empty decision: `Write what you decided, or choose another option.`
- *   - limits: a decision up to 300 characters, a reason up to 2,000 (enforced by maxLength, so no
- *     message is shown)
+ *   - limits: a decision up to 300 characters, a reason up to 2,000 (enforced by maxLength)
+ *
+ * PROPOSED copy (not in the docs; needs the user's approval). Shown only to a request that gets
+ * past maxLength (a forged one), so a normal user never sees them:
+ *   - `Decisions can be up to 300 characters.`
+ *   - `Reasons can be up to 2,000 characters.`
  */
 
 export const RESOLVE_COPY = {
@@ -26,13 +30,17 @@ export const RESOLVE_COPY = {
   reasonLabel: "Want me to remember why?",
   save: "Save",
   skip: "Skip",
-  /** PROPOSED. */
+  /** APPROVED (D56). */
   cancel: "Cancel",
-  /** PROPOSED. */
+  /** APPROVED (D56). */
   choiceRequired: "Write what you decided, or choose another option.",
   /** PROPOSED. */
+  choiceTooLong: "Decisions can be up to 300 characters.",
+  /** PROPOSED. */
+  reasonTooLong: "Reasons can be up to 2,000 characters.",
+  /** APPROVED (D56). */
   resolvedToast: (title: string) => `Resolved: "${title}"`,
-  /** PROPOSED (screen-reader label of the toast's Undo). */
+  /** APPROVED (D56; screen-reader label of the toast's Undo). */
   undoLabel: (title: string) => `Undo resolve: ${title}`,
   decisionHeading: "Decision",
   youDecided: "You decided",
@@ -46,7 +54,7 @@ export function resolutionsFor(kind: string): Resolution[] {
 
 const Choice = z
   .string()
-  .refine((s) => s.trim().length > 0, "blank")
+  .refine((s) => !isBlankText(s), "blank")
   .refine((s) => charCount(s) <= DECISION_CHOICE_MAX, "too_long");
 const Reason = z
   .string()

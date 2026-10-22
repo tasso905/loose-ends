@@ -326,7 +326,7 @@ describe("tester: rule 3 brief-claim filter edges (S7)", () => {
   // figure-plus-"hundred" amount is checked by neither pattern. Every one of these lines was dropped
   // on fix/upload-hardening ("3 hundred dollars" was caught there). Safe: blank the AMOUNT spans
   // first (and give AMOUNT a "hundred" scale), then match word amounts with no lookbehind.
-  it.fails.each([
+  it.each([
     "In 2027 fifty dollars more.",
     "Room 12 twenty dollars.",
     "Gate 7 fifty euros.",
@@ -337,7 +337,7 @@ describe("tester: rule 3 brief-claim filter edges (S7)", () => {
     expect(unsupportedClaims(line, "The fee is ten dollars.")).toEqual(["amount"]);
   });
   // Same gap on the source side (over-drop): the source's word amount after "Oct 5 " is not collected.
-  it.fails("a word amount the source states right after a date (no comma) is supported", () => {
+  it("a word amount the source states right after a date (no comma) is supported", () => {
     expect(unsupportedClaims("Pay two hundred dollars.", "On Oct 5 two hundred dollars was paid.")).toEqual([]);
   });
 });

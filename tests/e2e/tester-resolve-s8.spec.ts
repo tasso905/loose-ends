@@ -96,7 +96,7 @@ test("keyboard only: Resolve… → arrow to Decided → type decision and a mul
 // returns focus to Resolve…, which the refresh removes. A keyboard or screen-reader user is dropped
 // at the top of the document. The same pattern was solved for Cancel (focusResolveOnClose). Safe:
 // focus #thread-status after the dialog has closed (as the comment in resolved() intends).
-test.fail("after Save, focus lands on the thread status, never <body>", async () => {
+test("after Save, focus lands on the thread status, never <body>", async () => {
   await keyboardResolve();
   await expect.poll(activeId, { timeout: 5_000 }).toBe("thread-status");
 });

@@ -218,7 +218,7 @@ describe.skipIf(!live)("tester S8: Resolve and decisions on real local Supabase"
   // NON-BLOCKING: the action's blank check is JS trim(), which keeps U+200B (zero-width space);
   // the database's is_blank() treats it as blank and raises 22023. The user then sees the generic
   // save failure (offering a retry that can never work) instead of the field error.
-  it.fails("a decision of only zero-width spaces gets the field error, not a generic save failure", async () => {
+  it("a decision of only zero-width spaces gets the field error, not a generic save failure", async () => {
     const id = await thread(A);
     const res = await as(A, () => resolveAction({ threadId: id, fromStatus: "open", resolution: "decided", choice: "​​", reason: null }));
     expect(res).toMatchObject({ ok: false, field: "choice", error: { code: "invalid_input" } });

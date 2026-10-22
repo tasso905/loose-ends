@@ -7,6 +7,7 @@ import { ThreadStatus } from "@/lib/schemas";
 import { createClient } from "@/lib/supabase/server";
 import { RESOLVE_COPY, ResolveInput as ResolveInputSchema, type ResolveInput } from "@/lib/threads/resolve";
 import { markDone, resolveThread, undoEvent } from "@/lib/threads/service";
+import { isBlankText } from "@/lib/threads/transition";
 import { getNow } from "@/lib/time";
 
 /**
@@ -59,7 +60,7 @@ export async function undoAction(threadId: string, eventId: number): Promise<Und
 
 export type ResolveActionResult =
   | { ok: true; eventId: number; resolution: "done" | "decided" | "not_needed" }
-  | { ok: false; error: ApiError["error"]; field?: "choice" };
+  | { ok: false; error: ApiError["error"]; field?: "choice" | "reason" };
 
 /**
  * F11 Resolve sheet (D6): one SQL transaction (public.thread_resolve, migration 20261022130327)
@@ -70,15 +71,17 @@ export type ResolveActionResult =
 export async function resolveAction(input: ResolveInput): Promise<ResolveActionResult> {
   const parsed = ResolveInputSchema.safeParse(input);
   if (!parsed.success) {
-    if (parsed.error.issues.some((i) => i.path[0] === "choice")) {
-      return { ok: false, error: { code: "invalid_input", message: RESOLVE_COPY.choiceRequired, retryable: false }, field: "choice" };
-    }
+    // Field errors are never retryable: resending the same text can't succeed.
+    const field = (path: string, message: string) => ({ ok: false as const, error: { code: "invalid_input" as const, message, retryable: false }, field: path as "choice" | "reason" });
+    const choice = parsed.error.issues.find((i) => i.path[0] === "choice");
+    if (choice) return field("choice", choice.message === "too_long" ? RESOLVE_COPY.choiceTooLong : RESOLVE_COPY.choiceRequired);
+    if (parsed.error.issues.some((i) => i.path[0] === "reason" && i.message === "too_long")) return field("reason", RESOLVE_COPY.reasonTooLong);
     return { ok: false, error: apiError("not_found").error };
   }
   const ctx = await context();
   if (!ctx) return { ok: false, error: apiError("unauthenticated").error };
   const p = parsed.data;
-  const decision = p.resolution === "decided" ? { choice: p.choice, reason: p.reason === null || p.reason.trim() === "" ? null : p.reason } : null;
+  const decision = p.resolution === "decided" ? { choice: p.choice, reason: isBlankText(p.reason) ? null : p.reason } : null;
   const res = await resolveThread(ctx.db, p.threadId, p.fromStatus, p.resolution, decision, { now: getNow() });
   if (!res.ok) return { ok: false, error: res.error.error };
   track(ctx.userId, "thread_action", {

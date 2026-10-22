@@ -211,6 +211,14 @@ const invalid = (): TransitionResult => ({ ok: false, ...apiError("invalid_trans
 
 const nonEmpty = (s: string | null | undefined): s is string => typeof s === "string" && s.trim().length > 0;
 
+/**
+ * Blank as the database's private.is_blank() sees it: whitespace plus the no-break, zero-width and
+ * byte-order-mark characters JS trim() keeps (U+200B, U+FEFF…). Used for the decision fields so the
+ * app and thread_resolve() agree on what "empty" means.
+ */
+const BLANK = /^[\s\u00a0\u1680\u2000-\u200b\u2028\u2029\u202f\u205f\u3000\ufeff]*$/u;
+export const isBlankText = (s: string | null | undefined): boolean => typeof s !== "string" || BLANK.test(s);
+
 const validInstant = (s: string | null | undefined): s is string =>
   typeof s === "string" && !Number.isNaN(new Date(s).getTime());
 
@@ -314,13 +322,14 @@ export function transition(thread: ThreadState | null, action: ThreadAction, ctx
       // D6: a decision thread's outcome is recorded, so its sheet offers Decided and Not needed.
       if (t.kind === "decision" && action.resolution === "done") return invalid();
       const effects: TransitionEffect[] = [];
+      // Decided always records a decision and only Decided does (as thread_resolve() requires).
+      if ((action.resolution === "decided") !== (action.decision !== undefined)) return invalid();
       if (action.decision !== undefined) {
-        // Only Decided records a decision; the choice is required, the reason optional (Skip).
-        if (action.resolution !== "decided") return invalid();
+        // The choice is required, the reason optional (Skip).
         const { choice, reason } = action.decision;
-        if (!nonEmpty(choice) || charCount(choice) > DECISION_CHOICE_MAX) return invalid();
+        if (typeof choice !== "string" || isBlankText(choice) || charCount(choice) > DECISION_CHOICE_MAX) return invalid();
         if (reason !== null && charCount(reason) > DECISION_REASON_MAX) return invalid();
-        effects.push({ type: "write_decision", choice, reason: nonEmpty(reason) ? reason : null });
+        effects.push({ type: "write_decision", choice, reason: isBlankText(reason) ? null : reason });
       }
       return changed(t, closeAs(t, "resolved", action.resolution, nowIso), "resolved", actor, effects);
     }

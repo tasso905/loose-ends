@@ -83,10 +83,11 @@ export function ThreadActions({
   }
 
   function resolved(r: Resolved) {
+    // Resolve… leaves the page; focus goes to the status line, as after Done. The page behind the
+    // modal is inert until the dialog has closed, so the move waits for that (effect below).
+    focusOnClose.current = "status";
     setSheetOpen(false);
     router.refresh();
-    // Resolve… leaves the page; focus goes to the status line, as after Done.
-    document.getElementById("thread-status")?.focus();
     toastId.current += 1;
     setToast({
       id: toastId.current,
@@ -98,17 +99,20 @@ export function ThreadActions({
     });
   }
 
-  // Focus returns to Resolve… once the dialog has really closed (the page behind a modal dialog is
-  // inert, so focusing it earlier does nothing). The sheet's own effect closes it first.
-  const focusResolveOnClose = useRef(false);
+  // Focus moves once the dialog has really closed (the page behind a modal dialog is inert, so
+  // focusing it earlier does nothing). The sheet's own effect closes it first. Cancel returns focus
+  // to Resolve…; a save moves it to the status line (Resolve… is about to leave the page).
+  const focusOnClose = useRef<"resolve" | "status" | null>(null);
   function closeSheet() {
-    focusResolveOnClose.current = true;
+    focusOnClose.current = "resolve";
     setSheetOpen(false);
   }
   useEffect(() => {
-    if (sheetOpen || !focusResolveOnClose.current) return;
-    focusResolveOnClose.current = false;
-    resolveRef.current?.focus();
+    if (sheetOpen || !focusOnClose.current) return;
+    const target = focusOnClose.current;
+    focusOnClose.current = null;
+    if (target === "resolve") resolveRef.current?.focus();
+    else document.getElementById("thread-status")?.focus();
   }, [sheetOpen]);
 
   async function undo(eventId: number) {

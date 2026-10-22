@@ -9,7 +9,7 @@ import { Input, Textarea } from "@/components/ui/input";
 import { apiError, type ApiError } from "@/lib/errors";
 import type { Resolution, ThreadKind, ThreadStatus } from "@/lib/schemas";
 import { RESOLVE_COPY as R, resolutionsFor, type ResolveInput } from "@/lib/threads/resolve";
-import { DECISION_CHOICE_MAX, DECISION_REASON_MAX } from "@/lib/threads/transition";
+import { DECISION_CHOICE_MAX, DECISION_REASON_MAX, isBlankText } from "@/lib/threads/transition";
 import { THREADS_COPY as C } from "@/lib/threads/view";
 import { cn } from "@/lib/utils";
 
@@ -50,6 +50,7 @@ export function ResolveSheet({
   const choiceId = `${ids}-choice`;
   const choiceErrorId = `${ids}-choice-error`;
   const reasonId = `${ids}-reason`;
+  const reasonErrorId = `${ids}-reason-error`;
   const options = resolutionsFor(kind);
   const initial: Resolution = options.includes("done") ? "done" : "decided";
 
@@ -60,6 +61,7 @@ export function ResolveSheet({
   const [choice, setChoice] = useState("");
   const [reason, setReason] = useState("");
   const [choiceError, setChoiceError] = useState<string | null>(null);
+  const [reasonError, setReasonError] = useState<string | null>(null);
   const [error, setError] = useState<ApiError["error"] | null>(null);
   const [pending, startTransition] = useTransition();
   // Set when the user picks Decided: focus moves to its first field once it renders (§3.2).
@@ -73,6 +75,7 @@ export function ResolveSheet({
       setChoice("");
       setReason("");
       setChoiceError(null);
+      setReasonError(null);
       setError(null);
       d.showModal();
       // The selected card, or the decision field when Decided is preselected (decision threads).
@@ -99,14 +102,15 @@ export function ResolveSheet({
   function save(keepReason: boolean) {
     setError(null);
     setChoiceError(null);
-    if (resolution === "decided" && choice.trim() === "") {
+    setReasonError(null);
+    if (resolution === "decided" && isBlankText(choice)) {
       setChoiceError(R.choiceRequired);
       choiceRef.current?.focus();
       return;
     }
     const input: ResolveInput =
       resolution === "decided"
-        ? { threadId, fromStatus: status, resolution, choice, reason: keepReason && reason.trim() !== "" ? reason : null }
+        ? { threadId, fromStatus: status, resolution, choice, reason: keepReason && !isBlankText(reason) ? reason : null }
         : { threadId, fromStatus: status, resolution };
     const actionAt = performance.now();
     startTransition(async () => {
@@ -116,6 +120,9 @@ export function ResolveSheet({
           if (res.field === "choice") {
             setChoiceError(res.error.message);
             choiceRef.current?.focus();
+          } else if (res.field === "reason") {
+            setReasonError(res.error.message);
+            reasonRef.current?.focus();
           } else {
             setError(res.error);
           }
@@ -234,8 +241,11 @@ export function ResolveSheet({
                 value={reason}
                 maxLength={DECISION_REASON_MAX}
                 onChange={(e) => setReason(e.target.value)}
+                aria-invalid={reasonError ? true : undefined}
+                aria-describedby={reasonError ? reasonErrorId : undefined}
                 className="mt-2"
               />
+              {reasonError ? <FieldError id={reasonErrorId}>{reasonError}</FieldError> : null}
             </div>
           </div>
         ) : null}
