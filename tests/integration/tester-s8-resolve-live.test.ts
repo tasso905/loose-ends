@@ -215,13 +215,22 @@ describe.skipIf(!live)("tester S8: Resolve and decisions on real local Supabase"
     expect(await decisions(bad)).toEqual([]);
   });
 
-  // NON-BLOCKING: the action's blank check is JS trim(), which keeps U+200B (zero-width space);
-  // the database's is_blank() treats it as blank and raises 22023. The user then sees the generic
-  // save failure (offering a retry that can never work) instead of the field error.
-  it("a decision of only zero-width spaces gets the field error, not a generic save failure", async () => {
+  // REGRESSION GUARD (fixed in 7c4c3fa, isBlankText mirrors private.is_blank): a decision of only
+  // zero-width or no-break spaces used to pass the action's trim() and fail in the database with a
+  // generic save failure. Over-length text now gets field errors too, never retryable.
+  it("blank-looking decisions and over-length text get field errors, not a generic save failure", async () => {
     const id = await thread(A);
-    const res = await as(A, () => resolveAction({ threadId: id, fromStatus: "open", resolution: "decided", choice: "​​", reason: null }));
-    expect(res).toMatchObject({ ok: false, field: "choice", error: { code: "invalid_input" } });
+    for (const choice of ["​​", "﻿", " 　"]) {
+      const res = await as(A, () => resolveAction({ threadId: id, fromStatus: "open", resolution: "decided", choice, reason: null }));
+      expect(res, JSON.stringify(choice)).toMatchObject({ ok: false, field: "choice", error: { code: "invalid_input", retryable: false } });
+    }
+    const long = await as(A, () => resolveAction({ threadId: id, fromStatus: "open", resolution: "decided", choice: "x".repeat(301), reason: null }));
+    expect(long).toMatchObject({ ok: false, field: "choice", error: { code: "invalid_input", message: "Decisions can be up to 300 characters.", retryable: false } });
+    const longReason = await as(A, () => resolveAction({ threadId: id, fromStatus: "open", resolution: "decided", choice: "x", reason: "y".repeat(2001) }));
+    expect(longReason).toMatchObject({ ok: false, field: "reason", error: { code: "invalid_input", message: "Reasons can be up to 2,000 characters.", retryable: false } });
+    // A zero-width-only reason is no reason (Skip), stored as null.
+    expect((await as(A, () => resolveAction({ threadId: id, fromStatus: "open", resolution: "decided", choice: "Renew", reason: "​" }))).ok).toBe(true);
+    expect((await decisions(id))[0]!.reason_user).toBeNull();
   });
 
   it("stale status, closed thread and Done on a decision thread → invalid_transition; nothing written", async () => {
