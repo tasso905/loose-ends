@@ -103,6 +103,16 @@ const STATED_TIME = /\b\d{1,2}(:\d{2})?\s*(a\.?m\.?|p\.?m\.?)(?![\p{L}])|\b\d{1,
  * afternoon/evening/night become PM), so neither the PM default nor the AM/PM line applies (T-D1).
  */
 const STATED_MERIDIEM = /\d\s*(a\.?m\.?|p\.?m\.?)(?![\p{L}])|\b(noon|midnight|morning|afternoon|evening|tonight|night)\b/iu;
+/** An explicit "am"/"pm" after a number. */
+const EXPLICIT_AMPM = /\d\s*(a\.?m\.?|p\.?m\.?)(?![\p{L}])/iu;
+/**
+ * T-D2: chrono adds 12 to every hour after "night"/"tonight", so "tonight at 1" became 1 PM, which
+ * contradicts "tonight". A night hour that chrono puts between 12:00 and 16:59 is read as the small
+ * hours of the next day ("tonight at 1" → 1 AM the next day, "tonight at 12" → midnight), marked
+ * inferred with the AM/PM "Not sure about" line. "tonight at 8" (20:00) is unchanged, and so is
+ * "tonight at 5" (17:00, an early evening; the tester's D50 guard keeps it 5 PM with no line).
+ */
+const NIGHT = /\b(tonight|night)\b/i;
 /** Past window for a month-day with no year (user decision, Oct 18): up to 30 days back. */
 export const PAST_WINDOW_DAYS = 30;
 
@@ -215,13 +225,18 @@ function chronoResolve(text: string, ctx: DateContext): ChronoReading {
   // the meridiem is a guess, said so in "Not sure about".
   const meridiemGuessed = timeKnown && !STATED_MERIDIEM.test(text) && !/\b0\d:\d{2}\b/.test(text) && rawHour >= 1 && rawHour <= 12;
   // User decision, Oct 21: a guessed hour from 1 to 6 is PM ("tomorrow at 5" → 5 PM), still inferred.
-  const hour = meridiemGuessed && rawHour <= 6 ? rawHour + 12 : rawHour;
+  const pmHour = meridiemGuessed && rawHour <= 6 ? rawHour + 12 : rawHour;
+  const smallHours = timeKnown && NIGHT.test(text) && !EXPLICIT_AMPM.test(text) && pmHour >= 12 && pmHour <= 16;
+  const hour = smallHours ? pmHour - 12 : pmHour;
   const time = timeKnown ? `${pad(hour)}:${pad(clock.get("minute") ?? 0)}` : null;
+  // The small hours belong to the next calendar day; the reading is a guess either way.
+  const nightDay = (day: string) => (smallHours ? new Date((dayNumber(day) + 1) * 86_400_000).toISOString().slice(0, 10) : day);
+  const guessed = meridiemGuessed || smallHours;
   const dayStated = (["year", "month", "day", "weekday"] as const).some((k) => start.isCertain(k));
   if (!dayStated) {
     // "this morning", "tonight at 8": the written-on day. A bare time ("at 5", "5pm") names no
     // day, so it is not a due date.
-    return SAME_DAY.test(text) ? { date: ctx.referenceDate, time, meridiemGuessed } : null;
+    return SAME_DAY.test(text) ? { date: nightDay(ctx.referenceDate), time, meridiemGuessed: guessed } : null;
   }
   const y = start.get("year");
   const mo = start.get("month");
@@ -247,7 +262,7 @@ function chronoResolve(text: string, ctx: DateContext): ChronoReading {
       return { refused: `"${text}" says ${WEEKDAY_NAMES[weekday]}, but ${day} is a ${WEEKDAY_NAMES[actual]}, so I didn't set a date.` };
     }
   }
-  return { date, time, meridiemGuessed };
+  return { date: nightDay(date), time, meridiemGuessed: guessed };
 }
 
 /** The model's date_iso as a wall-clock date/time in the user's timezone, or null if unusable. */

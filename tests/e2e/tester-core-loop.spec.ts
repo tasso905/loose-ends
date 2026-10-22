@@ -197,7 +197,7 @@ test("375 px: no horizontal scroll on Today, Threads, detail and the toast; thei
       const targets = page.locator(selector);
       for (const el of await targets.all()) {
         // Bounded: locator.boundingBox() otherwise waits up to the test timeout for an element that
-        // has left the DOM (the toast's Undo, closed by the 12 s hard limit, D49).
+        // has left the DOM (the toast's Undo, closed by the 11 s hard limit, D49).
         const b = await el.boundingBox({ timeout: 2_000 });
         if (!b) continue;
         const name = ((await el.getAttribute("aria-label")) ?? (await el.innerText())).trim().slice(0, 40);
@@ -214,13 +214,13 @@ test("375 px: no horizontal scroll on Today, Threads, detail and the toast; thei
     await page.getByRole("button", { name: "Done", exact: true }).click();
     const undo = page.getByRole("button", { name: `Undo done: ${TITLE}` });
     await expect(undo).toBeVisible();
-    // D49: hover no longer holds the toast open past 12 s after Done, so only the toast is checked
+    // D49: hover no longer holds the toast open past 11 s after Done, so only the toast is checked
     // here (the page itself was checked above) to finish well inside the hard limit even on a slow
     // runner; a closed toast fails fast with a clear message instead of hanging to the test timeout.
     await undo.hover();
     await check("toast", "[role=status] button:visible");
     await undo.click({ timeout: 2_000 }).catch((e: Error) => {
-      throw new Error(`toast closed (12 s hard limit, D49) before the 375 px toast check finished: ${e.message}`);
+      throw new Error(`toast closed (11 s hard limit, D49) before the 375 px toast check finished: ${e.message}`);
     });
     await expect(page.locator("#thread-status")).toHaveText("Open");
     expect(small).toEqual([]);
@@ -293,10 +293,10 @@ test("an Undo the toast still offers after a paused 8 s works", async () => {
   await expect(page.locator("#thread-status")).toHaveText("Open");
 });
 
-// Updated for user decision (a), Oct 21: the toast closes 12 s after the action even while hover or
-// focus pauses it, so it never offers an Undo the server would refuse (was: held past 12 s, the
+// Updated for user decisions, Oct 21: the toast closes 11 s after the action even while hover or
+// focus pauses it (1 s inside the server's 12 s window), so it never offers an Undo the server would refuse (was: held past 12 s, the
 // toast still offered Undo and the server answered invalid_transition).
-test("a toast held open (focused) still closes 12 s after Done: no late Undo offered, focus not lost, the thread stays Done", async () => {
+test("a toast held open (focused) still closes 11 s after Done: no late Undo offered, focus not lost, the thread stays Done", async () => {
   test.setTimeout(60_000);
   await page.goto(threadUrl);
   // Timed in the page (performance.now), on the same clock as the toast's hard limit, at the click
@@ -314,7 +314,7 @@ test("a toast held open (focused) still closes 12 s after Done: no late Undo off
   await undo.focus();
   await page.waitForTimeout(9_000);
   await expect(undo).toBeVisible(); // paused past 8 s: still offered (the server accepts until 12 s)
-  // Record the instant the toast leaves, in the page, then check it is 12 s (± polling) after Done.
+  // Record the instant the toast leaves, in the page, then check it is 11 s (± polling) after Done.
   const goneAt = await page.evaluate(
     (label) =>
       new Promise<number>((resolve) => {
@@ -332,8 +332,8 @@ test("a toast held open (focused) still closes 12 s after Done: no late Undo off
   );
   const elapsed = goneAt - clickedAt;
   test.info().annotations.push({ type: "toast removed after Done (ms)", description: String(Math.round(elapsed)) });
-  expect(elapsed).toBeGreaterThanOrEqual(11_900);
-  expect(elapsed).toBeLessThanOrEqual(12_600);
+  expect(elapsed).toBeGreaterThanOrEqual(10_900);
+  expect(elapsed).toBeLessThanOrEqual(11_600);
   await expect(page.locator("#thread-status")).toBeFocused();
   await expect(page.getByRole("alert").filter({ hasText: INVALID })).toHaveCount(0);
   const [t] = await thread();

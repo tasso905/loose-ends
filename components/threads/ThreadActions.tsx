@@ -40,7 +40,7 @@ export function ThreadActions({ threadId, title, status, kind }: { threadId: str
 
   function done() {
     setError(null);
-    // The toast's 12 s hard limit counts from the action, which is before the server's event time.
+    // The toast's 11 s hard limit counts from the action, which is before the server's event time.
     const actionAt = actionClock();
     startTransition(async () => {
       try {
