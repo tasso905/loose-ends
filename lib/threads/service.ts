@@ -2,7 +2,7 @@ import { z } from "zod";
 import { apiError, type ApiError } from "@/lib/errors";
 import type { RpcDb } from "@/lib/extraction/service";
 import { log as defaultLog, type Logger } from "@/lib/log";
-import { ThreadStatus } from "@/lib/schemas";
+import { Resolution, ThreadStatus } from "@/lib/schemas";
 
 /**
  * F9 Done and its 8 s Undo through the SQL functions in migration 20261020231123 (one transaction
@@ -28,6 +28,19 @@ const UndoOut = z.union([
   Refused,
 ]);
 
+const ResolveOut = z.union([
+  z.object({
+    ok: z.literal(true),
+    thread_id: z.uuid(),
+    event_id: z.number().int(),
+    decision_id: z.uuid().nullable(),
+    resolution: Resolution,
+    from_status: ThreadStatus,
+    to_status: ThreadStatus,
+  }),
+  Refused,
+]);
+
 export type ThreadFailure = { ok: false; code: "not_found" | "invalid_transition" | "save_failed"; error: ApiError };
 export type DoneResult = Extract<z.infer<typeof DoneOut>, { ok: true }> | ThreadFailure;
 export type UndoResult = Extract<z.infer<typeof UndoOut>, { ok: true }> | ThreadFailure;
@@ -37,7 +50,7 @@ const errCode = (error: unknown): string | null => {
   return typeof c === "string" && /^[\w.-]{1,32}$/.test(c) ? c : null;
 };
 
-async function call<T extends typeof DoneOut | typeof UndoOut>(
+async function call<T extends typeof DoneOut | typeof UndoOut | typeof ResolveOut>(
   db: RpcDb,
   fn: string,
   args: Record<string, unknown>,
@@ -68,4 +81,35 @@ export function markDone(
 /** Undo of `eventId` (D44 a, approved Oct 21): only the thread's latest event, within 8 s + 4 s grace (12 s) of it, checked in the database. */
 export function undoEvent(db: RpcDb, threadId: string, eventId: number, opts: { now: Date; logger?: Logger }): Promise<UndoResult> {
   return call(db, "thread_undo", { p_thread_id: threadId, p_event_id: eventId, p_now: opts.now.toISOString() }, UndoOut, opts.logger ?? defaultLog);
+}
+
+export type ResolveResult = Extract<z.infer<typeof ResolveOut>, { ok: true }> | ThreadFailure;
+
+/**
+ * F11 Resolve sheet through public.thread_resolve() (migration 20261022130327; one transaction:
+ * thread update, `resolved` event and, for Decided, the decision row linked to that event). Mirrors
+ * transition() {type: "resolve"}. `decision` only with `decided`; its text is sent exactly as typed.
+ */
+export function resolveThread(
+  db: RpcDb,
+  threadId: string,
+  fromStatus: ThreadStatus,
+  resolution: Resolution,
+  decision: { choice: string; reason: string | null } | null,
+  opts: { now: Date; logger?: Logger },
+): Promise<ResolveResult> {
+  return call(
+    db,
+    "thread_resolve",
+    {
+      p_thread_id: threadId,
+      p_from_status: fromStatus,
+      p_resolution: resolution,
+      p_choice: decision?.choice ?? null,
+      p_reason: decision?.reason ?? null,
+      p_now: opts.now.toISOString(),
+    },
+    ResolveOut,
+    opts.logger ?? defaultLog,
+  );
 }

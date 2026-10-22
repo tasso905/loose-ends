@@ -23,6 +23,7 @@ const WRITERS = [
   "start_source_extraction",
   "start_upload_extraction", // S6: writes sources + extractions; checks the caller's own storage folder
   "thread_done",
+  "thread_resolve", // S8 (F11): writes threads, thread_events and decisions
   "thread_undo",
   "undo_reject_proposals",
 ].sort();
@@ -91,7 +92,9 @@ describe("tester: write-model catalog audit", () => {
     }
   });
 
-  it("decisions is still directly writable by authenticated (FLAGGED: Resolve not built; see the live RISK pin)", async () => {
+  // Skipped by the lead developer in S8 (feat/s8-resolve): decisions is no longer directly writable
+  // (migration 20261022130327; the live RISK pin is flipped). This test asserted the flagged state.
+  it.skip("decisions is still directly writable by authenticated (FLAGGED: Resolve not built; see the live RISK pin)", async () => {
     const { rows } = await db.query<{ ok: boolean }>(`select has_table_privilege('authenticated', 'public.decisions', 'UPDATE') as ok`);
     expect(rows[0]!.ok).toBe(true);
   });

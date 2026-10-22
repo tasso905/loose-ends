@@ -5,7 +5,8 @@ import { apiError, type ApiError } from "@/lib/errors";
 import { rpcDb } from "@/lib/extraction/supabaseDb";
 import { ThreadStatus } from "@/lib/schemas";
 import { createClient } from "@/lib/supabase/server";
-import { markDone, undoEvent } from "@/lib/threads/service";
+import { RESOLVE_COPY, ResolveInput as ResolveInputSchema, type ResolveInput } from "@/lib/threads/resolve";
+import { markDone, resolveThread, undoEvent } from "@/lib/threads/service";
 import { getNow } from "@/lib/time";
 
 /**
@@ -54,4 +55,39 @@ export async function undoAction(threadId: string, eventId: number): Promise<Und
   if (!res.ok) return { ok: false, error: res.error.error };
   track(ctx.userId, "undo_used", { action: res.undone_action });
   return { ok: true };
+}
+
+export type ResolveActionResult =
+  | { ok: true; eventId: number; resolution: "done" | "decided" | "not_needed" }
+  | { ok: false; error: ApiError["error"]; field?: "choice" };
+
+/**
+ * F11 Resolve sheet (D6): one SQL transaction (public.thread_resolve, migration 20261022130327)
+ * writes the thread, its `resolved` event and, for Decided, the decision row linked to that event.
+ * The decision and reason are passed exactly as typed (rule 5); a reason left empty is Skip. Undo
+ * goes through undoAction above (D44; the toast closes at 11 s, the server window is 12 s, D51).
+ */
+export async function resolveAction(input: ResolveInput): Promise<ResolveActionResult> {
+  const parsed = ResolveInputSchema.safeParse(input);
+  if (!parsed.success) {
+    if (parsed.error.issues.some((i) => i.path[0] === "choice")) {
+      return { ok: false, error: { code: "invalid_input", message: RESOLVE_COPY.choiceRequired, retryable: false }, field: "choice" };
+    }
+    return { ok: false, error: apiError("not_found").error };
+  }
+  const ctx = await context();
+  if (!ctx) return { ok: false, error: apiError("unauthenticated").error };
+  const p = parsed.data;
+  const decision = p.resolution === "decided" ? { choice: p.choice, reason: p.reason === null || p.reason.trim() === "" ? null : p.reason } : null;
+  const res = await resolveThread(ctx.db, p.threadId, p.fromStatus, p.resolution, decision, { now: getNow() });
+  if (!res.ok) return { ok: false, error: res.error.error };
+  track(ctx.userId, "thread_action", {
+    thread_id: res.thread_id,
+    action: "resolve",
+    from_status: res.from_status,
+    to_status: res.to_status,
+    surface: "detail",
+  });
+  track(ctx.userId, "resolve_saved", { resolution: res.resolution, reason_given: decision !== null && decision.reason !== null });
+  return { ok: true, eventId: res.event_id, resolution: res.resolution };
 }

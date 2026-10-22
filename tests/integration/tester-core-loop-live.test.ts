@@ -189,7 +189,7 @@ describe.skipIf(!live)("tester core loop on real local Supabase", () => {
     // reason_user can be rewritten later. Rule 5 ("decision reasons are stored and shown
     // verbatim") and "history is never rewritten" depend on decisions being written only by a
     // Resolve function. Safe behaviour: no direct INSERT/UPDATE/DELETE on decisions.
-    it.fails("RISK: the owner cannot write or rewrite a decision directly (decisions must go through Resolve)", async () => {
+    it("RISK: the owner cannot write or rewrite a decision directly (decisions must go through Resolve)", async () => {
       const a = await makeUser("dxo");
       const t = await acceptedThread(a.client);
       const ins = await a.client
