@@ -158,6 +158,7 @@
 | Context link | Opens the supporting record | `Open thread` |
 | No-recorded-decision state | No match | `I don't have a recorded decision about that.`; no LLM call |
 | No-recorded-reason state | Decision exists without a reason | Say so plainly; offer `Add a reason now` |
+| Ask-failed state (D54) | The Ask-why model call failed | `I couldn't answer that just now. Try asking again.` + `Try again` (code `ask_failed`, SITE_CONTRACT §2.13), inline under the Ask box; question kept; no partial answer; same copy for every failure kind, including provider quota |
 | Decision list | All decisions, newest first | Choice, thread title, date; empty state `Decisions you record when resolving threads will appear here.` |
 
 ### 11. Settings and Data

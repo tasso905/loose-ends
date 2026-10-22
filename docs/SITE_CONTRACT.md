@@ -192,6 +192,7 @@ Field-level content, constraints and copy are defined in the content model v1.1;
 | Answer card | Labelled parts in fixed order: `You decided` · `You wrote:` · `From the source:` · `Interpretation:`; `Open thread` |
 | No match | `I don't have a recorded decision about that.` |
 | No reason | `You didn't record a reason for this decision.` + `Add a reason now` |
+| Ask failed (D54) | `ask_failed` inline under the Ask box: `I couldn't answer that just now. Try asking again.` + `Try again`. The question stays in the box; no partial answer is shown. Every failure kind, including provider quota (429) |
 | Decision list | Newest first; empty state per content model §10 |
 
 ### 2.12 Settings and Data
@@ -219,7 +220,7 @@ Field-level content, constraints and copy are defined in the content model v1.1;
 | `unsupported_scan` | `This looks like a scan. I can't read scans yet.` | `Paste the text instead` | No |
 | `extraction_failed` | `Something went wrong reading this. Your text is saved.` | `Try again`, `Back to Add` | Yes |
 | `retry_limit` (D48) | `I couldn't read this after {n} more tries. Your text is saved.` | `Back to Add`; `Try again` hidden | No |
-| `ask_failed` *Proposed (PRD Question #13), pending user approval* | `I couldn't answer that just now. Try asking again.` | Inline under the Ask box, question kept; `Try again` | Yes |
+| `ask_failed` (D54) | `I couldn't answer that just now. Try asking again.` | Inline under the Ask box, question kept; `Try again` | Yes |
 | `extraction_slow` | `Still working. I'll show results here.` (D40) | Page polls | — |
 | `rate_limited` | `You've reached today's limit of {limit} {sources/questions}. It resets at midnight (UTC).` (the limit counts per UTC day, so the reset is always shown in UTC, not the user's timezone; D30) | None | No |
 | `invalid_transition` | `That change isn't possible any more. Refresh to see the latest.` | `Refresh` | No |
@@ -269,7 +270,7 @@ Errors appear next to the control that caused them (forms) or as an error banner
 | Thread detail | Skeleton header + card | — | Not-found page; load failure banner `I couldn't load your threads.` (D47) | Source deleted; decision missing reason |
 | Why panel | Inline spinner | — | `Couldn't load this explanation.` + retry | Source deleted |
 | Source viewer | Skeleton text | — | Not-found page | Deleted state |
-| Decisions | Skeleton list | Decision list empty state | Page banner; a failed ask shows `ask_failed` inline under the Ask box (*Proposed*, §2.13) | No match; no reason |
+| Decisions | Skeleton list | Decision list empty state | Page banner; a failed ask shows `ask_failed` inline under the Ask box, question kept, no partial answer (D54, §2.13) | No match; no reason |
 | Sign in (D39) | Send button disabled while sending; `Try the demo` pending while the demo account is created (D55) | — | Field errors and `?error=` messages per §2.13; demo errors under `Try the demo`; offline banner | Check-your-email state (§2.0); demo-unavailable state (D55); no-JavaScript message |
 | Onboarding (D39) | — | — | Field errors per §2.13; save-failure and offline banners | Skip |
 | Settings | Skeleton form | No sources: `You haven't added anything yet.` | Field / banner errors; load failure `Settings didn't load. Try again.` (D46) | Export in progress; deletion in progress |
