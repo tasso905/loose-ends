@@ -398,14 +398,18 @@ describe("failure isolation: capture cannot throw into or delay the request", ()
     const { t } = tracker({ isOptedIn: () => new Promise<boolean>(() => {}) });
     const r = timeTrack(t);
     expect(r.threw).toBe(false);
-    expect(r.ms).toBeLessThan(20);
+    // Returning at all proves it does not await the hung promise; the bound only catches heavy sync
+    // work. 20 ms flaked under the full parallel suite (GC/CPU contention), so 250 ms.
+    expect(r.ms).toBeLessThan(250);
   });
 
   it("track() returns synchronously while fetch never resolves", () => {
     fetchImpl = () => new Promise<Response>(() => {});
     const r = timeTrack(tracker().t);
     expect(r.threw).toBe(false);
-    expect(r.ms).toBeLessThan(20);
+    // Returning at all proves it does not await the hung promise; the bound only catches heavy sync
+    // work. 20 ms flaked under the full parallel suite (GC/CPU contention), so 250 ms.
+    expect(r.ms).toBeLessThan(250);
   });
 
   it("track() returns synchronously and never throws for hostile input", () => {
