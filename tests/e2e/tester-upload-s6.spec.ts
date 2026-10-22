@@ -129,13 +129,12 @@ test("rule 10: while the server action is in flight nothing claims success; the 
   await expect(page).toHaveURL(/\/review\//, { timeout: 20_000 });
 });
 
-// DEFECT (orphan file): the browser uploads the file to storage first, then calls submitUpload. If
-// that call never reaches the server (network drop, tab closed, server error before the action
-// runs) the user sees "That didn't save. Try again." but the file stays in the private bucket with no
-// source row: it is not listed anywhere, not exported, and only account deletion removes it. Try
-// again uploads a second copy under a new id. Safe behaviour: a failed submit leaves no file behind
-// (e.g. the client removes its own upload on failure, and/or a sweep deletes unclaimed objects).
-test.fail("a submit that fails after the storage upload leaves no orphan file", async () => {
+// REGRESSION GUARD (orphan file; fixed in fix/upload-hardening): the browser uploads the file to
+// storage first, then calls submitUpload. Before the fix, a call that never reached the server left
+// the file in the bucket with no source row (unlisted, unexported, removed only by account deletion).
+// The page now removes its own upload when no row owns it. Remaining gap (not covered here): a tab
+// closed between upload and submit, or an offline cleanup, still leaves a file; there is no sweep.
+test("a submit that fails after the storage upload leaves no orphan file", async () => {
   const before = await storedFiles();
   const sourcesBefore = await sourceIds();
   await page.goto("/add?mode=upload");
@@ -147,6 +146,46 @@ test.fail("a submit that fails after the storage upload leaves no orphan file", 
   await expect(page.getByText("That didn't save. Try again.")).toBeVisible({ timeout: 15_000 });
   expect(await sourceIds()).toEqual(sourcesBefore);
   expect((await storedFiles()).filter((n) => !before.includes(n))).toEqual([]);
+});
+
+test("a server error response (500) after the upload leaves no orphan file", async () => {
+  const before = await storedFiles();
+  const sourcesBefore = await sourceIds();
+  await page.unrouteAll();
+  await page.goto("/add?mode=upload");
+  await page.locator("#file").setInputFiles(file("Renewal notice.pdf", renewalPdf()));
+  await page.route("**/add**", (route) =>
+    isServerAction(route.request().method(), route.request().headers()) ? route.fulfill({ status: 500, body: "" }) : route.continue(),
+  );
+  await page.getByRole("button", { name: "Review source" }).click();
+  await expect(page.getByText("That didn't save. Try again.")).toBeVisible({ timeout: 15_000 });
+  expect(await sourceIds()).toEqual(sourcesBefore);
+  expect((await storedFiles()).filter((n) => !before.includes(n))).toEqual([]);
+  await page.unrouteAll();
+});
+
+// The server saved, but the response was lost: the page's cleanup must see the row and keep the file
+// (no data loss: the new source's storage_path still resolves). The page then shows "That didn't
+// save" although the source exists (see report: a retry makes a second source).
+test("a lost response after the server saved keeps the saved source's file", async () => {
+  const before = await storedFiles();
+  const sourcesBefore = await sourceIds();
+  await page.unrouteAll();
+  await page.goto("/add?mode=upload");
+  await page.locator("#file").setInputFiles(file("Renewal notice.pdf", renewalPdf()));
+  await page.route("**/add**", async (route) => {
+    if (!isServerAction(route.request().method(), route.request().headers())) return route.continue();
+    await route.fetch(); // the server runs the action to completion
+    await route.abort("connectionreset");
+  });
+  await page.getByRole("button", { name: "Review source" }).click();
+  await expect(page.getByText("That didn't save. Try again.")).toBeVisible({ timeout: 15_000 });
+  const added = (await sourceIds()).filter((id) => !sourcesBefore.includes(id));
+  expect(added).toHaveLength(1);
+  expect((await storedFiles()).filter((n) => !before.includes(n))).toEqual(added);
+  const { data } = await admin().from("sources").select("storage_path").eq("id", added[0]).single();
+  expect((await admin().storage.from("sources").download(data!.storage_path as string)).error).toBeNull();
+  await page.unrouteAll();
 });
 
 test("refusal states: encrypted PDF copy, Choose another file, Remove returns focus to the picker; axe passes", async () => {

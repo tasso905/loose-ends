@@ -11,8 +11,12 @@ describe("error envelope (SITE_CONTRACT §2.13)", () => {
         retryable: false,
       },
     });
-    expect(apiError("unsupported_type").error.message).toBe("Loose Ends can read PDF, TXT, MD and DOCX files.");
+    expect(apiError("unsupported_type").error.message).toBe("Loose Ends can read PDF, TXT and MD files.");
     expect(apiError("file_too_large", { sizeMb: 12.34 }).error.message).toBe("This file is 12.3 MB. The limit is 10 MB.");
+    // Just over the limit never reads as the limit itself.
+    expect(apiError("file_too_large", { sizeMb: 10.000_01 }).error.message).toBe("This file is 10.1 MB. The limit is 10 MB.");
+    expect(apiError("file_too_large", { sizeMb: 10.04 }).error.message).toBe("This file is 10.1 MB. The limit is 10 MB.");
+    expect(apiError("file_too_large", { sizeMb: 10.19 }).error.message).toBe("This file is 10.2 MB. The limit is 10 MB.");
     expect(apiError("too_many_pages", { n: 42 }).error.message).toBe("This document has 42 pages. The limit is 30.");
     expect(apiError("unsupported_scan").error.message).toBe("This looks like a scan. I can't read scans yet.");
     expect(apiError("extraction_failed").error).toEqual({

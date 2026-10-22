@@ -95,10 +95,26 @@ export async function submitUpload(formData: FormData): Promise<SubmitUploadResu
 
   const path = `${auth.user.id}/${parsed.data.sourceId}`;
   const bucket = supabase.storage.from(SOURCES_BUCKET);
+  // A file a `sources` row owns is never removed here (rule 8 belongs to source deletion): a replayed
+  // or forged submit with an existing source id must not delete that source's file. Unknown (query
+  // failed) counts as owned, so the file is kept.
+  const owned = async () => {
+    const { data, error } = await supabase.from("sources").select("id").eq("id", parsed.data.sourceId).maybeSingle();
+    return Boolean(error || data);
+  };
   const discard = async (step: string) => {
+    if (await owned()) {
+      log("upload_failed", { step: `${step}_cleanup`, code: "owned" });
+      return;
+    }
     const { error } = await bucket.remove([path]);
     if (error) log("upload_failed", { step: `${step}_cleanup`, code: "storage" });
   };
+
+  if (await owned()) {
+    log("upload_failed", { step: "claimed", code: "duplicate" });
+    return { ok: false, error: apiError("save_failed").error };
+  }
 
   const download = await bucket.download(path);
   if (download.error || !download.data) {

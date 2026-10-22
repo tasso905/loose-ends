@@ -229,27 +229,120 @@ describe.skipIf(!live)("tester: submitUpload on real local Supabase", () => {
     expect(await usage(A.id)).toBe(30);
   });
 
-  // DEFECT (rule 8 / data integrity): when start_upload_extraction fails, submitUpload removes the
-  // object at {uid}/{source_id} unconditionally. If that id already belongs to an existing source
-  // (a replayed or duplicated submit of the same source_id), the start fails on the primary key and
-  // the EXISTING source's file is deleted, leaving a sources row whose storage_path points at nothing.
-  // Safe behaviour: a failed start never removes a file that a source row owns.
-  it.fails("a repeated submit with an existing source id never deletes that source's file", async () => {
+  // REGRESSION GUARD (rule 8 / data integrity; fixed in fix/upload-hardening 6da5195): a replayed or
+  // duplicated submit of an existing source_id is refused with save_failed before storage is read,
+  // and never removes the file that source owns. Before the fix the failed start removed
+  // {uid}/{source_id} unconditionally, leaving a sources row whose storage_path pointed at nothing.
+  it("a repeated submit with an existing source id never deletes that source's file", async () => {
     const id = await upload(A, renewalPdf());
     expect((await as(A, () => submitUpload(form(id, "Renewal notice.pdf")))).ok).toBe(true);
     const again = await as(A, () => submitUpload(form(id, "Renewal notice.pdf")));
     expect(again.ok).toBe(false);
+    expect(!again.ok && again.error.code).toBe("save_failed");
     expect(await rows("sources", A.id)).toBe(1);
     expect(await files(A.id)).toEqual([id]);
   });
 
-  it("evidence for the DEFECT above: after the repeated submit the source row remains but its file is gone", async () => {
-    const id = await upload(A, renewalPdf());
+  // REGRESSION GUARD (inverts the old "evidence for the DEFECT" test): after replayed submits the
+  // row's storage_path still resolves to the original bytes, and nothing extra was counted.
+  it("after replayed submits the source row's storage_path still downloads the original file; one usage", async () => {
+    const original = renewalPdf();
+    const id = await upload(A, original);
     expect((await as(A, () => submitUpload(form(id, "Renewal notice.pdf")))).ok).toBe(true);
-    await as(A, () => submitUpload(form(id, "Renewal notice.pdf")));
+    for (let i = 0; i < 3; i++) await as(A, () => submitUpload(form(id, "Renewal notice.pdf")));
     const { data } = await admin.from("sources").select("storage_path").eq("id", id).single();
     expect(data?.storage_path).toBe(`${A.id}/${id}`);
+    const dl = await admin.storage.from("sources").download(data!.storage_path as string);
+    expect(dl.error).toBeNull();
+    expect(new Uint8Array(await dl.data!.arrayBuffer())).toEqual(original);
+    expect(await usage(A.id)).toBe(1);
+    expect(afterCalls.n).toBe(1);
+  });
+
+  // fix/upload-hardening storage delete policy: an owned object cannot be removed, moved or
+  // overwritten by its owner through any Storage API path.
+  it("an owned file: the owner cannot remove, move or overwrite it; a mixed batch removes only the unowned file", async () => {
+    const id = await upload(A, renewalPdf());
+    expect((await as(A, () => submitUpload(form(id, "Renewal notice.pdf")))).ok).toBe(true);
+    const owned = `${A.id}/${id}`;
+    const loose = await upload(A, new TextEncoder().encode("synthetic loose file"));
+
+    const rm = await A.client.storage.from("sources").remove([owned]);
+    expect((rm.data ?? []).map((o) => o.name)).toEqual([]);
+    const mv = await A.client.storage.from("sources").move(owned, `${A.id}/${randomUUID()}`);
+    expect(mv.error).not.toBeNull();
+    const cp = await A.client.storage.from("sources").copy(`${A.id}/${loose}`, owned);
+    expect(cp.error).not.toBeNull();
+    const batch = await A.client.storage.from("sources").remove([owned, `${A.id}/${loose}`]);
+    expect((batch.data ?? []).map((o) => o.name)).toEqual([`${A.id}/${loose}`]);
+
+    expect(await files(A.id)).toEqual([id]);
+    const dl = await admin.storage.from("sources").download(owned);
+    expect(new Uint8Array(await dl.data!.arrayBuffer())).toEqual(renewalPdf());
+  });
+
+  // UploadForm.removeOwnUpload() contract (fix/upload-hardening item 2), run as the signed-in user:
+  // after a refused submit the browser checks for a row, then removes the file. An unclaimed file
+  // goes; a claimed one stays even if the browser skips the row check (the policy refuses it).
+  it("browser cleanup after a failed submit: an unclaimed file is removed, a claimed one never is", async () => {
+    const cleanup = async (sourceId: string, checkRow = true) => {
+      if (checkRow) {
+        const { data, error } = await A.client.from("sources").select("id").eq("id", sourceId).maybeSingle();
+        if (error || data) return;
+      }
+      await A.client.storage.from("sources").remove([`${A.id}/${sourceId}`]);
+    };
+    // A title over the limit is refused before storage is touched: the file is the browser's to remove.
+    const id = await upload(A, renewalPdf());
+    const bad = await as(A, () => submitUpload(form(id, "Renewal notice.pdf", { title: "t".repeat(500) })));
+    expect(!bad.ok && bad.error.code).toBe("invalid_input");
+    expect(await files(A.id)).toEqual([id]);
+    await cleanup(id);
     expect(await files(A.id)).toEqual([]);
+
+    const kept = await upload(A, renewalPdf());
+    expect((await as(A, () => submitUpload(form(kept, "Renewal notice.pdf")))).ok).toBe(true);
+    await cleanup(kept, false);
+    expect(await files(A.id)).toEqual([kept]);
+  });
+
+  it("source deletion order: file-first is refused while the row exists; row-first then file removes both", async () => {
+    const id = await upload(A, renewalPdf());
+    expect((await as(A, () => submitUpload(form(id, "Renewal notice.pdf")))).ok).toBe(true);
+    await A.client.storage.from("sources").remove([`${A.id}/${id}`]);
+    expect(await files(A.id)).toEqual([id]);
+    const del = await A.client.from("sources").delete().eq("id", id).select("id");
+    expect(del.error).toBeNull();
+    expect(del.data).toHaveLength(1);
+    const rm = await A.client.storage.from("sources").remove([`${A.id}/${id}`]);
+    expect((rm.data ?? []).map((o) => o.name)).toEqual([`${A.id}/${id}`]);
+    expect(await files(A.id)).toEqual([]);
+    expect(await rows("sources", A.id)).toBe(0);
+  });
+
+  it("B cannot free A's owned file by deleting rows (RLS) and still cannot remove it", async () => {
+    const id = await upload(A, renewalPdf());
+    expect((await as(A, () => submitUpload(form(id, "Renewal notice.pdf")))).ok).toBe(true);
+    const del = await B.client.from("sources").delete().eq("id", id).select("id");
+    expect(del.data ?? []).toEqual([]);
+    await B.client.storage.from("sources").remove([`${A.id}/${id}`]);
+    expect(await rows("sources", A.id)).toBe(1);
+    expect(await files(A.id)).toEqual([id]);
+  });
+
+  it("account deletion (service role) removes an owned upload file and every row", async () => {
+    const { deleteAccount } = await import("@/lib/account/deleteAccount");
+    const C = await makeUser("upC");
+    const id = await upload(C, renewalPdf());
+    expect((await as(C, () => submitUpload(form(id, "Renewal notice.pdf")))).ok).toBe(true);
+    expect(await files(C.id)).toEqual([id]);
+    const r = await deleteAccount(admin as never, C.id);
+    expect(r).toEqual({ ok: true, objectsRemoved: 1 });
+    expect(await files(C.id)).toEqual([]);
+    expect(await rows("sources", C.id)).toBe(0);
+    expect(await rows("extractions", C.id)).toBe(0);
+    expect((await admin.auth.admin.getUserById(C.id)).data.user).toBeNull();
+    users.splice(users.findIndex((u) => u.id === C.id), 1);
   });
 
   it("bad form fields: a non-UUID source id (path traversal attempt) is refused before storage is touched", async () => {

@@ -7,9 +7,10 @@ import { parsePasteForm, TITLE_MAX_CHARS } from "./pasteInput";
  * F3 upload form fields and the copy for every way a file can be refused (SITE_CONTRACT §2.2,
  * §2.13). Client-safe: no unpdf here.
  *
+ * unsupported_type uses the approved D52 copy from lib/errors.ts ("Loose Ends can read PDF, TXT and
+ * MD files.").
+ *
  * Copy marked PROPOSED is not in SITE_CONTRACT or CONTENT_MODEL and needs the user's approval:
- *   - unsupported_type while DOCX is deferred (D17): "Loose Ends can read PDF, TXT and MD files."
- *     §2.13's documented copy names DOCX, which would be untrue until DOCX is built.
  *   - a DOCX file: "I can't read Word files yet. Save it as a PDF, or paste the text instead."
  *   - a damaged or password-protected PDF: "I couldn't open this PDF. It may be damaged or locked with a password."
  *   - a text file with nothing in it: "This file has no text in it."
@@ -35,7 +36,7 @@ const num = (n: number) => n.toLocaleString("en-US");
 
 /** PROPOSED copy (see above); the codes are the documented ones. */
 export const UPLOAD_COPY = {
-  unsupportedType: "Loose Ends can read PDF, TXT and MD files.",
+  unsupportedType: apiError("unsupported_type").error.message,
   docx: "I can't read Word files yet. Save it as a PDF, or paste the text instead.",
   unreadablePdf: "I couldn't open this PDF. It may be damaged or locked with a password.",
   empty: "This file has no text in it.",

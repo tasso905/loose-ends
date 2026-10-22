@@ -92,29 +92,75 @@ describe("T-D2 guards: small hours after night/tonight", () => {
   });
 });
 
-describe("T-D2 residual defects (non-blocking)", () => {
-  // DEFECT: the fix skips any text with an explicit am/pm, so "tonight at 1am" stays at 1:00 AM on
-  // the written-on day: the start of the day the message was written, before "tonight". The safe
-  // reading is the next day's 1:00 AM, as for "tonight at 1".
-  it.fails.each(["tonight at 1am", "tonight at 1 am", "tonight at 2:30am"])("'%s' is the next day's small hours", (t) => {
-    expect(r(t).due_date).toBe("2026-10-06");
+describe("T-D2 residuals: regression guards (fixed in fix/upload-hardening)", () => {
+  // Before the fix, an explicit am/pm skipped T-D2, so "tonight at 1am" stayed at 1:00 AM on the
+  // written-on day (before "tonight"). It is now the next day's small hours, with no AM/PM line.
+  it.each(["tonight at 1am", "tonight at 1 am", "tonight at 2:30am", "tonight at 1a.m.", "tonight 1am"])("'%s' is the next day's small hours", (t) => {
+    const x = r(t);
+    expect(x.due_date).toBe("2026-10-06");
+    expect(ampmLine(x)).toBe(false);
   });
 
-  // DEFECT: a 24-hour time states the half of the day, but the fix turns "tonight at 13:00" into
-  // 1:00 AM the next day and says the text "doesn't say AM or PM" (untrue). Safe: no AM/PM line for a
-  // 24-hour time, and 13:00 is never read as 1:00 AM.
-  it.fails.each(["tonight at 13:00", "tonight at 14:30"])("'%s' is not rewritten as a small hour with an AM/PM line", (t) => {
+  // Before the fix, "tonight at 13:00" became 1:00 AM the next day with an untrue "doesn't say AM or
+  // PM" line. A 24-hour time is kept as written.
+  it.each(["tonight at 13:00", "tonight at 14:30"])("'%s' is not rewritten as a small hour with an AM/PM line", (t) => {
     const x = r(t);
     expect(ampmLine(x)).toBe(false);
     expect(Number(local(x.due_at)!.slice(-5, -3))).toBeGreaterThanOrEqual(12);
   });
 
-  // DEFECT (copy): "tonight at 01:00" resolves correctly to 1:00 AM the next day, but the zero-padded
-  // 24-hour time states AM; the line "doesn't say AM or PM" is untrue (outside T-D2, "at 01:00" gets
-  // no such line: meridiemGuessed excludes 0d:dd).
-  it.fails("'tonight at 01:00' has no 'doesn't say AM or PM' line", () => {
-    const x = r("tonight at 01:00");
-    expect(local(x.due_at)).toBe("2026-10-06, 01:00");
+  // Before the fix, the zero-padded 24-hour time got an untrue "doesn't say AM or PM" line.
+  it.each([
+    ["tonight at 01:00", "2026-10-06, 01:00"],
+    ["tonight at 00:30", "2026-10-06, 00:30"],
+    ["tonight at 00:00", "2026-10-06, 00:00"],
+  ])("'%s' → %s with no 'doesn't say AM or PM' line", (t, at) => {
+    const x = r(t);
+    expect(local(x.due_at)).toBe(at);
     expect(ampmLine(x)).toBe(false);
+  });
+
+  it.each([
+    ["tonight at 12am", "2026-10-06, 00:00"],
+    ["tonight at 12:30am", "2026-10-06, 00:30"],
+    ["Friday night at 1am", "2026-10-10, 01:00"],
+    ["tomorrow night at 2am", "2026-10-07, 02:00"],
+    ["last night at 1am", "2026-10-05, 01:00"],
+    ["tonight at 11pm", "2026-10-05, 23:00"],
+    ["tonight at 6pm", "2026-10-05, 18:00"],
+    ["tonight at 12pm", "2026-10-05, 12:00"],
+  ])("explicit am/pm after night: '%s' → %s, no AM/PM line", (t, at) => {
+    const x = r(t);
+    expect(local(x.due_at)).toBe(at);
+    expect(ampmLine(x)).toBe(false);
+  });
+
+  it("year rollover and DST with an explicit am: 'tonight at 1am' on Dec 31 is Jan 1; on Oct 31 (NY) it is Nov 1", () => {
+    expect(local(r("tonight at 1am", null, ctx("2026-12-31")).due_at)).toBe("2027-01-01, 01:00");
+    expect(local(r("tonight at 1am", null, ctx("2026-10-31")).due_at)).toBe("2026-11-01, 01:00");
+  });
+
+  it("D50 guards hold: 'tonight at 5' is 5 PM with no AM/PM line; 'tonight at 1' keeps its AM/PM line", () => {
+    expect(local(r("tonight at 5").due_at)).toBe("2026-10-05, 17:00");
+    expect(ampmLine(r("tonight at 5"))).toBe(false);
+    expect(ampmLine(r("tonight at 1"))).toBe(true);
+  });
+});
+
+describe("T-D2 residual defects (non-blocking, pre-existing on main)", () => {
+  // DEFECT: fix/upload-hardening says a zero-padded hour "states AM", and 01:00–04:59 are read that
+  // way, but "tonight at 05:00" / "06:00" are 5 PM / 6 PM on the written-on day with no AM/PM line
+  // (chrono reads them as evening; the 12–16 window never sees them). Safe: either the next morning's
+  // 05:00 (as for 01:00), or an AM/PM line saying the reading is a guess.
+  it.fails.each(["tonight at 05:00", "tonight at 06:00"])("'%s' is not silently read as an evening hour", (t) => {
+    const x = r(t);
+    const evening = Number(local(x.due_at)!.slice(-5, -3)) >= 12;
+    expect(evening && !ampmLine(x)).toBe(false);
+  });
+
+  // DEFECT: "last night at 1am" is now Mon Oct 5, 1:00 AM, but "last night at 1" is Sun Oct 4,
+  // 1:00 AM: the night before last. Safe: both are the written-on day's 1:00 AM.
+  it.fails("'last night at 1' is the same night as 'last night at 1am'", () => {
+    expect(local(r("last night at 1").due_at)).toBe("2026-10-05, 01:00");
   });
 });

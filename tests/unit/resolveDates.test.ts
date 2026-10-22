@@ -401,6 +401,27 @@ describe("resolveDate(): night + a small hour is the next day's small hours (T-D
     expect(resolveDate({ date_text: t, date_iso: null }, NY).due_at).toBe(at);
   });
 
+  it.each([
+    ["tonight at 1am", "2026-10-06T05:00:00.000Z"],
+    ["tonight at 2:30 a.m.", "2026-10-06T06:30:00.000Z"],
+    ["Friday night at 2am", "2026-10-10T06:00:00.000Z"],
+    ["tonight at 01:00", "2026-10-06T05:00:00.000Z"],
+  ])("'%s' (AM stated, by am or a zero-padded hour) is the next morning with no AM/PM line", (t, at) => {
+    const r = resolveDate({ date_text: t, date_iso: null }, NY);
+    expect(r.due_at).toBe(at);
+    expect(r.not_sure.some((l) => l.includes("AM or PM"))).toBe(false);
+  });
+
+  it.each([
+    ["tonight at 13:00", "2026-10-05T17:00:00.000Z"],
+    ["tonight at 21:30", "2026-10-06T01:30:00.000Z"],
+    ["Friday night at 14:30", "2026-10-09T18:30:00.000Z"],
+  ])("'%s' is a 24-hour time, kept as written with no AM/PM line", (t, at) => {
+    const r = resolveDate({ date_text: t, date_iso: null }, NY);
+    expect(r.due_at).toBe(at);
+    expect(r.not_sure.some((l) => l.includes("AM or PM"))).toBe(false);
+  });
+
   it("agrees with a model that read 'tonight at 1' as 1 AM the next day", () => {
     const r = resolveDate({ date_text: "tonight at 1", date_iso: "2026-10-06T01:00:00" }, NY);
     expect(r.agreement).toBe("agree");

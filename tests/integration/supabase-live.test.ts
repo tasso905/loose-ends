@@ -289,6 +289,22 @@ describe.skipIf(!env)("real local Supabase: RLS, rate limit, deletion", () => {
     expect(list.data ?? []).toEqual([]);
   });
 
+  it("storage: a file a sources row owns cannot be deleted by its owner until the row is gone (fix/upload-hardening)", async () => {
+    const O = await makeUser("o");
+    const g = await seed(O, "o");
+    await O.client.storage.from("sources").remove([g.path]);
+    expect((await admin.storage.from("sources").download(g.path)).error).toBeNull();
+    // An unclaimed file in the user's own folder can still be removed (the browser's failed-submit cleanup).
+    const loose = `${O.id}/${randomUUID()}`;
+    expect((await O.client.storage.from("sources").upload(loose, new Blob(["x"]))).error).toBeNull();
+    expect((await O.client.storage.from("sources").remove([loose])).error).toBeNull();
+    expect((await admin.storage.from("sources").download(loose)).error).not.toBeNull();
+    // Row first, then the file: the order forget and source deletion use.
+    expect((await O.client.from("sources").delete().eq("id", g.source)).error).toBeNull();
+    expect((await O.client.storage.from("sources").remove([g.path])).error).toBeNull();
+    expect((await admin.storage.from("sources").download(g.path)).error).not.toBeNull();
+  });
+
   it("consume_usage: 30 extractions then refused; direct writes and anon refused", async () => {
     const C = await makeUser("c");
     let ok = 0;
@@ -363,7 +379,12 @@ describe.skipIf(!env)("real local Supabase: RLS, rate limit, deletion", () => {
     const r = await F.client.rpc("forget_thread", { p_thread_id: g.thread, p_delete_source: true });
     expect(r.error).toBeNull();
     expect((r.data as { storage_path: string }).storage_path).toBe(g.path);
-    expect((await F.client.storage.from("sources").remove([g.path])).error).toBeNull();
+    // remove() reports no error even when a policy refuses the delete, so check the object is gone
+    // (the fix/upload-hardening ownership policy must allow it once forget has deleted the row).
+    const rm = await F.client.storage.from("sources").remove([g.path]);
+    expect(rm.error).toBeNull();
+    expect((rm.data ?? []).map((o) => o.name)).toEqual([g.path]);
+    expect((await admin.storage.from("sources").download(g.path)).error).not.toBeNull();
     const rows = await allRows(F.id);
     expect(tablesWithToken(rows)).toEqual([]);
     expect(rows.threads).toEqual([]);
