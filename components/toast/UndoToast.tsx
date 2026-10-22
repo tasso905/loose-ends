@@ -12,11 +12,15 @@ import { cn } from "@/lib/utils";
  *
  * The live region (role=status) is always mounted, so a screen reader announces the message when it
  * appears. Errors never go in a toast (SITE_CONTRACT §2.13): the caller shows them on the page.
- * The toast's own timer is a display convenience; the server decides whether an undo is still valid
- * (8 s + 4 s grace, D44 a, so a short pause is honoured; a toast held open longer is refused there).
+ * The server decides whether an undo is still valid: 8 s + 4 s grace (D44 a). So the toast never
+ * outlives that window: whatever the pauses, it closes TOAST_HARD_LIMIT_MS after the user acted
+ * (`actionAt`, user decision (a), Oct 21), and an Undo it offers is always one the server accepts.
+ * The 8 s countdown and the hover/focus pause work as before inside that limit.
  */
 
 export const TOAST_MS = 8_000;
+/** The toast closes this long after the action even while paused (= UNDO_WINDOW_MS + UNDO_GRACE_MS). */
+export const TOAST_HARD_LIMIT_MS = 12_000;
 
 export interface ToastData {
   /** Changes for each new toast. */
@@ -26,6 +30,10 @@ export interface ToastData {
   onUndo: () => Promise<void>;
   /** Accessible name of the Undo button, when "Undo" alone is ambiguous. */
   undoLabel?: string;
+  /** performance.now() when the user acted (before the request); the hard limit counts from here. */
+  actionAt?: number;
+  /** Where focus goes if the hard limit closes the toast while it holds focus (never <body>). */
+  restoreFocus?: () => void;
 }
 
 export function UndoToast({ toast, onClose }: { toast: ToastData | null; onClose: (id: number) => void }) {
@@ -48,6 +56,19 @@ function ToastBody({ toast, onClose }: { toast: ToastData; onClose: (id: number)
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const hovered = useRef(false);
   const focused = useRef(false);
+  const busyRef = useRef(false);
+  const rootRef = useRef<HTMLDivElement>(null);
+
+  // Hard limit: not paused by hover or focus. An Undo already sent is left to finish.
+  useEffect(() => {
+    const actionAt = toast.actionAt ?? performance.now();
+    const hard = setTimeout(() => {
+      if (busyRef.current) return;
+      if (rootRef.current?.contains(document.activeElement)) toast.restoreFocus?.();
+      onClose(toast.id);
+    }, Math.max(0, actionAt + TOAST_HARD_LIMIT_MS - performance.now()));
+    return () => clearTimeout(hard);
+  }, [onClose, toast]);
 
   const stop = useCallback(() => {
     if (timer.current) clearTimeout(timer.current);
@@ -82,6 +103,7 @@ function ToastBody({ toast, onClose }: { toast: ToastData; onClose: (id: number)
 
   async function undo() {
     stop();
+    busyRef.current = true;
     setBusy(true);
     try {
       await toast.onUndo();
@@ -92,6 +114,7 @@ function ToastBody({ toast, onClose }: { toast: ToastData; onClose: (id: number)
 
   return (
     <div
+      ref={rootRef}
       className={cn(
         "pointer-events-auto flex max-w-narrow items-center gap-4 rounded-card bg-le-text py-2 pr-2 pl-4 text-small text-le-bg shadow-(--le-shadow-float)",
         "transition-[opacity,translate] duration-(--le-dur-base) ease-(--le-ease-out)",

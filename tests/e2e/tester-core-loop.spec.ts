@@ -190,12 +190,15 @@ test("375 px: no horizontal scroll on Today, Threads, detail and the toast; thei
   await page.setViewportSize({ width: 375, height: 812 });
   try {
     const small: string[] = [];
-    const check = async (where: string) => {
+    const PAGE_TARGETS = "main button:visible, main a:visible, main [role=tab]:visible, nav a:visible, [role=status] button:visible";
+    const check = async (where: string, selector = PAGE_TARGETS) => {
       const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
       expect(overflow, `${where} horizontal overflow`).toBeLessThanOrEqual(0);
-      const targets = page.locator("main button:visible, main a:visible, main [role=tab]:visible, nav a:visible, [role=status] button:visible");
+      const targets = page.locator(selector);
       for (const el of await targets.all()) {
-        const b = await el.boundingBox();
+        // Bounded: locator.boundingBox() otherwise waits up to the test timeout for an element that
+        // has left the DOM (the toast's Undo, closed by the 12 s hard limit, D49).
+        const b = await el.boundingBox({ timeout: 2_000 });
         if (!b) continue;
         const name = ((await el.getAttribute("aria-label")) ?? (await el.innerText())).trim().slice(0, 40);
         if (b.height < 44 || b.width < 44) small.push(`${where}: "${name}" ${Math.round(b.width)}x${Math.round(b.height)}`);
@@ -211,9 +214,14 @@ test("375 px: no horizontal scroll on Today, Threads, detail and the toast; thei
     await page.getByRole("button", { name: "Done", exact: true }).click();
     const undo = page.getByRole("button", { name: `Undo done: ${TITLE}` });
     await expect(undo).toBeVisible();
+    // D49: hover no longer holds the toast open past 12 s after Done, so only the toast is checked
+    // here (the page itself was checked above) to finish well inside the hard limit even on a slow
+    // runner; a closed toast fails fast with a clear message instead of hanging to the test timeout.
     await undo.hover();
-    await check("toast");
-    await undo.click();
+    await check("toast", "[role=status] button:visible");
+    await undo.click({ timeout: 2_000 }).catch((e: Error) => {
+      throw new Error(`toast closed (12 s hard limit, D49) before the 375 px toast check finished: ${e.message}`);
+    });
     await expect(page.locator("#thread-status")).toHaveText("Open");
     expect(small).toEqual([]);
   } finally {
@@ -285,21 +293,49 @@ test("an Undo the toast still offers after a paused 8 s works", async () => {
   await expect(page.locator("#thread-status")).toHaveText("Open");
 });
 
-// Adapted for D44 (a): the grace period makes a 9 s Undo work (previous test), so this test makes
-// its own refused Undo by holding the toast open past the server's 12 s.
-test("after a refused late Undo (toast held past 12 s): the page says so with §2.13 copy and Refresh, and the thread stays Done", async () => {
+// Updated for user decision (a), Oct 21: the toast closes 12 s after the action even while hover or
+// focus pauses it, so it never offers an Undo the server would refuse (was: held past 12 s, the
+// toast still offered Undo and the server answered invalid_transition).
+test("a toast held open (focused) still closes 12 s after Done: no late Undo offered, focus not lost, the thread stays Done", async () => {
   test.setTimeout(60_000);
   await page.goto(threadUrl);
-  await page.getByRole("button", { name: "Done", exact: true }).click();
+  // Timed in the page (performance.now), on the same clock as the toast's hard limit, at the click
+  // event itself (capture phase). Reading the clock before Playwright's click added its actionability
+  // and CDP latency (measured 130-225 ms locally) to `elapsed`, eating the 600 ms upper margin on a
+  // slow CI runner.
+  const done = page.getByRole("button", { name: "Done", exact: true });
+  await done.evaluate((el) =>
+    el.addEventListener("click", () => ((window as unknown as { __doneAt: number }).__doneAt = performance.now()), { capture: true, once: true }),
+  );
+  await done.click();
+  const clickedAt = await page.evaluate(() => (window as unknown as { __doneAt: number }).__doneAt);
   const undo = page.getByRole("button", { name: `Undo done: ${TITLE}` });
   await expect(undo).toBeVisible();
   await undo.focus();
-  await page.waitForTimeout(13_000);
-  await expect(undo).toBeVisible(); // still paused, still offered
-  await page.keyboard.press("Enter");
-  await expect(page.getByRole("alert").filter({ hasText: INVALID })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Refresh" })).toBeVisible();
-  await expect(page.getByText(/Marked done.*Undo/)).toHaveCount(0);
+  await page.waitForTimeout(9_000);
+  await expect(undo).toBeVisible(); // paused past 8 s: still offered (the server accepts until 12 s)
+  // Record the instant the toast leaves, in the page, then check it is 12 s (± polling) after Done.
+  const goneAt = await page.evaluate(
+    (label) =>
+      new Promise<number>((resolve) => {
+        const gone = () => !document.querySelector(`button[aria-label="${label}"]`);
+        if (gone()) return resolve(performance.now());
+        const obs = new MutationObserver(() => {
+          if (gone()) {
+            obs.disconnect();
+            resolve(performance.now());
+          }
+        });
+        obs.observe(document.body, { childList: true, subtree: true });
+      }),
+    `Undo done: ${TITLE}`,
+  );
+  const elapsed = goneAt - clickedAt;
+  test.info().annotations.push({ type: "toast removed after Done (ms)", description: String(Math.round(elapsed)) });
+  expect(elapsed).toBeGreaterThanOrEqual(11_900);
+  expect(elapsed).toBeLessThanOrEqual(12_600);
+  await expect(page.locator("#thread-status")).toBeFocused();
+  await expect(page.getByRole("alert").filter({ hasText: INVALID })).toHaveCount(0);
   const [t] = await thread();
   expect(t).toMatchObject({ status: "resolved", resolution: "done" });
   const types = await eventTypes(t!.id);
