@@ -108,12 +108,15 @@ describe("tester: limits and their copy (SITE_CONTRACT §2.13)", () => {
     expect(uploadFailure({ reason: "file_too_large", sizeMb: 12.34 }).message).toBe("This file is 12.3 MB. The limit is 10 MB.");
   });
 
-  // NON-BLOCKING copy defect: a file just over the limit (10 MB + up to ~50 KB) rounds to "10 MB",
-  // so the user reads "This file is 10 MB. The limit is 10 MB." Safe copy never states a size equal
-  // to the limit as the reason for refusal.
+  // REGRESSION GUARD (fixed in fix/upload-hardening): a file just over the limit used to round to
+  // "10 MB", so the user read "This file is 10 MB. The limit is 10 MB." The stated size is now never
+  // equal to the limit for any refused size.
   it("a file barely over 10 MB never reads 'This file is 10 MB. The limit is 10 MB.'", () => {
     const sizeMb = (10 * 1024 * 1024 + 1) / (1024 * 1024);
-    expect(apiError("file_too_large", { sizeMb }).error.message).not.toBe("This file is 10 MB. The limit is 10 MB.");
+    expect(apiError("file_too_large", { sizeMb }).error.message).toBe("This file is 10.1 MB. The limit is 10 MB.");
+    for (let bytes = 10 * 1024 * 1024 + 1; bytes < 10.2 * 1024 * 1024; bytes += 997) {
+      expect(apiError("file_too_large", { sizeMb: bytes / (1024 * 1024) }).error.message, String(bytes)).not.toMatch(/^This file is 10 MB\./);
+    }
   });
 
   it("text: exactly 30,000 characters is read, 30,001 refused as input_too_long; empty and whitespace-only refused", async () => {
@@ -129,11 +132,49 @@ describe("tester: limits and their copy (SITE_CONTRACT §2.13)", () => {
     expect(await readDocument(utf8("Plain"), "notes.markdown.txt")).toMatchObject({ ok: true, mimeType: "text/plain" });
   });
 
-  // NON-BLOCKING: a Windows-1252 / Latin-1 .txt (common for exported notes) is refused as "not a
-  // PDF, TXT or MD file", which is untrue for the user: it IS a TXT file.
+  // REGRESSION GUARD (fixed in fix/upload-hardening): a Windows-1252 / Latin-1 .txt used to be
+  // refused as "not a PDF, TXT or MD file". It is now decoded as Windows-1252.
   it("a Latin-1 .txt with an accented letter is read, not refused as an unsupported type", async () => {
     const r = await readDocument(Uint8Array.from([0x43, 0x61, 0x66, 0xe9, 0x20, 0x61, 0x74, 0x20, 0x39]), "cafe.txt");
-    expect(r.ok).toBe(true);
+    expect(r).toMatchObject({ ok: true, text: "Café at 9" });
+  });
+
+  // Guards for the Windows-1252 fallback: UTF-16 text and binary never pass as text.
+  const be16 = (s: string) => Uint8Array.from([...s].flatMap((c) => [c.charCodeAt(0) >> 8, c.charCodeAt(0) & 255]));
+  const le16 = (s: string) => Uint8Array.from([...s].flatMap((c) => [c.charCodeAt(0) & 255, c.charCodeAt(0) >> 8]));
+  it.each(["Call Ana tonight", "Café – due Friday", "我们明天下午三点开会", "Привет, встреча завтра", "안녕하세요 내일 회의"])(
+    "UTF-16 '%s' (LE/BE, with and without BOM) stays unsupported_type",
+    async (s) => {
+      for (const b of [le16(s), be16(s), Uint8Array.from([0xff, 0xfe, ...le16(s)]), Uint8Array.from([0xfe, 0xff, ...be16(s)])]) {
+        expect(sniffType(b)).toBe("unknown");
+        expect(await readDocument(b, "notes.txt")).toEqual({ ok: false, reason: "unsupported_type" });
+      }
+    },
+  );
+  it("binary headers (JPEG, gzip, WASM, ICO, Mach-O, SQLite) stay unsupported_type", async () => {
+    for (const b of [
+      [0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10, 0x4a, 0x46, 0x49, 0x46],
+      [0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00],
+      [0x00, 0x61, 0x73, 0x6d, 0x01, 0x00],
+      [0x00, 0x00, 0x01, 0x00, 0x01, 0x00],
+      [0xcf, 0xfa, 0xed, 0xfe, 0x07, 0x00],
+      [...utf8("SQLite format 3"), 0x00, 0x10, 0x00],
+    ]) {
+      expect(await readDocument(Uint8Array.from(b), "x.txt")).toEqual({ ok: false, reason: "unsupported_type" });
+    }
+  });
+
+  // NON-BLOCKING (new in fix/upload-hardening): a UTF-8 file with ONE stray non-UTF-8 byte (a mixed-
+  // encoding export, or a file cut mid-character) now fails strict UTF-8 and is decoded wholesale as
+  // Windows-1252, so every correct accented letter, dash and curly quote becomes mojibake
+  // ("CafÃ©", "itâ€™s"). Extraction then runs and quotes verify against the garbled text, which the
+  // user sees in the Explain card and Why panel. Before the fix the file was refused. Safe: valid
+  // UTF-8 multi-byte sequences are decoded as UTF-8 (e.g. prefer UTF-8 when the bytes contain any
+  // valid multi-byte sequence, or decode with replacement), never re-read as Windows-1252.
+  it.fails("a UTF-8 file with one stray Latin-1 byte keeps its UTF-8 letters (no mojibake)", async () => {
+    const b = Uint8Array.from([...utf8("Café – it’s due Friday. "), 0xe9, ...utf8(" end")]);
+    const r = await readDocument(b, "note.txt");
+    expect(r.ok && r.text.startsWith("Café – it’s due Friday.")).toBe(true);
   });
 });
 
@@ -152,8 +193,8 @@ describe("tester: rule 3 brief-claim filter edges (S7)", () => {
     }
   });
 
-  // NON-BLOCKING (rule 3 gaps; the line is shown under an Interpretation label): figures the
-  // filter does not recognise as a date or amount pass through even though the source lacks them.
+  // REGRESSION GUARDS (fixed in fix/upload-hardening): invented numeric percentages and amounts in
+  // words used to pass the filter; a source date quoted without its year used to be dropped.
   it("an invented percentage is caught", () => {
     expect(unsupportedClaims("That is a 22.5% increase.", SRC)).not.toEqual([]);
   });
@@ -161,9 +202,46 @@ describe("tester: rule 3 brief-claim filter edges (S7)", () => {
     expect(unsupportedClaims("That is fifteen hundred dollars.", SRC)).not.toEqual([]);
   });
 
-  // NON-BLOCKING (over-dropping): the source's own date without its year is treated as invented, so
-  // a correct Interpretation / Not sure about line is lost.
   it("a date the source states, quoted without its year, is kept", () => {
     expect(unsupportedClaims("Whether October 31 is a hard deadline.", SRC)).toEqual([]);
+  });
+
+  it("year-less matching does not let a different day, month, year or time through", () => {
+    for (const line of ["Whether October 3 is a hard deadline.", "Whether October 31, 2027 is a hard deadline.", "Whether Oct 31 at 5pm is a hard deadline.", "Whether 31 October 2025 matters."]) {
+      expect(unsupportedClaims(line, SRC), line).toContain("date");
+    }
+    expect(unsupportedClaims("Due June 1.", "Due June 10, 2026.")).toContain("date");
+    expect(unsupportedClaims("Due June 1.", "Due June 1-3, 2026.")).toContain("date");
+    expect(unsupportedClaims("Call at 5 on June 1.", "Call at 5:30 on June 1, 2026.")).toContain("date");
+  });
+
+  it("percentages and word amounts that ARE in the source are kept; numbers in other forms are dropped (safe)", () => {
+    const src = "Rent rises 4.5 percent. The deposit is two hundred dollars. Late fee: 15%.";
+    expect(unsupportedClaims("A 4.5 percent rise.", src)).toEqual([]);
+    expect(unsupportedClaims("A 15% late fee.", src)).toEqual([]);
+    expect(unsupportedClaims("A deposit of two hundred dollars.", src)).toEqual([]);
+    expect(unsupportedClaims("A 4.5% rise.", src)).toEqual(["amount"]);
+    expect(unsupportedClaims("A 5% late fee.", src)).toEqual(["amount"]);
+    expect(unsupportedClaims("Three hundred dollars is due.", src)).toEqual(["amount"]);
+  });
+
+  // NON-BLOCKING (rule 3 gaps remaining after fix/upload-hardening; lines show under an Interpretation
+  // label). A word amount that is the TAIL of a longer source amount passes, because the phrase
+  // check treats "-" and spaces as word boundaries: "five dollars" is found inside "twenty-five
+  // dollars", "fifty euros" inside "two hundred and fifty euros". A digit-and-scale amount
+  // ("1.5 million dollars") is reduced to "million dollars" by the words pattern, so any figure in
+  // front of a source's "million dollars" passes. A percentage in words is not checked at all.
+  const WORDS_SRC = "The fee is twenty-five dollars. A refund of two hundred and fifty euros. Budget 2.5 million dollars.";
+  it.fails("a smaller word amount that is the tail of the source's amount is caught ('five dollars' vs 'twenty-five dollars')", () => {
+    expect(unsupportedClaims("The fee is about five dollars.", WORDS_SRC)).toEqual(["amount"]);
+  });
+  it.fails("'fifty euros' is caught when the source says 'two hundred and fifty euros'", () => {
+    expect(unsupportedClaims("A refund of fifty euros.", WORDS_SRC)).toEqual(["amount"]);
+  });
+  it.fails("'1.5 million dollars' is caught when the source says '2.5 million dollars'", () => {
+    expect(unsupportedClaims("A budget of 1.5 million dollars.", WORDS_SRC)).toEqual(["amount"]);
+  });
+  it.fails("an invented percentage in words ('twenty percent') is caught", () => {
+    expect(unsupportedClaims("A twenty percent rise.", WORDS_SRC)).toEqual(["amount"]);
   });
 });

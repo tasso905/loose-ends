@@ -379,7 +379,12 @@ describe.skipIf(!env)("real local Supabase: RLS, rate limit, deletion", () => {
     const r = await F.client.rpc("forget_thread", { p_thread_id: g.thread, p_delete_source: true });
     expect(r.error).toBeNull();
     expect((r.data as { storage_path: string }).storage_path).toBe(g.path);
-    expect((await F.client.storage.from("sources").remove([g.path])).error).toBeNull();
+    // remove() reports no error even when a policy refuses the delete, so check the object is gone
+    // (the fix/upload-hardening ownership policy must allow it once forget has deleted the row).
+    const rm = await F.client.storage.from("sources").remove([g.path]);
+    expect(rm.error).toBeNull();
+    expect((rm.data ?? []).map((o) => o.name)).toEqual([g.path]);
+    expect((await admin.storage.from("sources").download(g.path)).error).not.toBeNull();
     const rows = await allRows(F.id);
     expect(tablesWithToken(rows)).toEqual([]);
     expect(rows.threads).toEqual([]);
