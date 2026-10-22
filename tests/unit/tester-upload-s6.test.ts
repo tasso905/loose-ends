@@ -176,20 +176,36 @@ describe("tester: limits and their copy (SITE_CONTRACT §2.13)", () => {
   const cp1252 = (s: string) =>
     Uint8Array.from([...s].map((c) => ({ "’": 0x92, "–": 0x96, "—": 0x97, "€": 0x80, "“": 0x93, "”": 0x94 })[c] ?? c.charCodeAt(0)));
 
+  it("random 64-byte buffers are never taken as text (10,000 samples)", () => {
+    let accepted = 0;
+    for (let i = 0; i < 10_000; i++) {
+      const b = new Uint8Array(64);
+      for (let j = 0; j < 64; j++) b[j] = Math.floor(Math.random() * 256);
+      if (sniffType(b) !== "unknown") accepted++;
+    }
+    expect(accepted).toBe(0);
+  });
+
+  // NON-BLOCKING (round 2 trade-off, recorded): a short or accent-dense UTF-8 file with 2+ stray
+  // bytes is now refused as "can read PDF, TXT and MD files" (untrue: it is a TXT file). Refusal is
+  // the safe side; no garbled text reaches extraction.
+  it("short or accent-dense UTF-8 with a couple of stray bytes is refused, not garbled", async () => {
+    const short = Uint8Array.from([...utf8("Café "), 0xe9]);
+    const dense = Uint8Array.from([...utf8("Café – it’s due Friday. Naïve résumé. ".repeat(3)), 0xe9, 0x20, 0xe8]);
+    for (const b of [short, dense]) expect(await readDocument(b, "x.txt")).toEqual({ ok: false, reason: "unsupported_type" });
+  });
+
   it("pure Windows-1252 prose with no accidental UTF-8 pair is still decoded as Windows-1252", async () => {
     for (const s of ["GRÜßE – bis Freitag. Straße, Größe.", "Café at 9 – Ana’s note", "Señor Núñez paga 20 € mañana."]) {
       expect(await readDocument(cp1252(s), "x.txt"), s).toMatchObject({ ok: true, text: s });
     }
   });
 
-  // NON-BLOCKING (new in fix/upload-followups; wider than the developer's stated "literal Ã©" risk):
-  // ONE accidental well-formed UTF-8 pair switches a whole Windows-1252 file to UTF-8, and every
-  // other accented letter becomes U+FFFD. The pair arises naturally when an accented capital
-  // (Â–ß, 0xC2–0xDF) is followed by a byte in 0x80–0xBF: NBSP before ":" in French typography
-  // ("RÉSUMÉ :"), a curly quote or dash ("CAFÉ’S", "ALLÍ”", "ÉTÉ –"), «», ©, °. Before this
-  // branch these files were read correctly. Safe: prefer UTF-8 only when its valid multi-byte
-  // sequences clearly outnumber the invalid bytes (a UTF-8 file with a stray byte has many valid
-  // sequences and one invalid byte; a 1252 file has the reverse).
+  // REGRESSION GUARD (fixed in fix/upload-followups round 2, mostlyUtf8): one accidental well-formed
+  // UTF-8 pair (an accented capital 0xC2–0xDF followed by NBSP, a curly quote, a dash, «», ©, °)
+  // used to switch a whole Windows-1252 file to UTF-8, turning every other accent into U+FFFD.
+  // UTF-8 is now chosen only when valid sequences are at least 2x the stray bytes and strays are
+  // at most max(1, 1%) of the file.
   it.each([
     "RÉSUMÉ : rendez-vous à 9h, réunion déplacée.",
     "CAFÉ’S menu: crème brûlée, déjà vu.",
@@ -290,22 +306,38 @@ describe("tester: rule 3 brief-claim filter edges (S7)", () => {
     for (const [line, src] of drop) expect(unsupportedClaims(line, src), `${line} | ${src}`).toEqual(["amount"]);
   });
 
-  // REGRESSION (new in fix/upload-followups; rule 3): WORDS_AMOUNT gained the lookbehind
-  // `(?<!\p{N}[.,\s]*)` so "2.5 million dollars" is not read as "million dollars". It also skips ANY
-  // word amount that follows a digit and then spaces or "." / ",", so an invented word amount after
-  // a year, page or list number is never checked. All three lines were dropped on fix/upload-
-  // hardening. Safe: only a figure directly before the scale word is excluded, e.g. `(?<!\p{N}\s?)`.
+  // REGRESSION GUARDS (fixed in fix/upload-followups round 2, edd1282): with the lookbehind
+  // `(?<!\p{N}[.,\s]*)` a word amount after a number and "," / "." was never checked, and the
+  // source's own word amount after "Oct 5," was not collected.
   it.each([
     "By 2027, fifty dollars more.",
     "Page 3. Twenty dollars is due.",
     "The fee rose 5, twenty dollars total.",
-  ])("an invented word amount after a number is caught: '%s'", (line) => {
+    "On the 5th fifty dollars.",
+  ])("an invented word amount after a number and punctuation is caught: '%s'", (line) => {
     expect(unsupportedClaims(line, "The fee is ten dollars.")).toEqual(["amount"]);
   });
-
-  // Same lookbehind on the source side (over-drop): the source's own word amount after "Oct 5," is
-  // not collected, so a correct line repeating it is dropped. It was kept on fix/upload-hardening.
-  it("a word amount the source states after a date is supported", () => {
+  it("a word amount the source states after a date and comma is supported", () => {
     expect(unsupportedClaims("Pay two hundred dollars.", "On Oct 5, two hundred dollars was paid.")).toEqual([]);
+  });
+
+  // REGRESSION (still open after edd1282; rule 3): the lookbehind is now `(?<!\p{N}\s?)`. It still
+  // skips a word amount right after a digit and one space, and AMOUNT has no "hundred" scale, so a
+  // figure-plus-"hundred" amount is checked by neither pattern. Every one of these lines was dropped
+  // on fix/upload-hardening ("3 hundred dollars" was caught there). Safe: blank the AMOUNT spans
+  // first (and give AMOUNT a "hundred" scale), then match word amounts with no lookbehind.
+  it.each([
+    "In 2027 fifty dollars more.",
+    "Room 12 twenty dollars.",
+    "Gate 7 fifty euros.",
+    "Up 5 twenty percent.",
+    "3 hundred dollars.",
+    "15 hundred dollars is due.",
+  ])("an invented amount right after a digit and a space is caught: '%s'", (line) => {
+    expect(unsupportedClaims(line, "The fee is ten dollars.")).toEqual(["amount"]);
+  });
+  // Same gap on the source side (over-drop): the source's word amount after "Oct 5 " is not collected.
+  it("a word amount the source states right after a date (no comma) is supported", () => {
+    expect(unsupportedClaims("Pay two hundred dollars.", "On Oct 5 two hundred dollars was paid.")).toEqual([]);
   });
 });

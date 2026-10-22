@@ -191,12 +191,9 @@ describe("T-D2 follow-ups: regression guards (fixed in fix/upload-followups)", (
   });
 });
 
-describe("T-D2 follow-up risks (non-blocking)", () => {
-  // RISK (new in fix/upload-followups; needs a product call): "tonight at 09:00" is 9:00 AM the NEXT
-  // day with no AM/PM line, about 12 hours after "tonight". "tonight at 10:00" and "11:00" (not
-  // zero-padded) are 10 PM / 11 PM tonight, so one digit of padding moves the time by 12 hours and
-  // a day. On fix/upload-hardening "tonight at 09:00" was 9 PM. Safe (tester recommendation): a
-  // zero-padded 05:00–11:59 after "tonight" keeps a reading but always gets the AM/PM line;
+describe("T-D2 follow-ups round 2: regression guards (edd1282)", () => {
+  // Was a RISK: "tonight at 09:00" was 9:00 AM the next day with no AM/PM line. A zero-padded
+  // 05:00–11:59 after "tonight" now keeps the morning reading, inferred, WITH the AM/PM line;
   // 00:00–04:59 stays the small hours with no line.
   it.each(["tonight at 09:00", "tonight at 07:30", "tonight at 05:00"])("'%s' is never a silent morning reading", (t) => {
     const x = r(t);
@@ -204,8 +201,26 @@ describe("T-D2 follow-up risks (non-blocking)", () => {
     expect(morning && !ampmLine(x)).toBe(false);
   });
 
-  // Pre-existing (also on main): "tonight at noon" is read as midnight with an AM/PM line.
+  // Was pre-existing on main: "tonight at noon" read as midnight with an AM/PM line.
   it("'tonight at noon' is noon, not midnight", () => {
     expect(local(r("tonight at noon").due_at)).toBe("2026-10-05, 12:00");
+    expect(ampmLine(r("tonight at noon"))).toBe(false);
+    expect(local(r("Friday night at noon").due_at)).toBe("2026-10-09, 12:00");
+    expect(local(r("noon tonight").due_at)).toBe("2026-10-05, 12:00");
+  });
+
+  it.each([
+    ["tonight at 09:00", "2026-10-06, 09:00", true],
+    ["tonight at 05:00", "2026-10-06, 05:00", true],
+    ["tonight at 04:59", "2026-10-06, 04:59", false],
+    ["tonight at 00:30", "2026-10-06, 00:30", false],
+    ["tonight at 10:00", "2026-10-05, 22:00", false],
+    ["tonight at 1", "2026-10-06, 01:00", true],
+    ["tonight at 5", "2026-10-05, 17:00", false],
+  ] as const)("'%s' → %s (AM/PM line: %s)", (t, at, line) => {
+    const x = r(t);
+    expect(local(x.due_at)).toBe(at);
+    expect(x.due_certainty).toBe("inferred");
+    expect(ampmLine(x)).toBe(line);
   });
 });

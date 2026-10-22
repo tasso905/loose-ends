@@ -256,7 +256,7 @@ describe("transition(): invariants", () => {
     ["open", { type: "mark_waiting", waitingOn: "Legal" }],
     ["open", { type: "snooze", until: "2026-10-07T13:00:00.000Z" }],
     ["open", { type: "done" }],
-    ["open", { type: "resolve", resolution: "decided" }],
+    ["open", { type: "resolve", resolution: "decided", decision: { choice: "Renew", reason: null } }], // S8 fix: Decided needs a decision (lead developer)
     ["open", { type: "dismiss" }],
     ["waiting", { type: "done" }],
     ["waiting", { type: "back_to_me" }],

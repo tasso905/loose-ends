@@ -199,15 +199,29 @@ describe("transition(): row rules", () => {
   it("Done is not available on decision threads (D6); Resolve… is", () => {
     const t = thread("open", { kind: "decision" });
     expect(transition(t, { type: "done" }, { now: NOW }).ok).toBe(false);
-    const r = transition(t, { type: "resolve", resolution: "decided" }, { now: NOW });
+    const r = transition(t, { type: "resolve", resolution: "decided", decision: { choice: "Renew", reason: null } }, { now: NOW });
     expect(r.ok && r.thread?.resolution).toBe("decided");
   });
 
   it("Resolve accepts done, decided and not_needed", () => {
     for (const resolution of ["done", "decided", "not_needed"] as const) {
-      const r = transition(thread("open"), { type: "resolve", resolution }, { now: NOW });
+      const decision = resolution === "decided" ? { choice: "Renew", reason: null } : undefined;
+      const r = transition(thread("open"), { type: "resolve", resolution, decision }, { now: NOW });
       expect(r.ok && r.thread?.resolution).toBe(resolution);
     }
+  });
+
+  it("Decided without a decision, or a decision with Done / Not needed, is refused (as thread_resolve() refuses it)", () => {
+    expect(transition(thread("open"), { type: "resolve", resolution: "decided" }, { now: NOW })).toMatchObject({ ok: false, error: { code: "invalid_transition" } });
+    expect(transition(thread("open"), { type: "resolve", resolution: "done", decision: { choice: "x", reason: null } }, { now: NOW }).ok).toBe(false);
+  });
+
+  it("a decision of only zero-width or no-break spaces is blank, as private.is_blank() sees it", () => {
+    for (const choice of ["\u200b\u200b", "\u00a0 \ufeff", "\u3000"]) {
+      expect(transition(thread("open"), { type: "resolve", resolution: "decided", decision: { choice, reason: null } }, { now: NOW }).ok).toBe(false);
+    }
+    const r = transition(thread("open"), { type: "resolve", resolution: "decided", decision: { choice: "Renew", reason: "\u200b " } }, { now: NOW });
+    expect(r.ok && r.effects).toContainEqual({ type: "write_decision", choice: "Renew", reason: null });
   });
 
   it("F11: Decided with a decision writes it as typed; Skip (no reason) and a blank reason write none", () => {

@@ -6,7 +6,7 @@ Loose Ends turns messages and documents the user pastes in into a short list of 
 
 Read the relevant document before changing behaviour, copy or visuals. When they conflict, the order below wins, and the conflict is raised with the lead-program-manager agent rather than resolved silently.
 
-1. `docs/PRD.md` (v1.1) — product, scope, schema, API, AI behaviour. Its **Decisions Log (D1–D52)** overrides older text anywhere. Entries marked *Proposed* take effect only after the user confirms them.
+1. `docs/PRD.md` (v1.1) — product, scope, schema, API, AI behaviour. Its **Decisions Log (D1–D53)** overrides older text anywhere. Entries marked *Proposed* take effect only after the user confirms them.
 2. `docs/SITE_CONTRACT.md` (v1.1) — pages, routes, states, error copy, behaviour.
 3. `docs/CONTENT_MODEL.md` (v1.1) — fields, constraints, user-facing glossary.
 4. `docs/DESIGN_STANDARD.md` — visual standard: tokens, type, spacing, components, motion, microcopy.
@@ -103,14 +103,14 @@ Three project subagents live in `.claude/agents/`. Delegate to them by name ("us
 
 | Gate | Date | Exit criteria |
 | --- | --- | --- |
-| Core-loop checkpoint (replaces day 14) | Thu Oct 23 | In production: magic link → paste → review → accept → thread → Done. Text-layer PDF → Explain card; scanned PDF shows the unsupported message. Quote, date, band and `transition()` unit tests pass. RLS test passes. `pnpm eval` runs on ≥ 20 fixtures |
-| Feature freeze (was Oct 22) | Sun Oct 26 | Resolve + Ask why work, including the zero-match path. Today ranks and caps at 5. Why panel renders from stored fields. Forget, source deletion, account deletion and export are verified by tests. Demo mode and seed are ready. Rate limit and budget cap are on. Cuts are recorded. Fixes only after this |
-| Eval gate (was Oct 27) | Tue Oct 28 | 40-fixture eval passes thresholds; Ask-why 0 fabrications; axe checks pass; E2E demo flow passes; scorecard generated |
-| Submission | Fri Oct 31 | README, ARCHITECTURE, AI_BEHAVIOR, PRIVACY, CONTRIBUTING, LICENSE merged; privacy copy check passes; 5 rehearsals under 2:30; video recorded. Target send Oct 30 |
+| Core-loop checkpoint (replaces day 14) | Fri Oct 23 | In production: magic link → paste → review → accept → thread → Done. Text-layer PDF → Explain card; scanned PDF shows the unsupported message. Quote, date, band and `transition()` unit tests pass. RLS test passes. `pnpm eval` runs on ≥ 20 fixtures |
+| Feature freeze (was Oct 22) | Mon Oct 26 | Resolve + Ask why work, including the zero-match path. Today ranks and caps at 5. Why panel renders from stored fields. Forget, source deletion, account deletion and export are verified by tests. Demo mode and seed are ready. Rate limit and budget cap are on. Cuts are recorded. Fixes only after this |
+| Eval gate (was Oct 27) | Wed Oct 28 | 40-fixture eval passes thresholds; Ask-why 0 fabrications; axe checks pass; E2E demo flow passes; scorecard generated |
+| Submission | Sat Oct 31 | README, ARCHITECTURE, AI_BEHAVIOR, PRIVACY, CONTRIBUTING, LICENSE merged; privacy copy check passes; 5 rehearsals under 2:30; video recorded. Target send Oct 30 |
 
 **Cuts applied: none yet.** The user overrode the day-14 rule on Oct 18 (D24; D16 suspended), so F14–F18 stay in scope. The proposed cuts DOCX (D17), Explain card "Worth considering" (D18) and the MUST trims (D20: "Which of these is you?", "Still relevant?") are deferred, not decided. Google sign-in (D20(a)) is settled by D41: kept behind a flag and switched on only if the user's OAuth setup and a manual check pass by Oct 24; otherwise email link only. A SHOULD feature's UI stays hidden and unclaimed (including redaction) until the lead-tester verifies it.
 
-**Scope review: Sat Oct 25 (day 24, D25).** The user decides cuts from one week of progress, applying the cut order and never-cut list below unchanged. The same review decides D17, D18 and D20(b)–(c), records the Google outcome (D41) and may reconsider the Oct 26 freeze date (confirmed Oct 21, D45), which falls the next day.
+**Scope review: Sun Oct 25 (day 24, D25).** The user decides cuts from one week of progress, applying the cut order and never-cut list below unchanged. The same review decides D17, D18 and D20(b)–(c), records the Google outcome (D41) and may reconsider the Mon Oct 26 freeze date (confirmed Oct 21, D45), which falls the next day. Weekday labels were corrected on Oct 22 (D53): the review is a Sunday and the freeze a Monday; the dates are unchanged.
 
 **Build order (D26):** MUST and never-cut work first. Then SHOULD work in reverse cut order: "Worth considering" → DOCX → F14 dedupe → F17 toggles → F15 digest → F16 forwarding last. F18 redaction goes in with the F5 pipeline work where it fits. SHOULD work never displaces a MUST block.
 
