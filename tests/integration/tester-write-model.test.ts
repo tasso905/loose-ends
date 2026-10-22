@@ -31,7 +31,7 @@ const WRITERS = [
 /** Read-only public functions `authenticated` may execute (invoker, RLS applies). */
 const READERS = ["extraction_context"];
 
-const TRUST_TABLES = ["extractions", "extraction_items", "evidence", "threads", "thread_events", "suppressions"];
+const TRUST_TABLES = ["extractions", "extraction_items", "evidence", "threads", "thread_events", "suppressions", "decisions"];
 
 let db: PGlite;
 type Fn = { name: string; definer: boolean; config: string[] | null; auth: boolean; anon: boolean; pub: boolean; src: string };
@@ -52,7 +52,7 @@ beforeAll(async () => {
 });
 
 describe("tester: write-model catalog audit", () => {
-  it("the functions authenticated can execute are exactly the 14 writers plus the read-only extraction_context", () => {
+  it("the functions authenticated can execute are exactly the 15 writers plus the read-only extraction_context", () => {
     expect(fns.filter((f) => f.auth).map((f) => f.name).sort()).toEqual([...WRITERS, ...READERS].sort());
   });
 
@@ -92,10 +92,18 @@ describe("tester: write-model catalog audit", () => {
     }
   });
 
-  // Skipped by the lead developer in S8 (feat/s8-resolve): decisions is no longer directly writable
-  // (migration 20261022130327; the live RISK pin is flipped). This test asserted the flagged state.
-  it.skip("decisions is still directly writable by authenticated (FLAGGED: Resolve not built; see the live RISK pin)", async () => {
-    const { rows } = await db.query<{ ok: boolean }>(`select has_table_privilege('authenticated', 'public.decisions', 'UPDATE') as ok`);
-    expect(rows[0]!.ok).toBe(true);
+  // REGRESSION GUARD (S8, migration 20261022130327): decisions joined the write model. It used to be
+  // FOR ALL (the owner could insert, rewrite or delete a decision). Now: one SELECT-only own-row
+  // policy, and the only writer is thread_resolve (plus thread_undo's delete through its private body).
+  it("decisions: one SELECT-only own-row policy; thread_resolve is the only public function that inserts it", async () => {
+    const { rows } = await db.query<{ polname: string; cmd: string; roles: string[]; qual: string }>(
+      `select polname, polcmd::text as cmd, array(select rolname from pg_roles r where r.oid = any(polroles))::text[] as roles,
+              pg_get_expr(polqual, polrelid) as qual
+       from pg_policy where polrelid = 'public.decisions'::regclass`,
+    );
+    expect(rows.map((r) => [r.polname, r.cmd, r.roles])).toEqual([["decisions_select_own", "r", ["authenticated"]]]);
+    expect(rows[0]!.qual).toMatch(/user_id = \( SELECT auth\.uid\(\)/);
+    const inserters = fns.filter((f) => f.auth && /insert\s+into\s+public\.decisions/i.test(f.src)).map((f) => f.name);
+    expect(inserters).toEqual(["thread_resolve"]);
   });
 });
