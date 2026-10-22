@@ -33,6 +33,13 @@ export default defineConfig({
       // Pinned to the shipping configuration (D41) so E2E does not depend on .env.local. Rendering the
       // button needs no Google credentials; the test intercepts the authorize request.
       NEXT_PUBLIC_AUTH_GOOGLE_ENABLED: "true",
+      // Analytics shipped (D46): the notice and /settings need ANALYTICS_ENABLED and a key. The key is
+      // a placeholder and the host an unreachable local port, so no event ever reaches PostHog
+      // (a failed capture is logged by class name and never affects the request). LE_S1_GATE_ON=0
+      // starts the server without them, for tester-settings-s1's gate-off checks.
+      ...(process.env.LE_S1_GATE_ON === "0"
+        ? {}
+        : { ANALYTICS_ENABLED: "true", POSTHOG_KEY: "phc_e2e_placeholder", POSTHOG_HOST: "http://127.0.0.1:9" }),
     },
   },
 });

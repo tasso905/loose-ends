@@ -15,7 +15,7 @@ export function AuthNotices({ analytics = false }: { analytics?: boolean }) {
       {analytics && isAnalyticsEnabled() ? (
         <InfoNotice>
           {C.analyticsNotice}{" "}
-          <Link href="/settings#profile" className="focus-ring rounded-control text-le-accent underline underline-offset-3">
+          <Link href="/settings#profile" className="focus-ring rounded-control text-le-accent underline underline-offset-3 max-md:inline-flex max-md:min-h-11 max-md:items-center">
             {C.analyticsOptOut}
           </Link>
         </InfoNotice>
