@@ -100,6 +100,7 @@ test("unpaused: the toast closes at 8 s (countdown still applies inside the hard
   await page.mouse.move(0, 0);
   await expect.poll(goneAt, { timeout: 14_000 }).not.toBeNull();
   const elapsed = (await goneAt())! - at;
+  test.info().annotations.push({ type: "toast removed after Done (ms)", description: String(Math.round(elapsed)) });
   expect(elapsed, `closed ${Math.round(elapsed)} ms after Done`).toBeGreaterThan(7_900);
   expect(elapsed, `closed ${Math.round(elapsed)} ms after Done`).toBeLessThan(9_500);
 });
@@ -118,6 +119,7 @@ test("hover-paused: the toast closes 12 s after the Done click (not later), focu
   await expect(undo).toBeVisible(); // paused past 8 s
   await expect.poll(goneAt, { timeout: 5_000 }).not.toBeNull();
   const elapsed = (await goneAt())! - at;
+  test.info().annotations.push({ type: "toast removed after Done (ms)", description: String(Math.round(elapsed)) });
   expect(elapsed, `closed ${Math.round(elapsed)} ms after Done`).toBeGreaterThan(11_900);
   expect(elapsed, `closed ${Math.round(elapsed)} ms after Done`).toBeLessThan(12_600);
   expect(await page.evaluate(() => document.activeElement?.tagName)).not.toBe("BODY");
@@ -136,6 +138,7 @@ test("focus-paused: closes at 12 s; focus moves to the status line; no error ban
   await undo.focus();
   await expect.poll(goneAt, { timeout: 14_000 }).not.toBeNull();
   const elapsed = (await goneAt())! - at;
+  test.info().annotations.push({ type: "toast removed after Done (ms)", description: String(Math.round(elapsed)) });
   expect(elapsed, `closed ${Math.round(elapsed)} ms after Done`).toBeGreaterThan(11_900);
   expect(elapsed, `closed ${Math.round(elapsed)} ms after Done`).toBeLessThan(12_600);
   await expect(page.locator("#thread-status")).toBeFocused();

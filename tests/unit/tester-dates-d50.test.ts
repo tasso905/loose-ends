@@ -196,3 +196,46 @@ describe("observed (pre-existing on fix/core-loop-followups, reported, not intro
   // Recall: "12 noon" gives no date.
   it("'Friday at 12 noon' currently gives no date", () => noDate("Friday at 12 noon"));
 });
+
+describe("round 3 (bb20ada): parts of the day (REGRESSION GUARDS)", () => {
+  // Written Mon Oct 5 (EDT, UTC-4). The part of the day states AM/PM: no PM default, no AM/PM line.
+  it.each([
+    ["this evening at 11", "2026-10-05T23:00"],
+    ["tonight at 11", "2026-10-05T23:00"],
+    ["Saturday morning at 11:30", "2026-10-10T11:30"],
+    ["Saturday morning at 1", "2026-10-10T01:00"],
+    ["tomorrow evening at 6", "2026-10-06T18:00"],
+    ["Friday night at 9", "2026-10-09T21:00"],
+    ["Friday night at 11", "2026-10-09T23:00"],
+    ["this afternoon at 1", "2026-10-05T13:00"],
+  ])("%s → %s local, no AM/PM line", (t, local) => {
+    const x = r(t);
+    expect(x.due_at).toBe(new Date(`${local}:00-04:00`).toISOString());
+    expect(hasAmPmLine(x)).toBe(false);
+  });
+  it.each(["early morning Friday", "Friday early morning", "at 2 at night", "overnight Friday", "Friday at 5 (night shift)"])("%s → no date (safe)", (t) => noDate(t));
+  it("the AM/PM line still appears when no part of the day is stated ('tomorrow at 5')", () => expect(hasAmPmLine(r("tomorrow at 5"))).toBe(true));
+});
+
+describe("OPEN DEFECT T-D2 (pre-existing, not introduced by this branch): night + a small hour becomes the afternoon", () => {
+  // chrono adds 12 to every hour after "night"/"tonight", so "tonight at 1" is read as 1 PM, which
+  // contradicts "tonight". STATED_MERIDIEM (correctly) treats "night" as stating the meridiem, so no
+  // AM/PM line is shown either, and chrono wins over the model (rule 3): a model that says Tue 1:00 AM
+  // is overridden by Mon 1:00 PM. Already the case before 2e4686f (chrono's hour 13 was > 12, so it was
+  // never "guessed"). Required: never an hour from 12 to 5 PM for night/tonight without a "Not sure
+  // about" line; either the small-hours reading (next day, AM) or no clock time.
+  const localHour = (iso: string | null) =>
+    iso ? Number(new Date(iso).toLocaleString("en-US", { timeZone: "America/New_York", hour: "numeric", hourCycle: "h23" })) : null;
+  it.fails.each(["tonight at 1", "tonight at 2:30", "tonight at 12", "Friday night at 2", "tomorrow night at 3"])(
+    "DEFECT: %s is never read as an afternoon time without a 'Not sure about' line",
+    (t) => {
+      const x = r(t);
+      const h = localHour(x.due_at);
+      const afternoon = h !== null && h >= 12 && h <= 17;
+      expect(afternoon && !hasAmPmLine(x), `${t} → ${x.due_at} ${JSON.stringify(x.not_sure)}`).toBe(false);
+    },
+  );
+  it.fails("DEFECT: a model saying Tue 1:00 AM for 'tonight at 1' is not overridden by Mon 1:00 PM", () => {
+    expect(r("tonight at 1", "2026-10-06T01:00:00").due_at).not.toBe("2026-10-05T17:00:00.000Z");
+  });
+});
