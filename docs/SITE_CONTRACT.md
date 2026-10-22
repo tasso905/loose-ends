@@ -52,7 +52,7 @@
 
 **Signed-out access (D38):** a signed-out visit to any Signed in route redirects to `/sign-in?next={path}`, where the path includes its query string. After sign-in, `/auth/callback` sends the user to `next`. On first sign-in, onboarding comes first and then `next`. Only same-site relative paths are honoured as `next`; anything else falls back to `/today`.
 
-Unknown or other users' IDs render a plain not-found page (`This thread doesn't exist or was deleted.`) with a link to Today; never reveal whether another user's record exists.
+Unknown or other users' IDs render a plain not-found page with the link `Go to Today`; never reveal whether another user's record exists. Thread pages read `This thread doesn't exist or was deleted.`; other records (for example `/review/[extractionId]`) read `This doesn't exist or was deleted.` (D47).
 
 ## 2. Content Inventory
 
@@ -70,7 +70,7 @@ Field-level content, constraints and copy are defined in the content model v1.1;
 | `Continue with Google` | Identity scopes only (`openid email profile`). Conditional (D41): rendered whenever `NEXT_PUBLIC_AUTH_GOOGLE_ENABLED=true`; set that flag only where the Supabase Google provider is enabled (the release checklist enables both). It ships on only if the Google OAuth setup and a manual check pass by Oct 24; otherwise it stays hidden and the email link is the only sign-in method. If it does not ship, this row, the divider row and `oauth_failed` (§2.13) are removed at the Oct 25 scope review |
 | No JavaScript | `Signing in needs JavaScript. Turn it on in your browser, then reload this page.` (D39) |
 | Aliases question | `What name and emails do people use for you?` Field label `Names and emails`. Hint `Separate them with commas. I use these to tell which tasks are yours.` Below it, `Your sign-in email, {email}, is always included.` Actions `Save` and `Skip`. Skippable; signed-in email always saved as alias. At most 20 names and emails, each up to 100 characters (D40). Field errors per §2.13 (D39) |
-| Notices | "Don't paste passwords or full account numbers.", shown on the sign-in page and in onboarding. Analytics notice with opt-out link, shown in onboarding. It ships with the first PostHog event and stays hidden until then (D40, rule 9). Proposed wording (*Proposed*, the user approves it when it ships): `Loose Ends counts which features you use. Analytics never include what you paste.` with the opt-out link `Turn off analytics` |
+| Notices | "Don't paste passwords or full account numbers.", shown on the sign-in page and in onboarding. Analytics notice with opt-out link, shown in onboarding. It ships with the first PostHog event and stays hidden until then (D40, rule 9). Approved wording (D46, Oct 21): `Loose Ends counts which features you use. Analytics never include what you paste.` with the opt-out link `Turn off analytics` |
 
 ### 2.1 App shell and navigation
 
@@ -86,11 +86,12 @@ Field-level content, constraints and copy are defined in the content model v1.1;
 
 | Field | Constraints |
 |---|---|
+| Page heading | `Drop something in` (D47). The global button stays `Add` (D1) |
 | Mode tabs | `Paste`, `Upload`, `Quick add` |
-| Text input | Max 30,000 characters; counter visible from 27,000; over-limit blocks submit with the error copy |
+| Text input | Label `Paste a message or document`, hint `Up to 30,000 characters.` (D47). Max 30,000 characters; counter visible from 27,000; over-limit blocks submit with the error copy; empty submit shows `Paste some text first.` (§2.13) |
 | File drop area | PDF, TXT, MD, DOCX; ≤ 10 MB; ≤ 30 pages; one file; type sniffed, not taken from extension |
-| Source title | Optional; max 120 characters |
-| Written-on date | Optional, collapsed under `When was this written?`; defaults to today with an `Assumed` label |
+| Source title | Optional, collapsed under `Add a title`; field label `Title (optional)` (D47); max 120 characters |
+| Written-on date | Optional, collapsed under `When was this written?`; defaults to today with an `Assumed` label. Field label: `I assumed this was written today. Change it if it wasn't.` until the user sets a date, then `Written on` (D47). Dates outside 1900–2100 show the §2.13 field error |
 | Quick-add field | Single line; max 2,000 characters; placeholder `e.g. Send Mike the proposal Friday` |
 | Submit | `Review source` (paste/upload) or `Add` (quick add); disabled while invalid or submitting |
 | AI provider notice (D42) | Conditional on Question #12 (PRD, due Oct 22). If the deployment uses the Gemini free tier: a plain-words notice on all three modes, visible before submit, saying the text is sent to Google, which may use it to improve its products, and that people at Google may read it. Wording pending user approval. If billing is enabled: no notice required here; Settings → Data and PRIVACY.md name Google as the AI provider |
@@ -102,7 +103,7 @@ Field-level content, constraints and copy are defined in the content model v1.1;
 | Progress steps | `Reading…`, `Finding commitments…`, `Checking dates…`, shown only as the server reports each step |
 | Slow state | After 45 s: `Still working. I'll show results here.` (D40); the page polls and can be left and revisited |
 | Success | Transitions straight into the Review Tray heading `I found N things in this` |
-| Failure | Error copy from §2.13; source is kept; `Try again` and `Back to Add` |
+| Failure | Error copy from §2.13; source is kept; `Try again` and `Back to Add`. `Try again` is offered for at most 3 retries per source; after that it is hidden and `Back to Add` stays (D48) |
 
 ### 2.4 Review Tray
 
@@ -112,8 +113,9 @@ Field-level content, constraints and copy are defined in the content model v1.1;
 | Proposal card | Title, loop type, suggested next action (`Suggested`), counterparty, due date (+ `Assumed`), confidence label with reason, evidence quote |
 | Inline edit | Title, loop type, date, counterparty; edited fields lose the `Suggested` label |
 | Clarification | Inline above the groups; `Which of these is you?` + participant buttons + `None of them`; then `Remember "{name}" as you?` |
-| Tray actions | `Accept selected`, `Reject all`; per-card `Reject` with inline `Rejected · Undo` |
-| Result | `N threads added · View in Today` |
+| Tray actions | `Accept selected`, `Reject all`; per-card `Reject` with inline `Rejected · Undo`. With nothing checked, `Accept selected` is disabled with the reason `Nothing selected.` (D47) |
+| Waiting-on with no counterparty | The card's checkbox is disabled with the reason `I can't tell who this is waiting on, so it can't be added yet.` (D47) |
+| Result | `N threads added · View in Today`; singular `1 thread added` (D47) |
 | Zero state | `Nothing here needs your attention` + document brief if present |
 
 ### 2.5 Today
@@ -142,9 +144,11 @@ Field-level content, constraints and copy are defined in the content model v1.1;
 |---|---|
 | Header | Title (editable), status, loop type, due chip, next action, confidence label |
 | Explain card | Six sections for document sources; two for quick add; source lines with quote icon, interpretation lines labelled |
-| Evidence | Quote, source, page/date, `Open source`, `Why?` |
-| History | Append-only timeline; corrections phrased `You changed …` |
+| Section headings | `Next action`, `Evidence`, `History` (D47) |
+| Evidence | Quote, source, page/date, `Open source`, `Why?`. If the source was deleted, the source line reads `Source deleted` (D47) |
+| History | Append-only timeline; corrections phrased `You changed …`. Event lines (D47): `You accepted this from your source.`, `Added from quick add.`, `You marked this done.` / `Loose Ends marked this done.`, `You resolved this.` / `Loose Ends resolved this.`, `You undid the last change.`, `You reopened this.`, `You snoozed this.`, `You edited this.`, `Status changed to {status}.`; fallback `Updated.` |
 | Decision | Shown when resolution is Decided |
+| Interim Resolve… | Until F11 ships, `Resolve…` is disabled with the reason `Resolving with a decision isn't available yet.` (D47) |
 | Actions | `Done` (not for decision threads), `Resolve…`, `Mark waiting`, `Snooze`, `Edit`, `Dismiss`, `Reopen` (closed threads only), `Forget permanently…`; desktop shows the first three as buttons and the rest in an overflow menu labelled `More actions` |
 | Mark waiting form | `Waiting on` (required, prefilled with counterparty), `Expected by` (optional date) |
 | Snooze menu | `Tomorrow, 9:00`, `Next Monday, 9:00`, `Pick a date…` (D11) |
@@ -190,7 +194,7 @@ Field-level content, constraints and copy are defined in the content model v1.1;
 
 | Field | Constraints |
 |---|---|
-| Profile | Display name, aliases (add/remove), timezone (IANA select), analytics toggle (ships with the first PostHog event, hidden until then; D40) |
+| Profile | Section heading `Profile`. Display name, aliases (add/remove), timezone (IANA select), analytics toggle labelled `Analytics`, described by the notice sentence `Loose Ends counts which features you use. Analytics never include what you paste.` (ships with the first PostHog event, hidden until then; D40, D46). If settings fail to load: `Settings didn't load. Try again.` + `Try again` (D46) |
 | Data | Retention toggle; sources list with two delete options; `Export data (JSON)`; `Delete account…` (D14) |
 | Privacy explanation | Matches PRIVACY.md. Names Google (Gemini API) as the AI provider and, if the free tier is used, says Google may use pasted text and Ask-why context to improve its products and people may read it (D42) |
 | SHOULD fields | Digest and type toggles only if F15/F17 ship |
@@ -206,14 +210,21 @@ Field-level content, constraints and copy are defined in the content model v1.1;
 | `too_many_pages` | `This document has {n} pages. The limit is 30.` | `Choose another file` | No |
 | `unsupported_scan` | `This looks like a scan. I can't read scans yet.` | `Paste the text instead` | No |
 | `extraction_failed` | `Something went wrong reading this. Your text is saved.` | `Try again`, `Back to Add` | Yes |
+| `retry_limit` (D48) | `I couldn't read this after {n} more tries. Your text is saved.` | `Back to Add`; `Try again` hidden | No |
 | `ask_failed` *Proposed (PRD Question #13), pending user approval* | `I couldn't answer that just now. Try asking again.` | Inline under the Ask box, question kept; `Try again` | Yes |
 | `extraction_slow` | `Still working. I'll show results here.` (D40) | Page polls | — |
 | `rate_limited` | `You've reached today's limit of {limit} {sources/questions}. It resets at midnight (UTC).` (the limit counts per UTC day, so the reset is always shown in UTC, not the user's timezone; D30) | None | No |
 | `invalid_transition` | `That change isn't possible any more. Refresh to see the latest.` | `Refresh` | No |
 | Network / offline | `You're offline. Nothing was saved.` | `Try again` | Yes |
 | Any other save failure | `That didn't save. Try again.` | `Try again` | Yes |
+| `invalid_input` (D47), field `text` | `Paste some text first.` | Inline under the textarea | No |
+| `invalid_input` (D47), field `title` | `Titles can be up to 120 characters.` | Inline under the title field | No |
+| `invalid_input` (D47), field `written_on` | `Enter a real date between 1900 and 2100.` | Inline under the date field | No |
+| `not_found` (D47; HTTP routes only, pages render the not-found page in §1.2) | `This doesn't exist or was deleted.` | `Go to Today` | No |
+| `unauthenticated` (D47; HTTP routes only, pages redirect to `/sign-in`) | `Sign in to continue.` | Sign in | No |
+| Today, Threads or Thread detail fail to load (D47) | `I couldn't load your threads.` | Page banner + `Try again` | Yes |
 
-**Extraction failures (D43).** Every extraction failure shows `extraction_failed`, whatever the cause, including the AI provider's own quota (429); `rate_limited` is only the user's own daily limit. Before the error shows, the server retries once only when a retry can help (provider unavailable or malformed output), never on quota, a safety block, a rejected request or a config error. `Try again` is always offered and starts a new attempt.
+**Extraction failures (D43).** Every extraction failure shows `extraction_failed`, whatever the cause, including the AI provider's own quota (429); `rate_limited` is only the user's own daily limit. Before the error shows, the server retries once only when a retry can help (provider unavailable or malformed output), never on quota, a safety block, a rejected request or a config error. `Try again` starts a new attempt and is offered for up to 3 retries per source; after the third, it is hidden and `retry_limit` explains why (D48). *Was:* "`Try again` is always offered."
 
 **Sign in and onboarding (D39).** Sign-in errors appear under the email field, except offline, which is a page banner with `Try again`. The `?error=` codes come from `/auth/callback`; an unknown `?error=` code shows nothing. The `sign_in_rate_limited` code below is Supabase Auth's link-request limit and is separate from the app `rate_limited` code above (sources/questions per UTC day).
 
@@ -235,17 +246,17 @@ Errors appear next to the control that caused them (forms) or as an error banner
 
 | Page | Loading | Empty | Error | Partial / other |
 |---|---|---|---|---|
-| Today | Skeleton rows (3) | `Nothing needs you right now.` | Page banner + `Try again` | Pending chip; Still relevant? prompt |
+| Today | Skeleton rows (3) | `Nothing needs you right now.` | Page banner `I couldn't load your threads.` (D47) + `Try again` | Pending chip; Still relevant? prompt |
 | Add | — | — | Field errors per §2.13 | Over-limit counter |
 | Review / progress | Staged steps + skeleton cards | Zero-proposal state | Failure state | Slow state; clarification pending |
-| Threads | Skeleton rows | Per filter | Page banner | — |
-| Thread detail | Skeleton header + card | — | Not-found page | Source deleted; decision missing reason |
+| Threads | Skeleton rows | Per filter | Page banner `I couldn't load your threads.` (D47) | — |
+| Thread detail | Skeleton header + card | — | Not-found page; load failure banner `I couldn't load your threads.` (D47) | Source deleted; decision missing reason |
 | Why panel | Inline spinner | — | `Couldn't load this explanation.` + retry | Source deleted |
 | Source viewer | Skeleton text | — | Not-found page | Deleted state |
 | Decisions | Skeleton list | Decision list empty state | Page banner; a failed ask shows `ask_failed` inline under the Ask box (*Proposed*, §2.13) | No match; no reason |
 | Sign in (D39) | Send button disabled while sending | — | Field errors and `?error=` messages per §2.13; offline banner | Check-your-email state (§2.0); no-JavaScript message |
 | Onboarding (D39) | — | — | Field errors per §2.13; save-failure and offline banners | Skip |
-| Settings | Skeleton form | No sources: `You haven't added anything yet.` | Field / banner errors | Export in progress; deletion in progress |
+| Settings | Skeleton form | No sources: `You haven't added anything yet.` | Field / banner errors; load failure `Settings didn't load. Try again.` (D46) | Export in progress; deletion in progress |
 
 ## 3. Behaviour Spec
 
@@ -300,7 +311,7 @@ All durations, easing and product-moment animations are defined in the Visual De
 4. Unaccepted low-confidence proposals are never auto-accepted, ranked or notified.
 5. User wording and rationale are preserved; AI summaries are supplemental and labelled.
 6. Errors, empty states, missing rationale and unsupported files are handled honestly, using §2.13 copy.
-7. **Reversible actions** (Done, Resolve, Dismiss, Snooze, Mark waiting, Edit, quick-add auto-create) run immediately with an 8 s undo toast and no confirmation. **Irreversible actions** (Forget permanently, Delete source, Delete source and everything derived, Delete account) require a confirmation dialog that lists exactly what is deleted, and have no undo (D8).
+7. **Reversible actions** (Done, Resolve, Dismiss, Snooze, Mark waiting, Edit, quick-add auto-create) run immediately with an 8 s undo toast and no confirmation. The Done toast reads `Marked done: "{title}"` + `Undo` (D47). Undo restores the exact state before the action and appends an `undone` history event; the server accepts it up to 12 s after the action (8 s toast plus 4 s grace) (D44). Hover or focus pauses the toast timer, but the toast closes 12 s after the action at the latest, so Undo is never offered after the server would refuse it (D49). **Irreversible actions** (Forget permanently, Delete source, Delete source and everything derived, Delete account) require a confirmation dialog that lists exactly what is deleted, and have no undo (D8).
 8. No interface state claims an action succeeded until the operation has succeeded.
 
 ## 4. Known gaps / implementation notes
