@@ -9,9 +9,11 @@ import { markDone, undoEvent } from "@/lib/threads/service";
 import { getNow } from "@/lib/time";
 
 /**
- * F9 Done and its Undo (D6, D8; undo semantics are proposed D44 option a). Each is one SQL
- * transaction (migration 20261020231123). The 8 s window is checked on the server's getNow(); the
- * UI shows success only from these results (rule 10).
+ * F9 Done and its Undo (D6, D8; undo semantics are D44 option a, approved Oct 21). Each is one SQL
+ * transaction (migration 20261020231123). The Undo window (8 s toast + 4 s grace = 12 s, migration
+ * 20261021170903) is checked in the database against the p_now this action passes (getNow()), and
+ * the database refuses a p_now more than 5 s from its own clock (migration 20261021131140), so a
+ * direct RPC cannot claim an earlier instant to stretch the window. The UI shows success only from these results (rule 10).
  */
 
 export type DoneActionResult = { ok: true; eventId: number } | { ok: false; error: ApiError["error"] };

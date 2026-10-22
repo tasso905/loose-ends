@@ -13,7 +13,7 @@ const { AuthNotices } = await import("@/components/auth/Notices");
 const { AnalyticsToggle } = await import("@/components/settings/AnalyticsToggle");
 
 describe("analytics notice placement (SITE_CONTRACT §2.0, D40)", () => {
-  it("copy is the Proposed wording", () => {
+  it("copy is the approved wording (Oct 21)", () => {
     expect(SIGN_IN_COPY.analyticsNotice).toBe("Loose Ends counts which features you use. Analytics never include what you paste.");
     expect(SIGN_IN_COPY.analyticsOptOut).toBe("Turn off analytics");
   });

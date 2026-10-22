@@ -259,3 +259,57 @@ describe("resolveDate(): Feb 29 (round 6)", () => {
     expect(resolveDate({ date_text: "Feb 29", date_iso: null }, { ...NY, referenceDate: ref }).due_date).toBe(expected);
   });
 });
+
+describe("resolveDate(): rule 3 probes (core-loop follow-ups C)", () => {
+  const none = (text: string, iso: string | null = null) => {
+    const r = resolveDate({ date_text: text, date_iso: iso }, NY);
+    expect(r, text).toMatchObject({ due_at: null, due_date: null, due_certainty: "none" });
+    expect(r.not_sure, text).toEqual([`I couldn't work out a date from "${text}", so I didn't set one.`]);
+  };
+
+  it("a past reference never becomes a future due date: 'last Saturday' written Mon Oct 5 is Sat Oct 3", () => {
+    expect(resolveDate({ date_text: "last Saturday", date_iso: null }, NY)).toMatchObject({ due_date: "2026-10-03", due_certainty: "inferred" });
+    expect(resolveDate({ date_text: "last Saturday", date_iso: "2026-10-03" }, NY)).toMatchObject({ due_date: "2026-10-03", agreement: "agree" });
+    expect(resolveDate({ date_text: "3 days ago", date_iso: null }, NY).due_date).toBe("2026-10-02");
+  });
+
+  it.each(["last Saturday", "past Monday", "3 days ago", "yesterday", "last week"])("'%s' resolves on or before the written-on day", (t) => {
+    const d = resolveDate({ date_text: t, date_iso: null }, NY).due_date;
+    expect(d === null || d <= NY.referenceDate, `${t} → ${d}`).toBe(true);
+  });
+
+  it("a past reference chrono can only read forward is rejected, not guessed ('previous Tuesday')", () => {
+    none("previous Tuesday", "2026-09-29");
+  });
+
+  it.each(["in a month of Sundays", "one day at a time", "a mile a minute", "one day", "a day"])("idiom or bare duration '%s' is not a date", (t) => {
+    none(t, "2026-11-14");
+  });
+
+  it.each(["Friday or Monday", "Saturday until 6pm", "Friday 5"])("an ambiguous phrase '%s' is rejected, never guessed", (t) => none(t));
+
+  it.each(["Saturday by 6pm", "Saturday no later than 6pm", "Saturday at 6pm", "by 6pm Saturday", "Saturday before 6pm"])(
+    "'%s' keeps the stated time (Sat Oct 10, 6:00 PM EDT)",
+    (t) => {
+      expect(resolveDate({ date_text: t, date_iso: "2026-10-10T18:00:00" }, NY)).toMatchObject({
+        due_date: "2026-10-10",
+        due_at: "2026-10-10T22:00:00.000Z",
+        due_time_known: true,
+        agreement: "agree",
+        due_certainty: "explicit",
+      });
+    },
+  );
+
+  it("filler around the day is still allowed: 'by end of day Friday', 'by Fri.', 'due on the 15th'", () => {
+    expect(resolveDate({ date_text: "by end of day Friday", date_iso: "2026-10-09" }, NY)).toMatchObject({ due_date: "2026-10-09", due_certainty: "explicit" });
+    expect(resolveDate({ date_text: "by Fri.", date_iso: "2026-10-09" }, NY).due_date).toBe("2026-10-09");
+    expect(resolveDate({ date_text: "due on the 15th", date_iso: "2026-10-15" }, NY).due_date).toBe("2026-10-15");
+  });
+
+  it("'tomorrow at 5' stays 5 AM marked inferred with the AM/PM line (PRD 477, D32: no PM default)", () => {
+    const r = resolveDate({ date_text: "tomorrow at 5", date_iso: null }, NY);
+    expect(r).toMatchObject({ due_date: "2026-10-06", due_at: "2026-10-06T09:00:00.000Z", due_certainty: "inferred" });
+    expect(r.not_sure).toContain(`"tomorrow at 5" doesn't say AM or PM. I read it as Tue Oct 6, 5:00 AM.`);
+  });
+});

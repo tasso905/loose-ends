@@ -93,7 +93,7 @@ export interface HistoryEvent {
 }
 
 /**
- * One history line per event. Proposed copy (not yet in SITE_CONTRACT / CONTENT_MODEL); corrections
+ * One history line per event. Approved copy (user, Oct 21; not yet in SITE_CONTRACT / CONTENT_MODEL); corrections
  * ("You changed …") arrive with Edit. Unknown types fall back to a neutral line.
  */
 export function historyLine(e: HistoryEvent): string {
@@ -118,7 +118,7 @@ export function historyLine(e: HistoryEvent): string {
   }
 }
 
-/** Copy for these pages. Strings marked Proposed are not in the docs yet and need approval. */
+/** Copy for these pages. Strings marked Approved were signed off by the user Oct 21 and are not in the docs yet. */
 export const THREADS_COPY = {
   heading: "Threads",
   active: "Active",
@@ -134,11 +134,11 @@ export const THREADS_COPY = {
   undo: "Undo",
   refresh: "Refresh",
   tryAgain: "Try again",
-  /** Proposed: the Done undo toast message. */
+  /** Approved (Oct 21): the Done undo toast message. */
   doneToast: (title: string) => `Marked done: "${title}"`,
-  /** Proposed: why Resolve… is disabled until F11 ships. */
+  /** Approved (Oct 21): why Resolve… is disabled until F11 ships. */
   resolveUnavailable: "Resolving with a decision isn't available yet.",
-  /** Proposed: page banner when a list or thread fails to load. */
+  /** Approved (Oct 21): page banner when a list or thread fails to load. */
   loadFailed: "I couldn't load your threads.",
   evidence: "Evidence",
   history: "History",
@@ -146,7 +146,7 @@ export const THREADS_COPY = {
   /** SITE_CONTRACT §1.2. */
   notFound: "This thread doesn't exist or was deleted.",
   goToToday: "Go to Today",
-  /** Interim Today (Proposed, replaced by F10). */
+  /** Interim Today (Approved Oct 21, replaced by F10). */
   todayEmpty: "Nothing needs you right now.",
   todayListLabel: "Active threads",
 } as const;

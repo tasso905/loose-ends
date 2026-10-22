@@ -15,7 +15,7 @@ const TEXT = "I'll send the synthetic gannet report Friday. Also the heron memo.
 
 const NO_DIRECT_WRITES = ["extractions", "extraction_items", "evidence", "threads", "thread_events", "suppressions"];
 
-/** Every public function that writes a trust table (S0, S2, S3; S4's thread_done/undo join on merge). */
+/** Every public function that writes a trust table (S0, S2, S3, S4). */
 const WRITERS = [
   "forget_thread",
   "start_source_extraction",
@@ -27,6 +27,8 @@ const WRITERS = [
   "accept_proposals",
   "reject_proposals",
   "undo_reject_proposals",
+  "thread_done",
+  "thread_undo",
 ];
 
 let db: PGlite;

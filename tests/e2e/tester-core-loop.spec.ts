@@ -123,15 +123,16 @@ test("keyboard only: paste → review → accept → View in Today → detail �
   });
   test.info().annotations.push({ type: "focus after Undo", description: active });
   expect(active, "focus after keyboard Undo").not.toMatch(/^body/);
+  // REGRESSION GUARD (follow-up A4): focus lands on Done itself once it is back, not the status line.
+  await expect(done).toBeFocused();
   const [t] = await thread();
   expect(t).toMatchObject({ status: "open", resolution: null, resolved_at: null });
   expect(await eventTypes(t!.id)).toEqual(["created", "resolved", "undone"]);
 });
 
-// DEFECT (minor, SITE_CONTRACT §3.2 "Focus the first relevant field on /add"): nothing is focused
-// on arrival, so a keyboard user tabs past the skip link and header first.
+// REGRESSION GUARD (was DEFECT, minor, SITE_CONTRACT §3.2 "Focus the first relevant field on
+// /add"): nothing was focused on arrival, so a keyboard user tabbed past the skip link and header.
 test("/add focuses the paste field on arrival (§3.2)", async () => {
-  test.fail(true, "DEFECT: /add does not focus its first field");
   await page.goto("/add?mode=paste");
   await expect(page.getByLabel("Paste a message or document")).toBeFocused({ timeout: 3_000 });
 });
@@ -220,11 +221,10 @@ test("375 px: no horizontal scroll on Today, Threads, detail and the toast; thei
   }
 });
 
-// DEFECT (same class as S1's): an unknown id, or another user's thread, renders the not-found copy
-// but with HTTP 200, because loading.tsx streams the response before notFound() runs. Crawlers,
-// monitoring and anything that reads the status see a success. Safe behaviour: HTTP 404.
+// REGRESSION GUARD (was DEFECT, same class as S1's): an unknown id, or another user's thread,
+// rendered the not-found copy with HTTP 200 because loading.tsx streamed the response before
+// notFound() ran. Fixed by the gate in app/threads/[id]/layout.tsx. Safe behaviour: HTTP 404.
 test("not-found thread: HTTP 404, not a soft 404 (unknown id and another user's thread)", async () => {
-  test.fail(true, "DEFECT: soft 404 (HTTP 200) behind app/threads/[id]/loading.tsx");
   const res = await page.goto(`/threads/${randomUUID()}`);
   await expect(page.getByRole("heading", { name: NOT_FOUND })).toBeVisible();
   const other = testEmail();
@@ -238,6 +238,19 @@ test("not-found thread: HTTP 404, not a soft 404 (unknown id and another user's 
     expect([res?.status(), res2?.status()]).toEqual([404, 404]);
   } finally {
     await deleteUsers([other]);
+  }
+});
+
+// Follow-up A1: the existence gate in app/threads/[id]/layout.tsx must not break the list (moved to
+// app/threads/(list)/) and must give a real 404 for a malformed id too.
+test("follow-up A1: /threads list is 200; a malformed id is HTTP 404 with the not-found page", async () => {
+  const list = await page.goto("/threads");
+  expect(list?.status()).toBe(200);
+  await expect(page.getByRole("heading", { name: "Threads", level: 1 })).toBeVisible();
+  for (const path of ["/threads/not-a-uuid", "/threads/%27%20or%201%3D1--"]) {
+    const res = await page.goto(path);
+    expect(res?.status(), path).toBe(404);
+    await expect(page.getByRole("heading", { name: NOT_FOUND })).toBeVisible();
   }
 });
 
@@ -256,13 +269,10 @@ test("not-found thread: no content of another user's thread leaks (title, quote,
   }
 });
 
-// CONFLICT (DESIGN_STANDARD "Undo toast: the timer pauses while hovered or focused" vs proposed
-// D44 (a), "within 8 s of the event" on the server): a user who focuses or hovers the toast keeps
-// Undo on screen past 8 s, presses it, and gets invalid_transition. The UI offers an action the
-// server will refuse. Safe behaviour: an Undo the toast still offers works (or the toast leaves at
-// 8 s regardless). Needs a decision (lead-program-manager), not just a code fix.
+// REGRESSION GUARD (was CONFLICT: DESIGN_STANDARD "the timer pauses while hovered or focused" vs
+// the server's fixed 8 s): resolved by D44 (a), approved Oct 21, with a 4 s server grace, so an
+// Undo the toast still offers after a short pause works (server accepts up to 12 s).
 test("an Undo the toast still offers after a paused 8 s works", async () => {
-  test.fail(true, "CONFLICT: paused toast vs fixed 8 s server window (D44 a)");
   await page.goto(threadUrl);
   await page.getByRole("button", { name: "Done", exact: true }).click();
   const undo = page.getByRole("button", { name: `Undo done: ${TITLE}` });
@@ -275,8 +285,18 @@ test("an Undo the toast still offers after a paused 8 s works", async () => {
   await expect(page.locator("#thread-status")).toHaveText("Open");
 });
 
-test("after the refused late Undo: the page says so with §2.13 copy and Refresh, and the thread stays Done", async () => {
-  // Continues from the previous test's state (thread resolved, late undo refused).
+// Adapted for D44 (a): the grace period makes a 9 s Undo work (previous test), so this test makes
+// its own refused Undo by holding the toast open past the server's 12 s.
+test("after a refused late Undo (toast held past 12 s): the page says so with §2.13 copy and Refresh, and the thread stays Done", async () => {
+  test.setTimeout(60_000);
+  await page.goto(threadUrl);
+  await page.getByRole("button", { name: "Done", exact: true }).click();
+  const undo = page.getByRole("button", { name: `Undo done: ${TITLE}` });
+  await expect(undo).toBeVisible();
+  await undo.focus();
+  await page.waitForTimeout(13_000);
+  await expect(undo).toBeVisible(); // still paused, still offered
+  await page.keyboard.press("Enter");
   await expect(page.getByRole("alert").filter({ hasText: INVALID })).toBeVisible();
   await expect(page.getByRole("button", { name: "Refresh" })).toBeVisible();
   await expect(page.getByText(/Marked done.*Undo/)).toHaveCount(0);

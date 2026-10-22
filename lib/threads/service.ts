@@ -65,7 +65,7 @@ export function markDone(
   return call(db, "thread_done", { p_thread_id: threadId, p_from_status: fromStatus, p_now: opts.now.toISOString() }, DoneOut, opts.logger ?? defaultLog);
 }
 
-/** Undo of `eventId` (proposed D44 a): only the thread's latest event, within 8 s of it on the server clock. */
+/** Undo of `eventId` (D44 a, approved Oct 21): only the thread's latest event, within 8 s + 4 s grace (12 s) of it, checked in the database. */
 export function undoEvent(db: RpcDb, threadId: string, eventId: number, opts: { now: Date; logger?: Logger }): Promise<UndoResult> {
   return call(db, "thread_undo", { p_thread_id: threadId, p_event_id: eventId, p_now: opts.now.toISOString() }, UndoOut, opts.logger ?? defaultLog);
 }

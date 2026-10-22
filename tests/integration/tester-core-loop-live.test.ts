@@ -395,30 +395,29 @@ describe.skipIf(!live)("tester core loop on real local Supabase", () => {
       expect((await threadRow(t.threadId)).status).toBe("open");
     });
 
-    it("Undo after 8 s on the real clock is invalid_transition and writes nothing", { timeout: 20_000 }, async () => {
+    // D44 (a), approved Oct 21: 8 s toast + 4 s server grace, so the server refuses after 12 s.
+    it("Undo after 12 s (8 s + 4 s grace) on the real clock is invalid_transition and writes nothing", { timeout: 25_000 }, async () => {
       const a = await makeUser("d8");
       const t = await acceptedThread(a.client);
       const done = await markDone(rpc(a.client), t.threadId, "open", { now: now(), logger: quiet });
       if (!done.ok) throw new Error("done failed");
-      await sleep(8_600);
+      await sleep(12_600);
       expect(await undoEvent(rpc(a.client), t.threadId, done.event_id, { now: now(), logger: quiet })).toMatchObject({ ok: false, code: "invalid_transition" });
       expect((await threadRow(t.threadId)).status).toBe("resolved");
       expect((await events(t.threadId)).length).toBe(2);
     });
 
-    // DEFECT (minor, own data only): thread_undo (and thread_done, accept_proposals) take the clock
-    // from the caller (p_now). app/threads/[id]/actions.ts says "The 8 s window is checked on the
-    // server's getNow()", but the function is callable directly through PostgREST, so a signed-in
-    // user can undo a Done minutes later by passing p_now = the Done's time + 1 s, and can write
-    // thread_events.created_at / threads.resolved_at at any instant (out of order with ids).
-    // Safe behaviour: the database refuses a p_now far from its own now().
-    it.fails("DEFECT: a direct RPC cannot undo a Done after 8 s by supplying an old p_now", { timeout: 20_000 }, async () => {
+    // REGRESSION GUARD (was DEFECT, minor, own data only): thread_undo (and thread_done,
+    // accept_proposals) took the clock from the caller (p_now) unchecked, so a direct PostgREST call
+    // could undo a Done minutes later by passing p_now = the Done's time + 1 s. Fixed by migration
+    // 20261021131140: the database refuses a p_now far from its own now().
+    it("a direct RPC cannot undo a Done after 12 s by supplying an old p_now", { timeout: 25_000 }, async () => {
       const a = await makeUser("d8b");
       const t = await acceptedThread(a.client);
       const doneAt = now();
       const done = await markDone(rpc(a.client), t.threadId, "open", { now: doneAt, logger: quiet });
       if (!done.ok) throw new Error("done failed");
-      await sleep(8_600);
+      await sleep(12_600);
       const res = await a.client.rpc("thread_undo", { p_thread_id: t.threadId, p_event_id: done.event_id, p_now: new Date(doneAt.getTime() + 1000).toISOString() });
       expect(res.data).toEqual({ ok: false, error: "invalid_transition" });
     });
@@ -473,14 +472,20 @@ describe.skipIf(!live)("tester core loop on real local Supabase", () => {
       expect(data).toEqual({ pipeline_attempts: 1 });
     });
 
-    it("a client-supplied far-future p_now on get_extraction can only fail the caller's own running attempt (one timed_out)", async () => {
+    // Adapted for migration 20261021131140: a client-supplied far-future p_now is now refused
+    // outright (22023) and changes nothing. The concurrent 90 s timeout is still exactly-once, shown
+    // by backdating created_at with the service role and polling on the real clock.
+    it("a client-supplied far-future p_now on get_extraction is refused; a real timeout fails the attempt exactly once (one timed_out)", async () => {
       const a = await makeUser("to");
       const s = await startExtraction(rpc(a.client), { text: MIKE.input!, title: null, writtenOn: "2026-10-05" }, { now: now() });
       if (!s.ok) throw new Error("start failed");
-      const far = new Date(Date.now() + 91_000);
+      const far = await a.client.rpc("get_extraction", { p_extraction_id: s.extractionId, p_now: new Date(Date.now() + 91_000).toISOString() });
+      expect(far).toMatchObject({ data: null, error: { code: "22023" } });
+      expect((await admin.from("extractions").select("status").eq("id", s.extractionId).single()).data).toEqual({ status: "running" });
+      await admin.from("extractions").update({ created_at: new Date(Date.now() - 91_000).toISOString() }).eq("id", s.extractionId);
       const [x, y] = await Promise.all([
-        readExtraction(rpc(a.client), s.extractionId, { now: far, logger: quiet }),
-        readExtraction(rpc(a.client), s.extractionId, { now: far, logger: quiet }),
+        readExtraction(rpc(a.client), s.extractionId, { now: now(), logger: quiet }),
+        readExtraction(rpc(a.client), s.extractionId, { now: now(), logger: quiet }),
       ]);
       expect([x?.timedOut, y?.timedOut].filter(Boolean)).toHaveLength(1);
       expect(x).toMatchObject({ status: "failed" });
@@ -579,6 +584,110 @@ describe.skipIf(!live)("tester core loop on real local Supabase", () => {
       const list = await admin.storage.from("sources").list(a.id);
       expect(list.data ?? []).toEqual([]);
       users.splice(users.findIndex((u) => u.id === a.id), 1);
+    });
+  });
+
+  // ---------------------------------------------------------------------------------------------
+  // Follow-up verification (fix/core-loop-followups): clock guard (migration 20261021131140) and
+  // the D44 (a) 4 s server grace (migration 20261021170903), attacked through PostgREST directly.
+  describe("clock guard and Undo grace (live, follow-ups)", () => {
+    const shifted = (ms: number) => new Date(Date.now() + ms).toISOString();
+
+    it("every guarded writer refuses p_now 7 s or 1 h off the real clock and writes nothing", async () => {
+      const a = await makeUser("cg");
+      const t = await acceptedThread(a.client);
+      const second = (await pasteAndRun(a.client)).extractionId;
+      const items = ((await admin.from("extraction_items").select("id").eq("extraction_id", second)).data ?? []).map((r) => r.id as string);
+      const snap = async () => ({
+        threads: await count("threads", a.id),
+        events: await count("thread_events", a.id),
+        items: (await admin.from("extraction_items").select("id, status").eq("user_id", a.id).order("id")).data,
+      });
+      const before = await snap();
+      for (const off of [-7_000, 7_000, -3_600_000, 3_600_000]) {
+        const p = shifted(off);
+        const calls: Array<[string, Record<string, unknown>]> = [
+          ["thread_done", { p_thread_id: t.threadId, p_from_status: "open", p_now: p }],
+          ["accept_proposals", { p_extraction_id: second, p_item_ids: items, p_now: p }],
+          ["reject_proposals", { p_extraction_id: second, p_item_ids: items, p_now: p }],
+          ["get_extraction", { p_extraction_id: second, p_now: p }],
+        ];
+        for (const [fn, args] of calls) expect(await a.client.rpc(fn, args), `${fn} ${off}`).toMatchObject({ data: null, error: { code: "22023" } });
+      }
+      expect(await a.client.rpc("thread_done", { p_thread_id: t.threadId, p_from_status: "open", p_now: null })).toMatchObject({ error: { code: "22023" } });
+      expect(await snap()).toEqual(before);
+      // Within the tolerance (2.5 s either way) the honest path still works.
+      expect((await a.client.rpc("get_extraction", { p_extraction_id: second, p_now: shifted(2_500) })).error).toBeNull();
+      expect((await a.client.rpc("thread_done", { p_thread_id: t.threadId, p_from_status: "open", p_now: shifted(-2_500) })).data).toMatchObject({ ok: true });
+    });
+
+    it("thread_undo with a skewed p_now answers invalid_transition (not an error) and writes nothing", async () => {
+      const a = await makeUser("cgu");
+      const t = await acceptedThread(a.client);
+      const done = await markDone(rpc(a.client), t.threadId, "open", { now: now(), logger: quiet });
+      if (!done.ok) throw new Error("done failed");
+      for (const off of [-7_000, 7_000, -86_400_000]) {
+        const r = await a.client.rpc("thread_undo", { p_thread_id: t.threadId, p_event_id: done.event_id, p_now: shifted(off) });
+        expect(r.data, String(off)).toEqual({ ok: false, error: "invalid_transition" });
+      }
+      expect((await events(t.threadId)).map((x) => x.type)).toEqual(["created", "resolved"]);
+      expect((await threadRow(t.threadId)).status).toBe("resolved");
+    });
+
+    it("the unguarded bodies are not reachable through PostgREST (public name unknown, schema private not exposed)", async () => {
+      const a = await makeUser("cgp");
+      const t = await acceptedThread(a.client);
+      const args = { p_thread_id: t.threadId, p_from_status: "open", p_now: new Date(0).toISOString() };
+      const pub = await a.client.rpc("thread_done_unguarded", args);
+      expect(pub.data).toBeNull();
+      expect(pub.error).not.toBeNull();
+      const priv = await a.client.schema("private").rpc("thread_done_unguarded", args);
+      expect(priv.data).toBeNull();
+      expect(priv.error).not.toBeNull();
+      const tbl = await a.client.schema("private").from("clock_guard").select("*");
+      expect(tbl.data).toBeNull();
+      expect((await threadRow(t.threadId)).status).toBe("open");
+    });
+
+    it("D44 grace: an honest Undo 10 s after Done (past the 8 s toast, inside 12 s) succeeds on the real clock", { timeout: 25_000 }, async () => {
+      const a = await makeUser("grace");
+      const t = await acceptedThread(a.client);
+      const done = await markDone(rpc(a.client), t.threadId, "open", { now: now(), logger: quiet });
+      if (!done.ok) throw new Error("done failed");
+      await sleep(10_000);
+      expect(await undoEvent(rpc(a.client), t.threadId, done.event_id, { now: now(), logger: quiet })).toMatchObject({ ok: true, to_status: "open" });
+    });
+
+    // Documented residual (migration 20261021131140 header): a direct caller who skews both calls
+    // by up to the tolerance T stretches the 12 s window to at most 12 + 2T = 22 s. Observed: an
+    // Undo 14 s after Done succeeds with both clocks skewed 4.5 s; at 21.5 s it is refused.
+    it("observed bound: with both p_now skewed 4.5 s, Undo at 14 s succeeds and at 21.5 s is refused", { timeout: 40_000 }, async () => {
+      const a = await makeUser("stretch");
+      const x = await acceptedThread(a.client);
+      const y = await acceptedThread(a.client);
+      const t0 = Date.now();
+      const dx = await a.client.rpc("thread_done", { p_thread_id: x.threadId, p_from_status: "open", p_now: shifted(4_500) });
+      const dy = await a.client.rpc("thread_done", { p_thread_id: y.threadId, p_from_status: "open", p_now: shifted(4_500) });
+      expect(dx.data).toMatchObject({ ok: true });
+      expect(dy.data).toMatchObject({ ok: true });
+      await sleep(14_000 - (Date.now() - t0));
+      const ux = await a.client.rpc("thread_undo", { p_thread_id: x.threadId, p_event_id: (dx.data as { event_id: number }).event_id, p_now: shifted(-4_500) });
+      expect(ux.data).toMatchObject({ ok: true });
+      await sleep(21_500 - (Date.now() - t0));
+      const uy = await a.client.rpc("thread_undo", { p_thread_id: y.threadId, p_event_id: (dy.data as { event_id: number }).event_id, p_now: shifted(-4_500) });
+      expect(uy.data).toEqual({ ok: false, error: "invalid_transition" });
+      expect((await threadRow(y.threadId)).status).toBe("resolved");
+    });
+
+    // Observed (self-inflicted, own data only): a Done stamped up to 5 s in the future cannot be
+    // undone by the honest app until the real clock passes the stamp (p_now < created_at).
+    it("observed: Done with p_now +4.5 s, then an immediate honest Undo is invalid_transition", async () => {
+      const a = await makeUser("fut");
+      const t = await acceptedThread(a.client);
+      const d = await a.client.rpc("thread_done", { p_thread_id: t.threadId, p_from_status: "open", p_now: shifted(4_500) });
+      expect(d.data).toMatchObject({ ok: true });
+      const u = await undoEvent(rpc(a.client), t.threadId, (d.data as { event_id: number }).event_id, { now: now(), logger: quiet });
+      expect(u).toMatchObject({ ok: false, code: "invalid_transition" });
     });
   });
 });

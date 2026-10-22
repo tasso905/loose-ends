@@ -1,5 +1,5 @@
 "use client";
-import { useRef, useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Check } from "lucide-react";
 import { markDoneAction, undoAction } from "@/app/threads/[id]/actions";
@@ -27,6 +27,9 @@ export function ThreadActions({ threadId, title, status, kind }: { threadId: str
   const [toast, setToast] = useState<ToastData | null>(null);
   const toastId = useRef(0);
   const doneRef = useRef<HTMLButtonElement>(null);
+  // Set by a successful Undo: Done returns only after router.refresh() re-renders with the server's
+  // status, so the focus move waits for that render (doneRef is null until then).
+  const focusDoneOnReturn = useRef(false);
 
   function done() {
     setError(null);
@@ -51,15 +54,22 @@ export function ThreadActions({ threadId, title, status, kind }: { threadId: str
     try {
       const res = await undoAction(threadId, eventId);
       if (!res.ok) return setError(res.error);
+      // Done comes back after the refresh; until then focus waits on the status line, never <body>.
+      focusDoneOnReturn.current = true;
+      document.getElementById("thread-status")?.focus();
       router.refresh();
-      // Done comes back after the refresh; until then focus stays on the page.
-      requestAnimationFrame(() => setTimeout(() => (doneRef.current ?? document.getElementById("thread-status"))?.focus(), 0));
     } catch {
       setError(failure("save_failed"));
     }
   }
 
   const showDone = canMarkDone({ status, kind });
+  useEffect(() => {
+    if (focusDoneOnReturn.current && showDone && doneRef.current) {
+      focusDoneOnReturn.current = false;
+      doneRef.current.focus();
+    }
+  }, [showDone]);
   const showResolveDisabled = kind === "decision" && (status === "open" || status === "waiting" || status === "snoozed");
 
   return (
