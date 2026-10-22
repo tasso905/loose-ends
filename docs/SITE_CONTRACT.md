@@ -89,7 +89,7 @@ Field-level content, constraints and copy are defined in the content model v1.1;
 | Page heading | `Drop something in` (D47). The global button stays `Add` (D1) |
 | Mode tabs | `Paste`, `Upload`, `Quick add` |
 | Text input | Label `Paste a message or document`, hint `Up to 30,000 characters.` (D47). Max 30,000 characters; counter visible from 27,000; over-limit blocks submit with the error copy; empty submit shows `Paste some text first.` (§2.13) |
-| File drop area | PDF, TXT, MD, DOCX; ≤ 10 MB; ≤ 30 pages; one file; type sniffed, not taken from extension |
+| File drop area | PDF, TXT, MD; ≤ 10 MB; ≤ 30 pages; one file; type sniffed, not taken from extension. Hint `PDF, TXT or MD · up to 10 MB and 30 pages` (D52). A chosen file shows as a row with its name and size and a `Remove` button (D52). Extracted text over 30,000 characters is refused with `file_too_long`, not truncated (D52). DOCX stays in F3 scope until the Oct 25 review decides D17; until it ships, a Word file is refused with `unsupported_docx` (§2.13). *Was:* "PDF, TXT, MD, DOCX" |
 | Source title | Optional, collapsed under `Add a title`; field label `Title (optional)` (D47); max 120 characters |
 | Written-on date | Optional, collapsed under `When was this written?`; defaults to today with an `Assumed` label. Field label: `I assumed this was written today. Change it if it wasn't.` until the user sets a date, then `Written on` (D47). Dates outside 1900–2100 show the §2.13 field error |
 | Quick-add field | Single line; max 2,000 characters; placeholder `e.g. Send Mike the proposal Friday` |
@@ -143,7 +143,8 @@ Field-level content, constraints and copy are defined in the content model v1.1;
 | Field | Constraints |
 |---|---|
 | Header | Title (editable), status, loop type, due chip, next action, confidence label |
-| Explain card | Six sections for document sources; two for quick add; source lines with quote icon, interpretation lines labelled |
+| Explain card | Six sections for document sources; two for quick add; source lines with quote icon, interpretation lines labelled. Title `About this document` when the source has a brief, `About this` for the compact card (D52) |
+| Not sure about | Template lines only, never model text (rule 6; D52): `The source suggests this but doesn't say it outright.`, `This may not be a firm plan.`, `The source doesn't give this exact date. I worked it out.` |
 | Section headings | `Next action`, `Evidence`, `History` (D47) |
 | Evidence | Quote, source, page/date, `Open source`, `Why?`. If the source was deleted, the source line reads `Source deleted` (D47) |
 | History | Append-only timeline; corrections phrased `You changed …`. Event lines (D47): `You accepted this from your source.`, `Added from quick add.`, `You marked this done.` / `Loose Ends marked this done.`, `You resolved this.` / `Loose Ends resolved this.`, `You undid the last change.`, `You reopened this.`, `You snoozed this.`, `You edited this.`, `Status changed to {status}.`; fallback `Updated.` |
@@ -166,7 +167,7 @@ Field-level content, constraints and copy are defined in the content model v1.1;
 
 | Field | Constraints |
 |---|---|
-| Header | Title, kind, written-on date (+ `Assumed`), added date |
+| Header | Title, kind, written-on date (+ `Assumed`), added date. An upload with no title is labelled `Uploaded file` (D52) |
 | Body | Normalized text; page markers for PDFs; highlighted span from `?evidence=` |
 | Linked threads | Titles with status |
 | Deleted state | `Original source deleted on {date}.`; the page is replaced by this message and links to the threads that keep their quotes |
@@ -205,7 +206,11 @@ Field-level content, constraints and copy are defined in the content model v1.1;
 | Code | Message | Action | Retry? |
 |---|---|---|---|
 | `input_too_long` | `That's {n} characters. The limit is 30,000 — trim it or split it into two pastes.` | Inline under the textarea | No |
-| `unsupported_type` | `Loose Ends can read PDF, TXT, MD and DOCX files.` | `Choose another file` | No |
+| `unsupported_type` (D52) | `Loose Ends can read PDF, TXT and MD files.` *Was:* `Loose Ends can read PDF, TXT, MD and DOCX files.` (untrue while DOCX is deferred, D17) | `Choose another file` | No |
+| `unsupported_docx` (D52; until DOCX ships, D17) | `I can't read Word files yet. Save it as a PDF, or paste the text instead.` | `Choose another file` | No |
+| `pdf_unreadable` (D52) | `I couldn't open this PDF. It may be damaged or locked with a password.` | `Choose another file` | No |
+| `empty_file` (D52) | `This file has no text in it.` | `Choose another file` | No |
+| `file_too_long` (D52) | `This document has {n} characters of text. The limit is 30,000.` The upload is refused, not truncated | `Choose another file` | No |
 | `file_too_large` | `This file is {size} MB. The limit is 10 MB.` | `Choose another file` | No |
 | `too_many_pages` | `This document has {n} pages. The limit is 30.` | `Choose another file` | No |
 | `unsupported_scan` | `This looks like a scan. I can't read scans yet.` | `Paste the text instead` | No |
@@ -318,6 +323,8 @@ All durations, easing and product-moment animations are defined in the Visual De
 
 - **Conflicting dates without F14:** a proposal that would change an existing thread's date shows both values and both quotes as an update proposal; never overwrite silently.
 - **Scanned PDFs:** out of MVP scope; `unsupported_scan` copy applies.
+- **Upload refusal codes (D52):** the message text is approved; the code names `unsupported_docx`, `pdf_unreadable`, `empty_file` and `file_too_long` were assigned when D52 was recorded. If the S6 code uses other names, update this table and PRD API Requirements to match.
+- **"Not sure about" triggers (D52):** the three template lines are approved, but which `certainty` / `due_certainty` value shows which line is not yet recorded. Expected: `implied` → "suggests this", `speculative` → "firm plan", `due_certainty = inferred` → "exact date". Confirm against the S7 code and record it.
 - **SHOULD features** (dedupe, digest, forwarding, toggles, redaction) appear in the UI only if built after the day-14 checkpoint.
 - **Trust Scorecard:** README and demo materials only.
 - **Magic-link lifetime (release follow-up, D39):** the check-your-email copy says `The link works for 1 hour.` Before release, set the production Supabase project's email OTP expiry to 3600 seconds to match `supabase/config.toml`. The unit test checks only the local config.

@@ -42,7 +42,7 @@
 | Page heading | Invites the user to capture source material | `Drop something in` (D47) |
 | Mode tabs | Choose input type | `Paste`, `Upload`, `Quick add` |
 | Text input | Pasted source text | Label `Paste a message or document`, hint `Up to 30,000 characters.` (D47). Max 30,000 characters; live count near the limit; preserve original text; validate rather than silently truncate |
-| File picker | Upload source documents | PDF, TXT, MD, DOCX; max 10 MB and 30 pages; one file at a time; text-layer files only for MVP |
+| File picker | Upload source documents | PDF, TXT, MD; max 10 MB and 30 pages; one file at a time; text-layer files only for MVP. Hint `PDF, TXT or MD · up to 10 MB and 30 pages`; a chosen file can be removed with `Remove` (D52). Extracted text over 30,000 characters is refused, not truncated (D52). DOCX waits on D17 (Oct 25 review); until it ships, Word files get the refusal in SITE_CONTRACT §2.13. *Was:* "PDF, TXT, MD, DOCX" |
 | Source title | Optional human-readable source name | Optional, under the disclosure `Add a title`, field label `Title (optional)` (D47); max 120 characters; user-editable |
 | Written-on date | Date associated with the source | Optional; default to today only when visibly labelled `Assumed`; ISO date internally. Field label `I assumed this was written today. Change it if it wasn't.` until the user sets a date, then `Written on` (D47); valid range 1900–2100 |
 | Quick-add text | A brief note or commitment entered directly | Single line; max 2,000 characters; preserve user wording |
@@ -105,7 +105,7 @@
 | Due date and certainty | When action is due, if known | Explicit, assumed (inferred), or none; never fabricate |
 | Counterparty / waiting-on | Person or entity involved | Optional; grounded in source or user correction; `expected by` date when waiting |
 | Confidence label | Origin confidence | Same dot + word + reason as the tray |
-| Explain card | Brief explanation of the situation | Sections: What this is · What you need to do · By when · If you don't · Worth considering · Not sure about; each line is a source fact (quote) or labelled `Interpretation`; quick-add threads show only What to do and By when |
+| Explain card | Brief explanation of the situation | Sections: What this is · What you need to do · By when · If you don't · Worth considering · Not sure about; each line is a source fact (quote) or labelled `Interpretation`; quick-add threads show only What to do and By when. Title `About this document` (source with a brief) or `About this` (compact card) (D52). "Not sure about" uses only these template lines (D52): `The source suggests this but doesn't say it outright.`, `This may not be a firm plan.`, `The source doesn't give this exact date. I worked it out.` |
 | Evidence | Traceability to original source | Verified quote, source name, page/date; `Open source` link. Source line reads `Source deleted` once the source is deleted (D47) |
 | Why? entry | Opens the Why panel | Present on Thread detail and every Today row |
 | Thread history | Chronological updates and actions | Timestamped; append-only; corrections read `You changed the date from Oct 9 to Oct 12`. Event lines (D47): `You accepted this from your source.`, `Added from quick add.`, `You marked this done.` / `Loose Ends marked this done.`, `You resolved this.` / `Loose Ends resolved this.`, `You undid the last change.`, `You reopened this.`, `You snoozed this.`, `You edited this.`, `Status changed to {status}.`; fallback `Updated.` |
@@ -128,7 +128,7 @@
 
 | Field | Description | Constraints |
 |---|---|---|
-| Header | Identifies the source | Title (or `Pasted text`), kind, written-on date (with `Assumed` if defaulted), added date |
+| Header | Identifies the source | Title (or `Pasted text`; an upload with no title is `Uploaded file`, D52), kind, written-on date (with `Assumed` if defaulted), added date |
 | Body | The source text | Normalized text; PDFs shown with page markers; quoted span highlighted and scrolled into view |
 | Linked threads | What came from this source | List of thread titles with status |
 | Actions | Manage source | `Back to thread`, `Delete source…` |
@@ -188,6 +188,9 @@
 | Suggested | AI-generated, Recommended | AI-proposed value the user has not confirmed |
 | You wrote | Your note | User's verbatim words |
 | Likely / Maybe / Also noticed | High / Medium / Low, percentages | Confidence labels |
+| Not sure about | Low confidence (DESIGN_STANDARD Voice) | Explain card section listing what the source does not state outright; template lines only (D52) |
+| Uploaded file | Untitled | Label for an upload the user did not title (D52); pastes use `Pasted text` |
+| Word file | DOCX | How refusals name a DOCX upload while DOCX is not read (D52) |
 
 ## Remaining gaps / deferred
 
