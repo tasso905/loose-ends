@@ -1,0 +1,112 @@
+{
+  "name": "tester-clinic-pdf",
+  "task": "extract",
+  "input": "Lakeside Dental Clinic (synthetic example)\nAppointment reminder for patient TEST-0042\nYour cleaning is booked for November 12, 2026 at 3:30 PM.\n\n\n\nPlease confirm by phone within 7 days.\nA missed appointment fee of $45 applies without 24 hours notice.",
+  "responses": [
+    {
+      "source_summary": "Dental appointment reminder (synthetic)",
+      "participants": [
+        {
+          "name": "Lakeside Dental Clinic",
+          "is_user": "no"
+        }
+      ],
+      "items": [
+        {
+          "type": "request",
+          "title": "Confirm the dental appointment",
+          "owner": "user",
+          "counterparty": "Lakeside Dental Clinic",
+          "action": "Call the clinic to confirm",
+          "date_text": null,
+          "date_iso": null,
+          "amount_text": null,
+          "certainty": "explicit",
+          "uncertainty_notes": [],
+          "matches_thread_id": null,
+          "evidence": [
+            {
+              "quote": "Please confirm by phone within 7 days.",
+              "speaker": "Lakeside Dental Clinic"
+            }
+          ]
+        },
+        {
+          "type": "deadline",
+          "title": "Pay the missed-appointment fee",
+          "owner": "user",
+          "counterparty": "Lakeside Dental Clinic",
+          "action": "Pay the fee",
+          "date_text": "December 1",
+          "date_iso": "2026-12-01",
+          "amount_text": "$50",
+          "certainty": "explicit",
+          "uncertainty_notes": [],
+          "matches_thread_id": null,
+          "evidence": [
+            {
+              "quote": "A missed-appointment fee of $50 is due by December 1.",
+              "speaker": "Lakeside Dental Clinic"
+            }
+          ]
+        }
+      ],
+      "brief": {
+        "what_this_is": [
+          {
+            "text": "A reminder for a cleaning",
+            "basis": "source",
+            "quote": "Appointment reminder for patient TEST-0042"
+          },
+          {
+            "text": "A final notice",
+            "basis": "source",
+            "quote": "This is your final notice before cancellation."
+          }
+        ],
+        "what_to_do": [
+          {
+            "text": "Call the clinic by November 5.",
+            "basis": "interpretation",
+            "quote": null
+          },
+          {
+            "text": "Call the clinic to confirm.",
+            "basis": "interpretation",
+            "quote": null
+          }
+        ],
+        "by_when": [
+          {
+            "text": "Nov 12",
+            "basis": "source",
+            "quote": "Your cleaning is booked for November 12, 2026 at 3:30 PM."
+          }
+        ],
+        "if_you_dont": [
+          {
+            "text": "You may be charged $90.",
+            "basis": "interpretation",
+            "quote": null
+          },
+          {
+            "text": "A fee applies",
+            "basis": "source",
+            "quote": "A missed appointment fee of $45 applies without 24 hours' notice."
+          }
+        ],
+        "worth_considering": [
+          {
+            "text": "Book the next one for May 2027.",
+            "basis": "interpretation",
+            "quote": null
+          }
+        ],
+        "not_sure_about": [
+          "Whether the fee is waived after December 1",
+          "Whether the clinic accepts email confirmations"
+        ]
+      }
+    }
+  ]
+}

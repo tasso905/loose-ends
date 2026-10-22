@@ -1,11 +1,11 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { formatInTimeZone } from "date-fns-tz";
 import { Quote } from "lucide-react";
 import { z } from "zod";
 import { AppHeader } from "@/components/AppHeader";
 import { ErrorBanner } from "@/components/Notice";
+import { EXPLAIN_COPY, ExplainBrief, NotSureList, parseBrief } from "@/components/review/ExplainBrief";
 import { ConfidenceLabel } from "@/components/review/ReviewTray";
 import { ThreadActions } from "@/components/threads/ThreadActions";
 import { DueChip, StatusChip } from "@/components/threads/ThreadBits";
@@ -13,7 +13,7 @@ import { buttonVariants } from "@/components/ui/button";
 import { requireUser } from "@/lib/auth/session";
 import { createClient } from "@/lib/supabase/server";
 import { getThreadDetail, userTimezone, type ThreadDetail } from "@/lib/threads/read";
-import { formatHistoryTime, historyLine, KIND_LABEL, THREADS_COPY as C } from "@/lib/threads/view";
+import { formatHistoryTime, historyLine, KIND_LABEL, sourceCaption, THREADS_COPY as C } from "@/lib/threads/view";
 import { getNow, parseInstant } from "@/lib/time";
 
 type Params = Promise<{ id: string }>;
@@ -30,9 +30,9 @@ export async function generateMetadata({ params }: { params: Params }): Promise<
 }
 
 /**
- * /threads/[id] (SITE_CONTRACT §2.7, CONTENT_MODEL §6), S4 scope: header, evidence, append-only
- * history and Done (Resolve… disabled on decision threads until F11). The Explain card, Why panel,
- * Source viewer link and the other actions arrive with F7, F8, F9's remaining actions and F11.
+ * /threads/[id] (SITE_CONTRACT §2.7, CONTENT_MODEL §6): header, Explain card (F7), evidence,
+ * append-only history and Done (Resolve… disabled on decision threads until F11). The Why panel,
+ * Source viewer link and the other actions arrive with F8, F9's remaining actions and F11.
  * Unknown and other users' ids render the not-found page (RLS; never reveals existence).
  */
 export default async function ThreadPage({ params }: { params: Params }) {
@@ -67,7 +67,7 @@ export default async function ThreadPage({ params }: { params: Params }) {
 }
 
 function Thread({ detail, timezone }: { detail: ThreadDetail; timezone: string }) {
-  const { thread: t, evidence, events, origin, sources } = detail;
+  const { thread: t, evidence, events, origin, sources, brief, notSure } = detail;
   const now = getNow();
 
   return (
@@ -105,6 +105,12 @@ function Thread({ detail, timezone }: { detail: ThreadDetail; timezone: string }
         <ThreadActions threadId={t.id} title={t.title} status={t.status} kind={t.kind} />
       </div>
 
+      {brief && parseBrief(brief.brief) ? (
+        <ExplainBrief brief={brief.brief} source={sources[brief.sourceId] ?? null} notSure={notSure} className="mt-10" />
+      ) : (
+        <CompactExplain thread={t} timezone={timezone} now={now} notSure={notSure} />
+      )}
+
       {evidence.length > 0 ? (
         <section aria-labelledby="evidence" className="mt-10">
           <h2 id="evidence" className="text-h3 text-le-text">
@@ -118,7 +124,7 @@ function Thread({ detail, timezone }: { detail: ThreadDetail; timezone: string }
                   <figure className="rounded-r-control border-l-2 border-(--le-evidence-rule) bg-(--le-evidence-bg) px-4 py-3">
                     <figcaption className="flex items-center gap-1 text-label text-le-text-secondary">
                       <Quote aria-hidden strokeWidth={1.75} className="size-3.5" />
-                      {sourceLine(source, e.page)}
+                      {sourceCaption(source, e.page)}
                     </figcaption>
                     <blockquote className="mt-1 font-serif text-body text-le-text">{e.quote}</blockquote>
                   </figure>
@@ -148,10 +154,50 @@ function Thread({ detail, timezone }: { detail: ThreadDetail; timezone: string }
   );
 }
 
-/** "Pasted text · Oct 5" or "Renewal notice · p. 2" (DESIGN_STANDARD "Three voices"). */
-function sourceLine(source: ThreadDetail["sources"][string] | undefined, page: number | null): string {
-  if (!source) return "Source deleted";
-  const name = source.title ?? (source.kind === "paste" ? "Pasted text" : source.kind === "quick_add" ? "Quick add" : "Source");
-  const date = formatInTimeZone(parseInstant(`${source.reference_date}T12:00:00Z`), "UTC", "MMM d");
-  return page ? `${name} · p. ${page}` : `${name} · ${date}`;
+/**
+ * F7 compact Explain card for a thread whose source has no brief (paste, quick add): only What you
+ * need to do and By when (CONTENT_MODEL §6, DESIGN_STANDARD "Explain card"), each only when it has
+ * something to say, plus "Not sure about" (PRD F7: never an empty section). Nothing at all when the
+ * thread has none of them. Title `About this` is PROPOSED copy.
+ */
+function CompactExplain({
+  thread: t,
+  timezone,
+  now,
+  notSure,
+}: {
+  thread: ThreadDetail["thread"];
+  timezone: string;
+  now: Date;
+  notSure: string[];
+}) {
+  const due = t.due_at && (t.status === "open" || t.status === "waiting" || t.status === "snoozed");
+  if (!t.next_action && !due && notSure.length === 0) return null;
+  return (
+    <section aria-labelledby="explain-title" className="mt-10 rounded-card border border-le-border bg-le-surface p-4 sm:p-5">
+      <h2 id="explain-title" className="text-h2 text-le-text">
+        {EXPLAIN_COMPACT_TITLE}
+      </h2>
+      <div className="mt-4 space-y-6">
+        {t.next_action ? (
+          <div>
+            <h3 className="text-eyebrow text-le-text-tertiary uppercase">{EXPLAIN_COPY.whatToDo}</h3>
+            <p className="mt-2 text-body text-le-text">{t.next_action}</p>
+          </div>
+        ) : null}
+        {due ? (
+          <div>
+            <h3 className="text-eyebrow text-le-text-tertiary uppercase">{EXPLAIN_COPY.byWhen}</h3>
+            <p className="mt-2">
+              <DueChip dueAt={t.due_at} certainty={t.due_certainty} timeKnown={t.due_time_known} timezone={timezone} now={now} />
+            </p>
+          </div>
+        ) : null}
+        {notSure.length > 0 ? <NotSureList lines={notSure} /> : null}
+      </div>
+    </section>
+  );
 }
+
+/** PROPOSED. */
+const EXPLAIN_COMPACT_TITLE = "About this";

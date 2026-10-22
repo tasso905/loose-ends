@@ -90,6 +90,56 @@ export async function startExtraction(
   return { ok: true, sourceId: out.source_id, extractionId: out.extraction_id };
 }
 
+export interface UploadStartInput {
+  /** Chosen before the upload: the file is at sources/{uid}/{sourceId}. */
+  sourceId: string;
+  text: string;
+  title: string | null;
+  writtenOn: string | null;
+  mimeType: "application/pdf" | "text/plain" | "text/markdown";
+  pageOffsets: number[] | null;
+}
+
+/**
+ * F3: the upload twin of startExtraction (migration 20261022020155). The database refuses a source
+ * whose file is not in the caller's folder; that and any other refusal is a `save_failed`.
+ */
+export async function startUploadExtraction(
+  db: RpcDb,
+  input: UploadStartInput,
+  opts: { now: Date; logger?: Logger },
+): Promise<StartResult> {
+  const logger = opts.logger ?? defaultLog;
+  const { data, error } = await db.rpc("start_upload_extraction", {
+    p_source_id: input.sourceId,
+    p_text: input.text,
+    p_title: input.title,
+    p_reference_date: input.writtenOn,
+    p_now: opts.now.toISOString(),
+    p_mime_type: input.mimeType,
+    p_page_offsets: input.pageOffsets,
+    p_model: configuredModelLabel(),
+    p_prompt_version: EXTRACT_PROMPT_VERSION,
+    p_schema_version: EXTRACTION_SCHEMA_VERSION,
+  });
+  const out = data as { source_id?: string; extraction_id?: string; error?: string } | null;
+  if (error || !out) {
+    logger("extraction_start_failed", { code: errCode(error), kind: "upload" });
+    return { ok: false, error: apiError("save_failed") };
+  }
+  if (out.error === "rate_limited") {
+    return {
+      ok: false,
+      error: apiError("rate_limited", { limit: DAILY_LIMITS.extraction, kind: "sources", timezone: RATE_LIMIT_TIMEZONE }),
+    };
+  }
+  if (!out.source_id || !out.extraction_id) {
+    logger("extraction_start_failed", { code: "no_ids", kind: "upload" });
+    return { ok: false, error: apiError("save_failed") };
+  }
+  return { ok: true, sourceId: out.source_id, extractionId: out.extraction_id };
+}
+
 /**
  * `alreadyStarted`: another click already started the newest attempt; the caller shows it and must
  * NOT schedule another run (S2-2).

@@ -8,6 +8,7 @@ import { ErrorBanner } from "@/components/Notice";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { EXTRACTION_SLOW_MESSAGE, apiError, type ApiError } from "@/lib/errors";
 import type { ExtractionStage, ExtractionView } from "@/lib/extraction/service";
+import type { SourceRef } from "@/lib/threads/view";
 import { ReviewTray } from "./ReviewTray";
 
 /** Real pipeline steps, shown only as the server reports each one (SITE_CONTRACT §2.3, A1). */
@@ -25,7 +26,17 @@ const POLL_MS = 1000;
  * staged progress + skeleton cards, slow (45 s), failure (`Try again`, `Back to Add`), zero
  * proposals, and the Review Tray (S3, components/review/ReviewTray.tsx).
  */
-export function ReviewProgress({ initial, timezone, nowIso }: { initial: ExtractionView; timezone: string; nowIso: string }) {
+export function ReviewProgress({
+  initial,
+  timezone,
+  nowIso,
+  source,
+}: {
+  initial: ExtractionView;
+  timezone: string;
+  nowIso: string;
+  source?: SourceRef | null;
+}) {
   const router = useRouter();
   const [view, setView] = useState(initial);
   const [retryError, setRetryError] = useState<ApiError["error"] | null>(null);
@@ -124,5 +135,5 @@ export function ReviewProgress({ initial, timezone, nowIso }: { initial: Extract
     );
   }
 
-  return <ReviewTray key={view.id} view={view} timezone={timezone} nowIso={nowIso} />;
+  return <ReviewTray key={view.id} view={view} timezone={timezone} nowIso={nowIso} source={source} />;
 }

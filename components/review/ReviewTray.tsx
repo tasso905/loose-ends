@@ -17,6 +17,7 @@ import type { ExtractionView, ProposalView } from "@/lib/extraction/service";
 import { canAccept, groupProposals, initialSelection, TRAY_COPY as C, trayProposals, type TrayBand } from "@/lib/review/tray";
 import type { ReviewStatus, ThreadKind } from "@/lib/schemas";
 import { threadKindFor } from "@/lib/threads/mapping";
+import { sourceCaption, type SourceRef } from "@/lib/threads/view";
 import { parseInstant } from "@/lib/time";
 import { cn } from "@/lib/utils";
 import { ExplainBrief } from "./ExplainBrief";
@@ -35,7 +36,18 @@ type Busy = { kind: "accept" | "reject_all" } | { kind: "card"; id: string } | n
 
 const offlineOr = (code: "save_failed") => apiError(typeof navigator !== "undefined" && !navigator.onLine ? "offline" : code).error;
 
-export function ReviewTray({ view, timezone, nowIso }: { view: ExtractionView; timezone: string; nowIso: string }) {
+export function ReviewTray({
+  view,
+  timezone,
+  nowIso,
+  source,
+}: {
+  view: ExtractionView;
+  timezone: string;
+  nowIso: string;
+  /** The source, for the label above each quote; omitted: `Pasted text`. */
+  source?: SourceRef | null;
+}) {
   const shown = useMemo(() => trayProposals(view.proposals), [view.proposals]);
   const [status, setStatus] = useState<Record<string, ReviewStatus>>(() =>
     Object.fromEntries(shown.map((p) => [p.id, p.reviewStatus])),
@@ -129,7 +141,7 @@ export function ReviewTray({ view, timezone, nowIso }: { view: ExtractionView; t
     return (
       <div>
         <h1 className="text-display-sm text-le-text sm:text-display">{C.zero}</h1>
-        <ExplainBrief brief={view.brief} className="mt-6" />
+        <ExplainBrief brief={view.brief} source={source} className="mt-6" />
       </div>
     );
   }
@@ -175,6 +187,7 @@ export function ReviewTray({ view, timezone, nowIso }: { view: ExtractionView; t
                   working={busy?.kind === "card" && busy.id === p.id}
                   timezone={timezone}
                   now={now}
+                  source={source}
                   onCheck={(on) =>
                     setSelected((sel) => {
                       const out = new Set(sel);
@@ -276,12 +289,13 @@ interface CardProps {
   working: boolean;
   timezone: string;
   now: Date;
+  source?: SourceRef | null;
   onCheck: (on: boolean) => void;
   onReject: () => void;
   onUndo: () => void;
 }
 
-function ProposalCard({ proposal: p, status, checked, acceptable, disabled, working, timezone, now, onCheck, onReject, onUndo }: CardProps) {
+function ProposalCard({ proposal: p, status, checked, acceptable, disabled, working, timezone, now, source, onCheck, onReject, onUndo }: CardProps) {
   const { item, label, evidence, date, not_sure } = p.payload;
   const kind = threadKindFor(item.type, item.owner)?.kind;
   const accepted = isAccepted(status);
@@ -359,7 +373,7 @@ function ProposalCard({ proposal: p, status, checked, acceptable, disabled, work
                 <figure className="mt-3 rounded-r-control border-l-2 border-(--le-evidence-rule) bg-(--le-evidence-bg) px-4 py-3">
                   <figcaption className="flex items-center gap-1 text-label text-le-text-secondary">
                     <Quote aria-hidden strokeWidth={1.75} className="size-3.5" />
-                    Pasted text
+                    {source === undefined ? "Pasted text" : sourceCaption(source, evidence[0].page)}
                   </figcaption>
                   <blockquote className="mt-1 font-serif text-body text-le-text">{evidence[0].quote}</blockquote>
                 </figure>

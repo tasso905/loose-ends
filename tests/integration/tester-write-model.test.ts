@@ -21,6 +21,7 @@ const WRITERS = [
   "retry_extraction",
   "set_extraction_stage",
   "start_source_extraction",
+  "start_upload_extraction", // S6: writes sources + extractions; checks the caller's own storage folder
   "thread_done",
   "thread_undo",
   "undo_reject_proposals",
@@ -50,7 +51,7 @@ beforeAll(async () => {
 });
 
 describe("tester: write-model catalog audit", () => {
-  it("the functions authenticated can execute are exactly the 13 writers plus the read-only extraction_context", () => {
+  it("the functions authenticated can execute are exactly the 14 writers plus the read-only extraction_context", () => {
     expect(fns.filter((f) => f.auth).map((f) => f.name).sort()).toEqual([...WRITERS, ...READERS].sort());
   });
 

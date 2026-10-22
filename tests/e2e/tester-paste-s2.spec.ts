@@ -172,8 +172,17 @@ test("written-on: Assumed by default → stored 'defaulted'; a picked date → s
 
 test("keyboard only: paste → open date → submit → results; Also noticed collapsed and opened by keyboard", async () => {
   await page.goto("/add?mode=paste");
-  await page.keyboard.press("Tab"); // skip link or first control
-  for (let i = 0; i < 10 && !(await page.getByLabel("Paste a message or document").evaluate((el) => el === document.activeElement)); i++) {
+  // Bound the Tab walk by the number of focusable elements on the page (header links, the Add mode
+  // links, ...), so a new control before the textarea does not break the test, while a focus trap
+  // or an unreachable textarea still fails it.
+  const focusable = await page.evaluate(
+    () =>
+      document.querySelectorAll(
+        'a[href], button:not([disabled]), input:not([disabled]):not([type="hidden"]), textarea:not([disabled]), select:not([disabled]), summary, [tabindex]:not([tabindex="-1"])',
+      ).length,
+  );
+  const textarea = page.getByLabel("Paste a message or document");
+  for (let i = 0; i <= focusable && !(await textarea.evaluate((el) => el === document.activeElement)); i++) {
     await page.keyboard.press("Tab");
   }
   await expect(page.getByLabel("Paste a message or document")).toBeFocused();

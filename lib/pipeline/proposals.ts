@@ -87,7 +87,9 @@ export function processExtraction(output: Extraction, opts: ProcessOptions): Pro
 
   return {
     proposals,
-    brief: output.brief ? verifyBrief(output.brief, opts.sourceText, { extractionId: opts.extractionId, logger: opts.logger }) : null,
+    brief: output.brief
+      ? verifyBrief(output.brief, opts.sourceText, { pageOffsets: opts.pageOffsets, extractionId: opts.extractionId, logger: opts.logger })
+      : null,
     droppedItemIndexes: verified.droppedItemIndexes,
     droppedTypeIndexes,
     unverifiedQuoteCount: verified.droppedQuotes.length,
