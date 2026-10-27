@@ -154,10 +154,32 @@ export const THREADS_COPY = {
   /** SITE_CONTRACT §1.2. */
   notFound: "This thread doesn't exist or was deleted.",
   goToToday: "Go to Today",
-  /** Interim Today (Approved Oct 21, replaced by F10). */
+  /** SITE_CONTRACT §2.5 / CONTENT_MODEL §4 empty state. */
   todayEmpty: "Nothing needs you right now.",
+  /** Interim Today (Approved Oct 21); no longer used by Today since F10, kept for the tests that name it. */
   todayListLabel: "Active threads",
 } as const;
+
+/**
+ * F10 Today copy (SITE_CONTRACT §2.5, CONTENT_MODEL §4). Section names, the plural count line and
+ * the `N to review` chip are in the docs; the singular count line is PROPOSED.
+ */
+export const TODAY_COPY = {
+  heading: "Today",
+  attention: "Worth your attention",
+  waiting: "Waiting on others",
+  comingUp: "Coming up",
+  resolved: "Recently resolved",
+  /** `2 things are worth your attention`; PROPOSED singular `1 thing is worth your attention`. Omitted at 0. */
+  countLine: (n: number) => (n === 1 ? "1 thing is worth your attention" : `${n} things are worth your attention`),
+  /** DESIGN_STANDARD Review chip: `3 to review`. */
+  toReview: (n: number) => `${n} to review`,
+} as const;
+
+/** Greeting: the user's local date in full, e.g. `Sunday, October 18` (DESIGN_STANDARD Dates and numbers). */
+export function greeting(now: Date, timezone: string): string {
+  return formatInTimeZone(now, timezone, "EEEE, MMMM d");
+}
 
 export interface SourceRef {
   title: string | null;

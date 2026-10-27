@@ -36,6 +36,7 @@ export function ResolveSheet({
   open,
   onClose,
   onResolved,
+  surface = "detail",
 }: {
   threadId: string;
   status: ThreadStatus;
@@ -43,6 +44,8 @@ export function ResolveSheet({
   open: boolean;
   onClose: () => void;
   onResolved: (r: Resolved) => void;
+  /** Analytics only: where the sheet was opened. */
+  surface?: "today" | "detail";
 }) {
   const router = useRouter();
   const ids = useId();
@@ -115,7 +118,7 @@ export function ResolveSheet({
     const actionAt = performance.now();
     startTransition(async () => {
       try {
-        const res = await resolveAction(input);
+        const res = await resolveAction(input, surface);
         if (!res.ok) {
           if (res.field === "choice") {
             setChoiceError(res.error.message);
