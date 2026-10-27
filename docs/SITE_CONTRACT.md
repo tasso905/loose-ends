@@ -30,7 +30,7 @@
 - **Global action:** Add, on every authenticated page.
 - **Account menu:** Settings, Export data, Sign out. Export data starts the export directly and reports completion only after the download is ready.
 - **Review chip:** `N to review` on Today when pending proposals exist; links to the most recent pending Review Tray.
-- **Demo-date banner:** for a demo (anonymous) account with a demo date, a full-width banner above the shell (D12, D55). Never shown for a real account; demo-ness is decided on the server from the auth claim, never from client input.
+- **Demo-date banner:** for a demo (anonymous) account with a demo date, a full-width banner above the shell (D12, D55). It holds the demo clock control (D59). Never shown for a real account; demo-ness is decided on the server from the auth claim, never from client input.
 - **Page title:** `{Page} · Loose Ends` in the browser tab; thread detail uses the thread title.
 
 ### 1.2 Route map (v1.1)
@@ -47,8 +47,8 @@
 | `/threads` | Threads index | Signed in | `?filter=active` (default) or `closed` |
 | `/threads/[id]` | Thread detail | Signed in | `?panel=why` opens the Why panel; `?sheet=resolve` opens Resolve |
 | `/sources/[id]` | Source viewer | Signed in | `?evidence=[evidenceId]` highlights and scrolls to that quote |
-| `/decisions` | Decisions / Ask Why | Signed in | `?q=` holds the last question so answers can be deep-linked |
-| `/settings` | Settings | Signed in | Anchors `#profile` and `#data` |
+| `/decisions` | Decisions / Ask Why | Signed in | `?q=` prefills the Ask box but never asks automatically, because every ask is a model call and counts toward the daily limit (D57). *Was:* "holds the last question so answers can be deep-linked" |
+| `/settings` | Settings | Signed in | Anchors `#profile` and `#data`. Renders the not-found page (404) until analytics can actually run, so it never shows a toggle with no effect (D57, rule 9) |
 
 **Signed-out access (D38):** a signed-out visit to any Signed in route redirects to `/sign-in?next={path}`, where the path includes its query string. After sign-in, `/auth/callback` sends the user to `next`. On first sign-in, onboarding comes first and then `next`. Only same-site relative paths are honoured as `next`; anything else falls back to `/today`.
 
@@ -64,12 +64,12 @@ Field-level content, constraints and copy are defined in the content model v1.1;
 |---|---|
 | Pitch headline (D38) | `Tie up your loose ends.` The page's only h1. Below the `Loose Ends` wordmark and above the subline. Exact text |
 | Pitch subline (D38) | `Paste in the mess. Get back what's still open, each with the sentence it came from.` Directly below the headline and above the sign-in form. Exact text; no added marketing copy, and no privacy or speed claims (rule 9) |
-| Email + `Email me a sign-in link` | Field label `Email`. Button disabled while sending. Field errors per §2.13 "Sign in and onboarding" |
+| Email + `Email me a sign-in link` | Field label `Email`. Button disabled while sending. Protected by Cloudflare Turnstile, because Supabase CAPTCHA protection covers every auth endpoint (D59). Field errors per §2.13 "Sign in and onboarding" |
 | Check-your-email state (D39) | Shown only after Supabase confirms the link was sent (rule 10). Heading `Check your email`. Body `I sent a sign-in link to {email}. Open it in this browser to sign in.` then `The link works for 1 hour.` Offers `Use a different email`. The lifetime line is tied to Supabase `otp_expiry = 3600`; the copy and the setting (local config and the production project) change together |
 | Divider | `or`, between the email form and `Continue with Google` (D39). Rendered only when Google sign-in is switched on (D41) |
 | `Continue with Google` | Identity scopes only (`openid email profile`). Conditional (D41): rendered whenever `NEXT_PUBLIC_AUTH_GOOGLE_ENABLED=true`; set that flag only where the Supabase Google provider is enabled (the release checklist enables both). It ships on only if the Google OAuth setup and a manual check pass by Oct 24; otherwise it stays hidden and the email link is the only sign-in method. If it does not ship, this row, the divider row and `oauth_failed` (§2.13) are removed at the Oct 25 scope review |
-| `Try the demo` (D55) | Below the sign-in methods, a secondary button labelled `Try the demo`, with the line `Explore with made-up data. No email needed. Demo accounts are deleted within 2 days.` (*Proposed*, PRD Question #14). Protected by a Cloudflare Turnstile CAPTCHA. Pressing it creates a fresh anonymous demo account seeded with the "Sam" data on the demo date Mon Oct 5, 2026, then opens Today; it shows a pending state while the account is created and never claims the demo started before the server confirms (rule 10). Hidden when JavaScript is off |
-| Demo unavailable (D55) | When `DEMO_ENABLED` is off or the day's demo AI budget is spent, the button is disabled and the reason is shown under it (copy in §2.13, *Proposed*). The email sign-in stays available |
+| `Try the demo` (D55) | Below the sign-in methods, a secondary button labelled `Try the demo`, with the line `Explore with made-up data. No email needed. Demo accounts are deleted within 2 days.` (approved Oct 22, D59). Protected by a Cloudflare Turnstile CAPTCHA. Pressing it creates a fresh anonymous demo account seeded with the "Sam" data on the demo date Mon Oct 5, 2026, then opens Today; it shows a pending state while the account is created and never claims the demo started before the server confirms (rule 10). Hidden when JavaScript is off |
+| Demo unavailable (D55) | When `DEMO_ENABLED` is off or the day's demo AI budget is spent, the button is disabled and the reason is shown under it (copy in §2.13, approved D59). The email sign-in stays available |
 | No JavaScript | `Signing in needs JavaScript. Turn it on in your browser, then reload this page.` (D39) |
 | Aliases question | `What name and emails do people use for you?` Field label `Names and emails`. Hint `Separate them with commas. I use these to tell which tasks are yours.` Below it, `Your sign-in email, {email}, is always included.` Actions `Save` and `Skip`. Skippable; signed-in email always saved as alias. At most 20 names and emails, each up to 100 characters (D40). Field errors per §2.13 (D39) |
 | Notices | "Don't paste passwords or full account numbers.", shown on the sign-in page and in onboarding. Analytics notice with opt-out link, shown in onboarding. It ships with the first PostHog event and stays hidden until then (D40, rule 9). Approved wording (D46, Oct 21): `Loose Ends counts which features you use. Analytics never include what you paste.` with the opt-out link `Turn off analytics` |
@@ -82,7 +82,8 @@ Field-level content, constraints and copy are defined in the content model v1.1;
 | Nav labels | `Today`, `Threads`, `Decisions`; Add button labelled `Add` |
 | Account menu | `Settings`, `Export data`, `Sign out` |
 | Review chip | Real pending count only |
-| Demo banner | `Demo date: {Weekday Mon D, YYYY}`; demo (anonymous) accounts only (D55). *Proposed* (PRD Question #14): `Demo account with made-up data · Demo date: {Weekday Mon D, YYYY}` |
+| Demo banner | `Demo account with made-up data · Demo date: {Weekday Mon D, YYYY}` (approved Oct 22, D59; *was:* `Demo date: {Weekday Mon D, YYYY}`); demo (anonymous) accounts only (D55) |
+| Demo clock control (D59) | Inside the demo banner, demo accounts only: `+3 days`, `+3 months` and `Reset` (back to Mon Oct 5, 2026). Labels approved Oct 27 (D60); the control's accessible name and its failure message are *Proposed* in the demo PR (PRD Question #15). The server checks the `is_anonymous` claim and refuses the change for a real account; the new date shows only after the server confirms it (rule 10) |
 
 ### 2.2 Add / Capture
 
@@ -150,7 +151,7 @@ Field-level content, constraints and copy are defined in the content model v1.1;
 | Section headings | `Next action`, `Evidence`, `History` (D47) |
 | Evidence | Quote, source, page/date, `Open source`, `Why?`. If the source was deleted, the source line reads `Source deleted` (D47) |
 | History | Append-only timeline; corrections phrased `You changed …`. Event lines (D47): `You accepted this from your source.`, `Added from quick add.`, `You marked this done.` / `Loose Ends marked this done.`, `You resolved this.` / `Loose Ends resolved this.`, `You undid the last change.`, `You reopened this.`, `You snoozed this.`, `You edited this.`, `Status changed to {status}.`; fallback `Updated.` |
-| Decision | Section heading `Decision` (D56). Shown when resolution is Decided |
+| Decision | Section heading `Decision` (D56). Shown when resolution is Decided, with the link `Ask why` to `/decisions?q=` (D57). Without a reason: `You didn't record a reason for this decision.` + `Add a reason now` (D58) |
 | Interim Resolve… | Until F11 ships, `Resolve…` is disabled with the reason `Resolving with a decision isn't available yet.` (D47) |
 | Actions | `Done` (not for decision threads), `Resolve…`, `Mark waiting`, `Snooze`, `Edit`, `Dismiss`, `Reopen` (closed threads only), `Forget permanently…`; desktop shows the first three as buttons and the rest in an overflow menu labelled `More actions` |
 | Mark waiting form | `Waiting on` (required, prefilled with counterparty), `Expected by` (optional date) |
@@ -179,7 +180,7 @@ Field-level content, constraints and copy are defined in the content model v1.1;
 | Field | Constraints |
 |---|---|
 | Choice | `Done`, `Decided`, `Not needed`; threads of kind `decision` get only `Decided` and `Not needed` (D6, D56) |
-| Decided fields | `What did you decide?` (starts empty, because no options are stored to prefill from; editable; up to 300 characters) and `Want me to remember why?` textarea (optional; up to 2,000 characters). Limits are enforced by the field length, so no message is shown (D56) |
+| Decided fields | `What did you decide?` (starts empty, because no options are stored to prefill from; editable; up to 300 characters) and `Want me to remember why?` textarea (optional; up to 2,000 characters). Over the limit: `Decisions can be up to 300 characters.` / `Reasons can be up to 2,000 characters.` inline under the field (D57; *was:* "no message is shown", D56) |
 | Validation | Save with Decided and an empty decision: `Write what you decided, or choose another option.` under the decision field (D56) |
 | Actions | `Save` and `Skip` equally prominent; Skip never re-prompts. `Cancel` closes the sheet without saving (D56) |
 | Result | Thread shows Resolved with the decision; undo toast `Resolved: "{title}"` after Decided or Not needed (Done keeps `Marked done: "{title}"`), its Undo button labelled for screen readers `Undo resolve: {title}`. Undo after Decided restores the thread and deletes the decision it created (D44, D56) |
@@ -188,12 +189,13 @@ Field-level content, constraints and copy are defined in the content model v1.1;
 
 | Field | Constraints |
 |---|---|
-| Ask box | Placeholder `Ask about a past decision`; max 300 characters; 50 asks/day |
-| Answer card | Labelled parts in fixed order: `You decided` · `You wrote:` · `From the source:` · `Interpretation:`; `Open thread` |
+| Ask box | Placeholder `Ask about a past decision`; button `Ask` (D57); max 300 characters; 50 asks/day. Empty question: `Write a question first.` inline (D57). Runs as a server action, not `POST /api/ask` (D57) |
+| Deep link | `?q=` (for example from `Ask why` on Thread detail) prefills the box; the user presses `Ask`. Never asks automatically (D57) |
+| Answer card | Labelled parts in fixed order: `You decided` · `You wrote:` · `From the source:` · `Interpretation:`; `Open thread`. Each cited decision's whole stored reason is shown verbatim under `You wrote:`, even when the model omits it (D33, D57) |
 | No match | `I don't have a recorded decision about that.` |
-| No reason | `You didn't record a reason for this decision.` + `Add a reason now` |
+| No reason | `You didn't record a reason for this decision.` + `Add a reason now` (D58): adds the reason once, only while it is empty, stored verbatim; written by a security-definer function that appends a `thread_events` row. Form copy and History line: *Proposed* in the S9b PR, pending user approval |
 | Ask failed (D54) | `ask_failed` inline under the Ask box: `I couldn't answer that just now. Try asking again.` + `Try again`. The question stays in the box; no partial answer is shown. Every failure kind, including provider quota (429) |
-| Decision list | Newest first; empty state per content model §10 |
+| Decision list | Heading `Recorded decisions` (D57); newest first; empty state per content model §10. Load failure: `I couldn't load your decisions.` + `Try again` (D57) |
 
 ### 2.12 Settings and Data
 
@@ -225,6 +227,10 @@ Field-level content, constraints and copy are defined in the content model v1.1;
 | `rate_limited` | `You've reached today's limit of {limit} {sources/questions}. It resets at midnight (UTC).` (the limit counts per UTC day, so the reset is always shown in UTC, not the user's timezone; D30) | None | No |
 | `invalid_transition` | `That change isn't possible any more. Refresh to see the latest.` | `Refresh` | No |
 | `invalid_input` (D56), field `choice` | `Write what you decided, or choose another option.` | Inline under `What did you decide?` | No |
+| `invalid_input` (D57), field `choice`, over 300 characters | `Decisions can be up to 300 characters.` | Inline under `What did you decide?` | No |
+| `invalid_input` (D57), field `reason_user`, over 2,000 characters | `Reasons can be up to 2,000 characters.` | Inline under `Want me to remember why?` | No |
+| `invalid_input` (D57), field `question` | `Write a question first.` | Inline under the Ask box | No |
+| Decisions list fails to load (D57) | `I couldn't load your decisions.` | Page banner + `Try again` | Yes |
 | Network / offline | `You're offline. Nothing was saved.` | `Try again` | Yes |
 | Any other save failure | `That didn't save. Try again.` | `Try again` | Yes |
 | `invalid_input` (D47), field `text` | `Paste some text first.` | Inline under the textarea | No |
@@ -247,11 +253,12 @@ Field-level content, constraints and copy are defined in the content model v1.1;
 | Sign-in `send_failed` | `I couldn't send the link. Try again.` | Inline under the email field; `Email me a sign-in link` stays available | Yes |
 | `?error=link_expired` | `That sign-in link has expired or was already used. Enter your email to get a new one.` | Email field | No; request a new link |
 | `?error=link_other_browser` | `That link was opened in a different browser. Enter your email to get a new one, and open it in this browser.` | Email field | No; request a new link |
-| `demo_unavailable`, budget spent (D55, *Proposed*) | `The demo is full for today. It opens again after midnight (UTC). You can still sign in with your email.` | `Try the demo` disabled; email field | Later |
-| `demo_unavailable`, switched off (D55, *Proposed*) | `The demo isn't available right now. You can still sign in with your email.` | `Try the demo` disabled; email field | No |
-| `demo_captcha_failed` (D55, *Proposed*) | `I couldn't check that you're a person. Try again.` | Under `Try the demo` | Yes |
-| `demo_rate_limited` (D55, *Proposed*; Supabase's per-IP anonymous sign-in limit) | `Too many demos were started from this network. Try again later, or sign in with your email.` | Under `Try the demo` | Later |
-| `demo_start_failed` (D55, *Proposed*) | `I couldn't start the demo. Try again.` | Under `Try the demo` | Yes |
+| `demo_unavailable`, budget spent (D55, approved D59) | `The demo is full for today. It opens again after midnight (UTC). You can still sign in with your email.` | `Try the demo` disabled; email field | Later |
+| `demo_unavailable`, switched off (D55, approved D59) | `The demo isn't available right now. You can still sign in with your email.` | `Try the demo` disabled; email field | No |
+| `demo_captcha_failed` (D55, approved D59) | `I couldn't check that you're a person. Try again.` | Under `Try the demo` | Yes |
+| Sign-in CAPTCHA failed on the email form (D59; approved Oct 27, D60) | `I couldn't check that you're a person. Try again.` | Inline under the email field | Yes |
+| `demo_rate_limited` (D55, approved D59; Supabase's per-IP anonymous sign-in limit) | `Too many demos were started from this network. Try again later, or sign in with your email.` | Under `Try the demo` | Later |
+| `demo_start_failed` (D55, approved D59) | `I couldn't start the demo. Try again.` | Under `Try the demo` | Yes |
 | `?error=oauth_failed` | `Google sign-in didn't finish. Try again, or use your email.` | `Continue with Google` or the email field. Applies only while Google sign-in is switched on (D41) | Yes |
 | Onboarding `too_many` | `That's more than 20 names and emails. Keep the ones people use most.` | Inline under the field | No |
 | Onboarding `too_long` | `Each name or email can be up to 100 characters.` | Inline under the field | No |
@@ -270,7 +277,7 @@ Errors appear next to the control that caused them (forms) or as an error banner
 | Thread detail | Skeleton header + card | — | Not-found page; load failure banner `I couldn't load your threads.` (D47) | Source deleted; decision missing reason |
 | Why panel | Inline spinner | — | `Couldn't load this explanation.` + retry | Source deleted |
 | Source viewer | Skeleton text | — | Not-found page | Deleted state |
-| Decisions | Skeleton list | Decision list empty state | Page banner; a failed ask shows `ask_failed` inline under the Ask box, question kept, no partial answer (D54, §2.13) | No match; no reason |
+| Decisions | Skeleton list | Decision list empty state | Page banner `I couldn't load your decisions.` + `Try again` (D57); `Write a question first.` under the Ask box (D57); a failed ask shows `ask_failed` inline under the Ask box, question kept, no partial answer (D54, §2.13) | No match; no reason with `Add a reason now` (D58); `?q=` prefilled, not asked (D57) |
 | Sign in (D39) | Send button disabled while sending; `Try the demo` pending while the demo account is created (D55) | — | Field errors and `?error=` messages per §2.13; demo errors under `Try the demo`; offline banner | Check-your-email state (§2.0); demo-unavailable state (D55); no-JavaScript message |
 | Onboarding (D39) | — | — | Field errors per §2.13; save-failure and offline banners | Skip |
 | Settings | Skeleton form | No sources: `You haven't added anything yet.` | Field / banner errors; load failure `Settings didn't load. Try again.` (D46) | Export in progress; deletion in progress |
@@ -287,7 +294,7 @@ Errors appear next to the control that caused them (forms) or as an error banner
 - Resolve opens as a sheet over Thread detail; saving closes it and shows the resolved state.
 - Why opens as a side sheet (desktop) or bottom sheet (mobile) from Today rows and Thread detail; closing returns focus to the `Why?` link that opened it.
 - `Open source` navigates to `/sources/[id]?evidence=…`; Back returns to the thread.
-- Ask Why lives on `/decisions`; thread detail links a decision to `/decisions?q=` prefilled with the thread title.
+- Ask Why lives on `/decisions`; the `Ask why` link on a thread's decision opens `/decisions?q=` prefilled with the thread title. The page does not ask until the user presses `Ask` (D57).
 - No interface state claims success before the server confirms it.
 
 ### 3.2 Scroll behaviour

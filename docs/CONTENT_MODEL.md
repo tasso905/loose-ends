@@ -14,15 +14,15 @@
 | Product name | Names the product | `Loose Ends` as the wordmark (DESIGN_STANDARD "Wordmark and favicon"), at the top of the page. It is not a heading. The sign-in page is also the first screen for new users and judges; there is no landing page (D38) |
 | Pitch headline | Says what the product is for | Exactly `Tie up your loose ends.` (D38, Oct 19). The page's only h1, replacing the earlier "`Loose Ends` heading". Below the wordmark, above the subline |
 | Pitch subline | Says how it works | Exactly `Paste in the mess. Get back what's still open, each with the sentence it came from.` (D38, Oct 19). Body text directly below the headline, above the email field. Order: wordmark → headline → subline → sign-in form → notices. No other marketing copy; no privacy or speed claims (rule 9) |
-| Email field | Magic-link address | Label `Email`. Standard email validation; one field only. Invalid input shows `Enter an email address, like name@example.com.` (D39; all sign-in errors in SITE_CONTRACT §2.13) |
+| Email field | Magic-link address | Label `Email`. Standard email validation; one field only. Invalid input shows `Enter an email address, like name@example.com.` (D39; all sign-in errors in SITE_CONTRACT §2.13). Protected by Turnstile (D59); a failed CAPTCHA shows `I couldn't check that you're a person. Try again.` (D60) |
 | Send link button | Requests a magic link | Label `Email me a sign-in link`; disabled while sending |
 | Divider | Separates the two sign-in methods | `or`, between the email form and the Google button (D39). Shown only when Google sign-in is switched on (D41) |
 | Google button | Identity-only Google sign-in | Label `Continue with Google`; no mailbox scopes. Conditional (D41): shown only if the Google OAuth setup and a manual check pass by Oct 24; otherwise hidden, and this row and the divider row are removed at the Oct 25 scope review |
 | Check-your-email state | Confirms the link was sent | Heading `Check your email`. Body `I sent a sign-in link to {email}. Open it in this browser to sign in.` then `The link works for 1 hour.` (D39; tied to Supabase `otp_expiry = 3600`, so the setting and this line change together). Offers `Use a different email`; never claims sign-in succeeded |
 | No-JavaScript message | Explains why sign-in can't work | `Signing in needs JavaScript. Turn it on in your browser, then reload this page.` (D39) |
 | Aliases question | Helps tell "you" from others in pasted threads | "What name and emails do people use for you?"; field label `Names and emails`; hint `Separate them with commas. I use these to tell which tasks are yours.`; below it `Your sign-in email, {email}, is always included.`; actions `Save` and `Skip`. Up to 20 names and emails, each up to 100 characters (limits decided, D40), with the errors in SITE_CONTRACT §2.13 (D39). Skippable; signed-in email always saved as an alias |
-| Try the demo (D55) | Lets judges and visitors try it without email | Button `Try the demo`, below the sign-in methods, behind a Turnstile CAPTCHA. Creates a fresh anonymous account seeded with the "Sam" data on the demo date Mon Oct 5, 2026; skips onboarding. *Proposed* (PRD Question #14): the line `Explore with made-up data. No email needed. Demo accounts are deleted within 2 days.` |
-| Demo unavailable (D55) | Explains why the demo button is off | Button disabled with the reason under it. *Proposed:* budget spent `The demo is full for today. It opens again after midnight (UTC). You can still sign in with your email.`; switched off `The demo isn't available right now. You can still sign in with your email.` Other demo errors in SITE_CONTRACT §2.13 |
+| Try the demo (D55) | Lets judges and visitors try it without email | Button `Try the demo`, below the sign-in methods, behind a Turnstile CAPTCHA. Creates a fresh anonymous account seeded with the "Sam" data on the demo date Mon Oct 5, 2026; skips onboarding. The line `Explore with made-up data. No email needed. Demo accounts are deleted within 2 days.` (approved Oct 22, D59) |
+| Demo unavailable (D55) | Explains why the demo button is off | Button disabled with the reason under it. Approved Oct 22 (D59): budget spent `The demo is full for today. It opens again after midnight (UTC). You can still sign in with your email.`; switched off `The demo isn't available right now. You can still sign in with your email.` Other demo errors in SITE_CONTRACT §2.13 |
 | Sensitive-data note | Sets expectations before first paste | "Don't paste passwords or full account numbers."; shown on the sign-in page and in onboarding |
 | Analytics notice | Explains event-only analytics | Plain statement + opt-out link; no content is ever sent. Ships with the first PostHog event and stays hidden until then (D40, rule 9). Approved wording (D46, Oct 21): `Loose Ends counts which features you use. Analytics never include what you paste.` Opt-out link: `Turn off analytics` |
 
@@ -35,7 +35,8 @@
 | Global Add | Capture from anywhere | Button labelled `Add`; opens the Add page/sheet |
 | Account menu | Account and data controls | `Settings`, `Export data`, `Sign out` |
 | Review chip | Pending proposals | `N to review`; shown only when N ≥ 1; count is real pending proposals |
-| Demo-date banner | Simulated clock indicator | Only for a demo (anonymous) account with a demo date, never for a real account: `Demo date: Thu Oct 8, 2026` (D12, D55). *Proposed* (PRD Question #14): `Demo account with made-up data · Demo date: Thu Oct 8, 2026` |
+| Demo-date banner | Simulated clock indicator | Only for a demo (anonymous) account with a demo date, never for a real account: `Demo account with made-up data · Demo date: Thu Oct 8, 2026` (D12, D55; approved Oct 22, D59; *was:* `Demo date: Thu Oct 8, 2026`) |
+| Demo clock control (D59) | Moves the demo date for the 2-minute demo | Inside the demo banner, demo accounts only, server-checked: `+3 days`, `+3 months`, `Reset` (back to Mon Oct 5, 2026). Labels approved Oct 27 (D60); the accessible name is *Proposed* in the demo PR (PRD Question #15) |
 
 ### 2. Add / Capture
 
@@ -141,10 +142,10 @@
 |---|---|---|
 | Sheet heading | Asks how it ended | `How did this end?` |
 | Resolution choice | How the loop ended | `Done`, `Decided`, or `Not needed` (D10); user-selected. Threads of kind `decision` get only `Decided` and `Not needed` (D56) |
-| Decision | Outcome or choice | `What did you decide?`; shown when Decided; starts empty, because no options are stored to prefill from (D56; *was:* prefilled from the thread); up to 300 characters; preserve user's wording. Saving it empty shows `Write what you decided, or choose another option.` |
-| Remember why? | Optional prompt to save rationale | `Want me to remember why?`; up to 2,000 characters (D56); Skip is one tap and equally prominent; never re-prompted |
+| Decision | Outcome or choice | `What did you decide?`; shown when Decided; starts empty, because no options are stored to prefill from (D56; *was:* prefilled from the thread); up to 300 characters, over which it shows `Decisions can be up to 300 characters.` (D57); preserve user's wording. Saving it empty shows `Write what you decided, or choose another option.` |
+| Remember why? | Optional prompt to save rationale | `Want me to remember why?`; up to 2,000 characters (D56), over which it shows `Reasons can be up to 2,000 characters.` (D57); Skip is one tap and equally prominent; never re-prompted |
 | Close and undo (D56) | Leaving the sheet; reversing a resolve | `Cancel` closes the sheet without saving. Toast `Resolved: "{title}"` + `Undo`; undo after Decided also deletes the decision it created (D44) |
-| User reason | User's explanation for the decision | Preserve verbatim; optional |
+| User reason | User's explanation for the decision | Preserve verbatim; optional. If skipped, it can be added later with `Add a reason now`, once, only while empty (D58) |
 | AI summary | Condensed rationale, if generated | Optional; labelled AI-generated; never replaces original wording |
 | Resolution date/context | When and in what context it was resolved | Timestamp; context facts snapshotted with evidence IDs |
 
@@ -153,13 +154,14 @@
 | Field | Description | Constraints |
 |---|---|---|
 | Page heading | Names the destination | `Decisions` |
-| Question input | User asks about a past decision | Placeholder `Ask about a past decision`; scoped to stored decisions |
-| Grounded answer | Response from saved decisions | Parts labelled `You decided` (date) · `You wrote:` (verbatim, in quotes) · `From the source:` · `Interpretation:` |
+| Question input | User asks about a past decision | Placeholder `Ask about a past decision`; button `Ask` (D57); scoped to stored decisions. Empty: `Write a question first.` (D57). A `?q=` link prefills it and never asks automatically (D57) |
+| Grounded answer | Response from saved decisions | Parts labelled `You decided` (date) · `You wrote:` (verbatim, in quotes; always the whole stored reason, even if the model omits it, D33, D57) · `From the source:` · `Interpretation:` |
 | Context link | Opens the supporting record | `Open thread` |
 | No-recorded-decision state | No match | `I don't have a recorded decision about that.`; no LLM call |
-| No-recorded-reason state | Decision exists without a reason | Say so plainly; offer `Add a reason now` |
+| No-recorded-reason state | Decision exists without a reason | `You didn't record a reason for this decision.` + `Add a reason now` (D58): the reason is added once, only while empty, stored verbatim and recorded in History. Form copy pending user approval (S9b) |
 | Ask-failed state (D54) | The Ask-why model call failed | `I couldn't answer that just now. Try asking again.` + `Try again` (code `ask_failed`, SITE_CONTRACT §2.13), inline under the Ask box; question kept; no partial answer; same copy for every failure kind, including provider quota |
-| Decision list | All decisions, newest first | Choice, thread title, date; empty state `Decisions you record when resolving threads will appear here.` |
+| Decision list | All decisions, newest first | Heading `Recorded decisions` (D57); choice, thread title, date; empty state `Decisions you record when resolving threads will appear here.`; load failure `I couldn't load your decisions.` + `Try again` (D57) |
+| Ask why link (D57) | From a decision on Thread detail | `Ask why`; opens `/decisions?q=` with the thread title prefilled |
 
 ### 11. Settings and Data
 
