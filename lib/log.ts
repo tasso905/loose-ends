@@ -27,6 +27,8 @@ export type LogEvent =
   | "threads_load_failed"
   | "why_load_failed"
   | "reason_add_failed"
+  | "data_delete_failed"
+  | "export_failed"
   | "upload_failed"
   | "brief_line_unverified";
 
