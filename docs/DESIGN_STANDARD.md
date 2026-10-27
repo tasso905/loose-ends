@@ -372,7 +372,7 @@ Interpretation and Assumed have no icon: Interpretation is marked by its label a
 
 **Why sheet.** Level-3 modal, 440px side sheet (bottom sheet below 768px). `h3` title "Why am I seeing this?". Order: source quote block (context text in `--text-secondary`, the quote itself in `--text` with `--highlight` behind it, 32px fade masks top and bottom) → source line in `small` → reasoning steps as plain `body` sentences, 8px apart → "Why now" line in `body-strong` → corrections in the You wrote voice → action row: "This is wrong" (secondary) and "Open source" (link). Deleted source: replace "Open source" with a `small` `--text-tertiary` line "Original source deleted on Oct 12."
 
-**Resolve sheet.** Level-3 modal, 480px dialog on desktop, bottom sheet on mobile. `h3` "How did this end?" then three radio cards in a row (stacked below 640px), each 1px `--border`, 16px padding, selected = 2px `--accent` border + `--accent-subtle` fill. When Decided is selected, the decision input and "Want me to remember why?" textarea (min-height 96px, autofocus) expand below at `--dur-slow`. Action row: Skip (secondary) and Save (primary), equal width.
+**Resolve sheet.** Level-3 modal, 480px dialog on desktop, bottom sheet on mobile. `h3` "How did this end?" then three radio cards in a row (stacked below 640px), each 1px `--border`, 16px padding, selected = 2px `--accent` border + `--accent-subtle` fill. When Decided is selected, the decision input and "Want me to remember why?" textarea (min-height 96px) expand below at `--dur-slow`; focus goes to the decision input, which starts empty (D56; *was:* textarea autofocus). Decision threads show only the Decided and Not needed cards (D56). Action row: Skip (secondary) and Save (primary), equal width. `Cancel` closes the sheet (D56).
 
 **Ask Why answer card.** `--surface` card. Parts in fixed order, each a block 16px apart: "You decided · Oct 18, 2026" (`label`, then the choice in `body-strong`) → You wrote voice → Source fact voice → Interpretation voice. Footer: "Open thread" link. No-match state: the same card with one `body` sentence and no voices.
 
@@ -402,7 +402,7 @@ Interpretation and Assumed have no icon: Interpretation is marked by its label a
 
 **Clarification prompt.** Info notice shape above the Review Tray groups: `body-strong` question, then participant names as secondary buttons in a wrapping row plus "None of them". After a choice, the notice becomes "Remember 'Sam' as you?" with Yes / No small buttons.
 
-**Demo-date banner.** Full-width, 32px, `--accent-subtle` fill, `label` text in `--accent` centred: `Clock` + "Demo date: Thu Oct 8, 2026". Sits above the top bar or mobile header, not sticky, never dismissible. `DEMO_MODE` only.
+**Demo-date banner.** Full-width, 32px, `--accent-subtle` fill, `label` text in `--accent` centred: `Clock` + "Demo date: Thu Oct 8, 2026". Sits above the top bar or mobile header, not sticky, never dismissible. Demo (anonymous) accounts only (D55; *was:* `DEMO_MODE` only). *Proposed* longer text (PRD Question #14): "Demo account with made-up data · Demo date: Thu Oct 8, 2026".
 
 **Wordmark and favicon.** Wordmark: "Loose Ends" in Plex Sans 600, 17px, -0.01em, `--text`, preceded by the mark at 20px with 8px gap. Mark: two 2px-stroke horizontal lines on one baseline with a 4px gap and rounded caps (a line left unfinished), drawn in `--text`. Favicon: the mark centred on a `--bg` square with 6px radius, as SVG (with a dark-scheme media query) plus 32px and 180px PNGs. No other logo treatments.
 
