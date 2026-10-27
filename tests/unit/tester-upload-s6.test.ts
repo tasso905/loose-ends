@@ -321,11 +321,10 @@ describe("tester: rule 3 brief-claim filter edges (S7)", () => {
     expect(unsupportedClaims("Pay two hundred dollars.", "On Oct 5, two hundred dollars was paid.")).toEqual([]);
   });
 
-  // REGRESSION (still open after edd1282; rule 3): the lookbehind is now `(?<!\p{N}\s?)`. It still
-  // skips a word amount right after a digit and one space, and AMOUNT has no "hundred" scale, so a
-  // figure-plus-"hundred" amount is checked by neither pattern. Every one of these lines was dropped
-  // on fix/upload-hardening ("3 hundred dollars" was caught there). Safe: blank the AMOUNT spans
-  // first (and give AMOUNT a "hundred" scale), then match word amounts with no lookbehind.
+  // REGRESSION GUARDS (rule 3; fixed in 7c4c3fa): with a `(?<!\p{N}\s?)` lookbehind a word amount
+  // right after a digit and a space was never checked, and "3 hundred dollars" was checked by
+  // neither pattern. AMOUNT now has a "hundred" scale and its matches are blanked before word
+  // amounts are matched, with no lookbehind.
   it.each([
     "In 2027 fifty dollars more.",
     "Room 12 twenty dollars.",
@@ -339,5 +338,26 @@ describe("tester: rule 3 brief-claim filter edges (S7)", () => {
   // Same gap on the source side (over-drop): the source's word amount after "Oct 5 " is not collected.
   it("a word amount the source states right after a date (no comma) is supported", () => {
     expect(unsupportedClaims("Pay two hundred dollars.", "On Oct 5 two hundred dollars was paid.")).toEqual([]);
+  });
+
+  it("figure amounts with a scale word are compared whole, and a figure before a word amount is checked on its own", () => {
+    const keep: Array<[string, string]> = [
+      ["3 hundred dollars.", "3 hundred dollars."],
+      ["2.5 million dollars.", "2.5 million dollars"],
+      ["2 thousand pounds", "2 thousand pounds"],
+      ["Room 4 fifty dollars", "Room 4 fifty dollars"],
+      ["twenty percent", "15% twenty percent"],
+    ];
+    for (const [line, src] of keep) expect(unsupportedClaims(line, src), `${line} | ${src}`).toEqual([]);
+    const drop: Array<[string, string]> = [
+      ["3 hundred dollars.", "4 hundred dollars."],
+      ["1.5 million dollars.", "2.5 million dollars"],
+      ["$1.5 million.", "$2.5 million"],
+      ["2 hundred thousand dollars", "2 hundred dollars"],
+      ["$5 fifty dollars", "fifty dollars"],
+      ["15% twenty percent.", "15%"],
+      ["1 hundred bucks", "ten dollars"],
+    ];
+    for (const [line, src] of drop) expect(unsupportedClaims(line, src), `${line} | ${src}`).toEqual(["amount"]);
   });
 });
