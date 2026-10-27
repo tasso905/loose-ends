@@ -1,0 +1,26 @@
+{
+  "description": "Uncertainty eval (F19). Auto-transcribed voice memo with no speaker labels, recorded Wed Oct 21, 2026, Los Angeles; the user is Lena, who was on the call. Owner is unknown for every first-person and 'someone' line (rule: do not guess), which costs commitments and requests 0.25. Second-hand report about Dana is speculative.",
+  "covers": [
+    "transcript",
+    "unclear_speaker",
+    "owner_unknown",
+    "owner_unknown_penalty",
+    "commitment_unknown_owner",
+    "request_unknown_owner",
+    "hearsay_speculative",
+    "day_of_month_before_the_30th",
+    "event_fact_decoy"
+  ],
+  "reference_date": "2026-10-21",
+  "reference_date_source": "user",
+  "timezone": "America/Los_Angeles",
+  "source_kind": "paste",
+  "user": {
+    "display_name": "Lena Ortiz",
+    "aliases": [
+      "lena.ortiz@example.com",
+      "Lena"
+    ]
+  },
+  "ambiguous": true
+}

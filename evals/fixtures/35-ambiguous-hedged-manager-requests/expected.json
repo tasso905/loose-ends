@@ -1,0 +1,61 @@
+{
+  "items": [
+    {
+      "type": "request",
+      "title": "Look over the onboarding doc",
+      "owner": "user",
+      "quote": "hey, could you maybe take a look at the onboarding doc when you have a minute?",
+      "date_text": null,
+      "due_date": null,
+      "due_certainty": "none",
+      "certainty": "implied",
+      "counterparty": "Aisha",
+      "amount_text": null,
+      "band": "low",
+      "note": "Hedged request: 0.55 + 0.05 - 0.15 'maybe' = 0.45, Also noticed."
+    },
+    {
+      "type": "request",
+      "title": "Have the Q3 numbers ready for Friday's review",
+      "owner": "user",
+      "quote": "no pressure, but it would be great to have the Q3 numbers before the review on Friday",
+      "date_text": "on Friday",
+      "due_date": "2026-10-23",
+      "due_certainty": "explicit",
+      "certainty": "implied",
+      "counterparty": "Aisha",
+      "amount_text": null,
+      "band": "medium",
+      "note": "Softened request with a day: implied. 0.55 + 0.05 + 0.05 = 0.65, Maybe. The date phrase is 'on Friday'; 'before the review on Friday' is not one date expression and gives no date."
+    },
+    {
+      "type": "intention",
+      "title": "Plan a team offsite",
+      "owner": "user",
+      "quote": "also we should probably think about a team offsite at some point",
+      "date_text": null,
+      "due_date": null,
+      "due_certainty": "none",
+      "certainty": "speculative",
+      "counterparty": "Aisha",
+      "amount_text": null,
+      "band": "low",
+      "note": "Hedged plan, no date ('at some point'). Intention, no hedge penalty: 0.35, Also noticed."
+    },
+    {
+      "type": "request",
+      "title": "Submit the timesheet",
+      "owner": "user",
+      "quote": "and please submit your timesheet by 5pm today, payroll is strict",
+      "date_text": "by 5pm today",
+      "due_date": "2026-10-21",
+      "due_certainty": "explicit",
+      "due_at": "2026-10-21T21:00:00.000Z",
+      "certainty": "explicit",
+      "counterparty": "Aisha",
+      "amount_text": null,
+      "band": "high",
+      "note": "Control: 5:00 PM EDT = 21:00Z, explicit. 0.90. Must not score Low."
+    }
+  ]
+}

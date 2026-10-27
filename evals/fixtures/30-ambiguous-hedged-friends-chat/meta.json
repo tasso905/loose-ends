@@ -1,0 +1,25 @@
+{
+  "description": "Uncertainty eval (F19). Chat written Thu Oct 22, 2026, New York; the user is Iris. A hedged plan with vague timing, a hedged offer with a weekday, a 'try ... soon' promise, a conditional promise, and one plain dated commitment by the other person as the control (must not score Low).",
+  "covers": [
+    "chat",
+    "hedged_intention",
+    "vague_timing_after_the_holidays",
+    "hedged_offer_with_weekday",
+    "try_soon_promise",
+    "conditional_promise",
+    "explicit_dated_commitment_control",
+    "commitment_by_other"
+  ],
+  "reference_date": "2026-10-22",
+  "reference_date_source": "user",
+  "timezone": "America/New_York",
+  "source_kind": "paste",
+  "user": {
+    "display_name": "Iris Lund",
+    "aliases": [
+      "iris.lund@example.com",
+      "Iris"
+    ]
+  },
+  "ambiguous": true
+}

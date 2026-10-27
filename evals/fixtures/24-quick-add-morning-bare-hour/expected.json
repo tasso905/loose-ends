@@ -1,0 +1,19 @@
+{
+  "items": [
+    {
+      "type": "commitment",
+      "title": "Call Dr. Lin's office to move the cleaning",
+      "owner": "user",
+      "quote": "call dr. lin's office tomorrow morning at 9 to move my cleaning",
+      "date_text": "tomorrow morning at 9",
+      "due_date": "2026-10-21",
+      "due_certainty": "explicit",
+      "due_at": "2026-10-21T13:00:00.000Z",
+      "certainty": "explicit",
+      "counterparty": null,
+      "amount_text": null,
+      "band": "high",
+      "note": "0.80 + 0.05 + 0.05 = 0.90, Likely. 9:00 AM EDT = 13:00Z. Type may come back as intention (same band); informational."
+    }
+  ]
+}

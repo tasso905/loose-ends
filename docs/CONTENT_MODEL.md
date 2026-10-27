@@ -21,6 +21,8 @@
 | Check-your-email state | Confirms the link was sent | Heading `Check your email`. Body `I sent a sign-in link to {email}. Open it in this browser to sign in.` then `The link works for 1 hour.` (D39; tied to Supabase `otp_expiry = 3600`, so the setting and this line change together). Offers `Use a different email`; never claims sign-in succeeded |
 | No-JavaScript message | Explains why sign-in can't work | `Signing in needs JavaScript. Turn it on in your browser, then reload this page.` (D39) |
 | Aliases question | Helps tell "you" from others in pasted threads | "What name and emails do people use for you?"; field label `Names and emails`; hint `Separate them with commas. I use these to tell which tasks are yours.`; below it `Your sign-in email, {email}, is always included.`; actions `Save` and `Skip`. Up to 20 names and emails, each up to 100 characters (limits decided, D40), with the errors in SITE_CONTRACT §2.13 (D39). Skippable; signed-in email always saved as an alias |
+| Try the demo (D55) | Lets judges and visitors try it without email | Button `Try the demo`, below the sign-in methods, behind a Turnstile CAPTCHA. Creates a fresh anonymous account seeded with the "Sam" data on the demo date Mon Oct 5, 2026; skips onboarding. *Proposed* (PRD Question #14): the line `Explore with made-up data. No email needed. Demo accounts are deleted within 2 days.` |
+| Demo unavailable (D55) | Explains why the demo button is off | Button disabled with the reason under it. *Proposed:* budget spent `The demo is full for today. It opens again after midnight (UTC). You can still sign in with your email.`; switched off `The demo isn't available right now. You can still sign in with your email.` Other demo errors in SITE_CONTRACT §2.13 |
 | Sensitive-data note | Sets expectations before first paste | "Don't paste passwords or full account numbers."; shown on the sign-in page and in onboarding |
 | Analytics notice | Explains event-only analytics | Plain statement + opt-out link; no content is ever sent. Ships with the first PostHog event and stays hidden until then (D40, rule 9). Approved wording (D46, Oct 21): `Loose Ends counts which features you use. Analytics never include what you paste.` Opt-out link: `Turn off analytics` |
 
@@ -33,7 +35,7 @@
 | Global Add | Capture from anywhere | Button labelled `Add`; opens the Add page/sheet |
 | Account menu | Account and data controls | `Settings`, `Export data`, `Sign out` |
 | Review chip | Pending proposals | `N to review`; shown only when N ≥ 1; count is real pending proposals |
-| Demo-date banner | Simulated clock indicator | Only in `DEMO_MODE` with a date set: `Demo date: Thu Oct 8, 2026` (D12) |
+| Demo-date banner | Simulated clock indicator | Only for a demo (anonymous) account with a demo date, never for a real account: `Demo date: Thu Oct 8, 2026` (D12, D55). *Proposed* (PRD Question #14): `Demo account with made-up data · Demo date: Thu Oct 8, 2026` |
 
 ### 2. Add / Capture
 
@@ -109,8 +111,8 @@
 | Evidence | Traceability to original source | Verified quote, source name, page/date; `Open source` link. Source line reads `Source deleted` once the source is deleted (D47) |
 | Why? entry | Opens the Why panel | Present on Thread detail and every Today row |
 | Thread history | Chronological updates and actions | Timestamped; append-only; corrections read `You changed the date from Oct 9 to Oct 12`. Event lines (D47): `You accepted this from your source.`, `Added from quick add.`, `You marked this done.` / `Loose Ends marked this done.`, `You resolved this.` / `Loose Ends resolved this.`, `You undid the last change.`, `You reopened this.`, `You snoozed this.`, `You edited this.`, `Status changed to {status}.`; fallback `Updated.` |
-| Decision | If resolved as Decided | Choice, `You wrote` reason, date |
-| Actions | Manage thread | `Done`, `Resolve…`, `Mark waiting`, `Snooze`, `Edit`, `Dismiss`, `Reopen`, `Forget permanently`; only Forget is confirmed (D8). Done shows the toast `Marked done: "{title}"` + `Undo` (D47). Undo restores the state before the action and adds an `undone` history line; the toast lasts 8 s and the server accepts the undo up to 12 s (D44); hover or focus pauses the toast, but it closes 11 s after the action at the latest, 1 s before the server window closes; on a very slow network a late Undo can still be refused (D49, D51). Until F11 ships, `Resolve…` is disabled with `Resolving with a decision isn't available yet.` (D47) |
+| Decision | If resolved as Decided | Section heading `Decision` (D56); choice, `You wrote` reason, date |
+| Actions | Manage thread | `Done`, `Resolve…`, `Mark waiting`, `Snooze`, `Edit`, `Dismiss`, `Reopen`, `Forget permanently`; only Forget is confirmed (D8). Done shows the toast `Marked done: "{title}"` + `Undo` (D47); Resolve with Decided or Not needed shows `Resolved: "{title}"` + `Undo`, labelled `Undo resolve: {title}` for screen readers (D56). Undo restores the state before the action and adds an `undone` history line; the toast lasts 8 s and the server accepts the undo up to 12 s (D44); hover or focus pauses the toast, but it closes 11 s after the action at the latest, 1 s before the server window closes; on a very slow network a late Undo can still be refused (D49, D51). Until F11 ships, `Resolve…` is disabled with `Resolving with a decision isn't available yet.` (D47) |
 
 ### 7. Why panel (v1.1, F8)
 
@@ -138,10 +140,11 @@
 | Field | Description | Constraints |
 |---|---|---|
 | Sheet heading | Asks how it ended | `How did this end?` |
-| Resolution choice | How the loop ended | `Done`, `Decided`, or `Not needed` (D10); user-selected |
-| Decision | Outcome or choice | Shown when Decided; prefilled from the thread, editable; preserve user's wording |
-| Remember why? | Optional prompt to save rationale | `Want me to remember why?`; Skip is one tap and equally prominent; never re-prompted |
-| User reason | User's explanation for the decision | Preserve verbatim; optional |
+| Resolution choice | How the loop ended | `Done`, `Decided`, or `Not needed` (D10); user-selected. Threads of kind `decision` get only `Decided` and `Not needed` (D56) |
+| Decision | Outcome or choice | `What did you decide?`; shown when Decided; starts empty, because no options are stored to prefill from (D56; *was:* prefilled from the thread); up to 300 characters, over which it shows `Decisions can be up to 300 characters.` (D57); preserve user's wording. Saving it empty shows `Write what you decided, or choose another option.` |
+| Remember why? | Optional prompt to save rationale | `Want me to remember why?`; up to 2,000 characters (D56), over which it shows `Reasons can be up to 2,000 characters.` (D57); Skip is one tap and equally prominent; never re-prompted |
+| Close and undo (D56) | Leaving the sheet; reversing a resolve | `Cancel` closes the sheet without saving. Toast `Resolved: "{title}"` + `Undo`; undo after Decided also deletes the decision it created (D44) |
+| User reason | User's explanation for the decision | Preserve verbatim; optional. If skipped, it can be added later with `Add a reason now`, once, only while empty (D58) |
 | AI summary | Condensed rationale, if generated | Optional; labelled AI-generated; never replaces original wording |
 | Resolution date/context | When and in what context it was resolved | Timestamp; context facts snapshotted with evidence IDs |
 
@@ -150,12 +153,14 @@
 | Field | Description | Constraints |
 |---|---|---|
 | Page heading | Names the destination | `Decisions` |
-| Question input | User asks about a past decision | Placeholder `Ask about a past decision`; scoped to stored decisions |
-| Grounded answer | Response from saved decisions | Parts labelled `You decided` (date) · `You wrote:` (verbatim, in quotes) · `From the source:` · `Interpretation:` |
+| Question input | User asks about a past decision | Placeholder `Ask about a past decision`; button `Ask` (D57); scoped to stored decisions. Empty: `Write a question first.` (D57). A `?q=` link prefills it and never asks automatically (D57) |
+| Grounded answer | Response from saved decisions | Parts labelled `You decided` (date) · `You wrote:` (verbatim, in quotes; always the whole stored reason, even if the model omits it, D33, D57) · `From the source:` · `Interpretation:` |
 | Context link | Opens the supporting record | `Open thread` |
 | No-recorded-decision state | No match | `I don't have a recorded decision about that.`; no LLM call |
-| No-recorded-reason state | Decision exists without a reason | Say so plainly; offer `Add a reason now` |
-| Decision list | All decisions, newest first | Choice, thread title, date; empty state `Decisions you record when resolving threads will appear here.` |
+| No-recorded-reason state | Decision exists without a reason | `You didn't record a reason for this decision.` + `Add a reason now` (D58): the reason is added once, only while empty, stored verbatim and recorded in History. Form copy pending user approval (S9b) |
+| Ask-failed state (D54) | The Ask-why model call failed | `I couldn't answer that just now. Try asking again.` + `Try again` (code `ask_failed`, SITE_CONTRACT §2.13), inline under the Ask box; question kept; no partial answer; same copy for every failure kind, including provider quota |
+| Decision list | All decisions, newest first | Heading `Recorded decisions` (D57); choice, thread title, date; empty state `Decisions you record when resolving threads will appear here.`; load failure `I couldn't load your decisions.` + `Try again` (D57) |
+| Ask why link (D57) | From a decision on Thread detail | `Ask why`; opens `/decisions?q=` with the thread title prefilled |
 
 ### 11. Settings and Data
 

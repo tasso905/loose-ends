@@ -1,0 +1,49 @@
+{
+  "notes": "Clause 4.1 is a standing condition triggered by a future change, not a loop. chrono reads 'within 14 days' as reference + 14 (Oct 23), so a model that extracts it with that date_text would get a wrong, invented-looking date; the golden is 'ignore'. Clauses 4.2-4.3, the deductible and the premium are key facts.",
+  "items": [
+    {
+      "type": "request",
+      "title": "Sign and return the declarations page",
+      "owner": "user",
+      "quote": "Please sign the enclosed declarations page and return it by October 30, 2026.",
+      "date_text": "by October 30, 2026",
+      "due_date": "2026-10-30",
+      "due_certainty": "explicit",
+      "certainty": "explicit",
+      "counterparty": "Lakeshore Home Insurance",
+      "amount_text": null,
+      "band": "high",
+      "page": 1,
+      "note": "0.90. Page 1."
+    },
+    {
+      "type": "request",
+      "title": "Upload a photo of the water heater label",
+      "owner": "user",
+      "quote": "We also need a recent photo of your water heater's label to confirm its age.",
+      "date_text": null,
+      "due_date": null,
+      "due_certainty": "none",
+      "certainty": "explicit",
+      "counterparty": "Lakeshore Home Insurance",
+      "amount_text": null,
+      "band": "high",
+      "page": 1,
+      "note": "'before the policy starts' (next sentence) names no date in itself; a model that dates it Nov 1 from another sentence gets a date miss. 0.85."
+    },
+    {
+      "type": "request",
+      "title": "Report address or occupancy changes within 14 days",
+      "owner": "user",
+      "quote": "4.1 You must tell us within 14 days about any change of address or occupancy.",
+      "date_text": null,
+      "due_date": null,
+      "due_certainty": "none",
+      "counterparty": null,
+      "amount_text": null,
+      "band": "ignore",
+      "page": 2,
+      "note": "Standing policy condition, not an open loop. Pass if left out or scored Ignore."
+    }
+  ]
+}

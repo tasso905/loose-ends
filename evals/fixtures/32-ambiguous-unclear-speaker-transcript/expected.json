@@ -1,0 +1,61 @@
+{
+  "notes": "The venue move is a fact. Owner 'user' on any of the unknown items is an owner error: nothing in the transcript says Lena spoke.",
+  "items": [
+    {
+      "type": "commitment",
+      "title": "Call the bakery about the sheet cakes",
+      "owner": "unknown",
+      "quote": "someone needs to call the bakery about the sheet cakes, I can do that Thursday",
+      "date_text": "Thursday",
+      "due_date": "2026-10-22",
+      "due_certainty": "explicit",
+      "certainty": "explicit",
+      "counterparty": null,
+      "amount_text": null,
+      "band": "medium",
+      "note": "Clear promise, unknown speaker: 0.80 + 0.05 - 0.25 + 0.05 = 0.65, Maybe."
+    },
+    {
+      "type": "request",
+      "title": "Get the flyers to the printer",
+      "owner": "unknown",
+      "quote": "somebody has to get the flyers to the printer by Friday or they won't be ready",
+      "date_text": "by Friday",
+      "due_date": "2026-10-23",
+      "due_certainty": "explicit",
+      "certainty": "explicit",
+      "counterparty": null,
+      "amount_text": null,
+      "band": "medium",
+      "note": "Unassigned task: 0.65, Maybe."
+    },
+    {
+      "type": "commitment",
+      "title": "Dana to bring the folding tables",
+      "owner": "other",
+      "quote": "I think Dana said she'd bring the folding tables but I'm not sure",
+      "date_text": null,
+      "due_date": null,
+      "due_certainty": "none",
+      "certainty": "speculative",
+      "counterparty": "Dana",
+      "amount_text": null,
+      "band": "low",
+      "note": "Hearsay, explicitly unsure: speculative. 0.30 + 0.05 = 0.35, Also noticed."
+    },
+    {
+      "type": "request",
+      "title": "Drop the cash box at the front office",
+      "owner": "unknown",
+      "quote": "um can whoever has the cash box drop it at the front office before the 30th",
+      "date_text": "before the 30th",
+      "due_date": "2026-10-30",
+      "due_certainty": "explicit",
+      "certainty": "explicit",
+      "counterparty": null,
+      "amount_text": null,
+      "band": "medium",
+      "note": "'the 30th' with 'before': Fri Oct 30. Owner unknown: 0.65, Maybe."
+    }
+  ]
+}

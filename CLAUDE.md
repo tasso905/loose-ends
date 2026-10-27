@@ -6,7 +6,7 @@ Loose Ends turns messages and documents the user pastes in into a short list of 
 
 Read the relevant document before changing behaviour, copy or visuals. When they conflict, the order below wins, and the conflict is raised with the lead-program-manager agent rather than resolved silently.
 
-1. `docs/PRD.md` (v1.1) — product, scope, schema, API, AI behaviour. Its **Decisions Log (D1–D53)** overrides older text anywhere. Entries marked *Proposed* take effect only after the user confirms them.
+1. `docs/PRD.md` (v1.1) — product, scope, schema, API, AI behaviour. Its **Decisions Log (D1–D58)** overrides older text anywhere. Entries marked *Proposed* take effect only after the user confirms them.
 2. `docs/SITE_CONTRACT.md` (v1.1) — pages, routes, states, error copy, behaviour.
 3. `docs/CONTENT_MODEL.md` (v1.1) — fields, constraints, user-facing glossary.
 4. `docs/DESIGN_STANDARD.md` — visual standard: tokens, type, spacing, components, motion, microcopy.
@@ -104,7 +104,7 @@ Three project subagents live in `.claude/agents/`. Delegate to them by name ("us
 | Gate | Date | Exit criteria |
 | --- | --- | --- |
 | Core-loop checkpoint (replaces day 14) | Fri Oct 23 | In production: magic link → paste → review → accept → thread → Done. Text-layer PDF → Explain card; scanned PDF shows the unsupported message. Quote, date, band and `transition()` unit tests pass. RLS test passes. `pnpm eval` runs on ≥ 20 fixtures |
-| Feature freeze (was Oct 22) | Mon Oct 26 | Resolve + Ask why work, including the zero-match path. Today ranks and caps at 5. Why panel renders from stored fields. Forget, source deletion, account deletion and export are verified by tests. Demo mode and seed are ready. Rate limit and budget cap are on. Cuts are recorded. Fixes only after this |
+| Feature freeze (was Oct 22) | Mon Oct 26 | Resolve + Ask why work, including the zero-match path. Today ranks and caps at 5. Why panel renders from stored fields. Forget, source deletion, account deletion and export are verified by tests. Demo is ready: `Try the demo` with seed, clock and banner, guard rails and 24 h cleanup (D55; one production site, no separate demo deployment). Rate limit and budget cap are on. Cuts are recorded. Fixes only after this |
 | Eval gate (was Oct 27) | Wed Oct 28 | 40-fixture eval passes thresholds; Ask-why 0 fabrications; axe checks pass; E2E demo flow passes; scorecard generated |
 | Submission | Sat Oct 31 | README, ARCHITECTURE, AI_BEHAVIOR, PRIVACY, CONTRIBUTING, LICENSE merged; privacy copy check passes; 5 rehearsals under 2:30; video recorded. Target send Oct 30 |
 

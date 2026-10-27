@@ -1,0 +1,23 @@
+{
+  "description": "Order confirmation (synthetic), Mon Oct 19, 2026. Nothing to do: the sender says so. Precision check: an amount, a delivery date and a conditional 'we'll email you' must not become items.",
+  "covers": [
+    "receipt",
+    "no_actionable_items",
+    "nothing_to_do_stated",
+    "delivery_date_decoy",
+    "conditional_by_other_decoy",
+    "amounts_as_key_facts"
+  ],
+  "reference_date": "2026-10-19",
+  "reference_date_source": "detected",
+  "timezone": "America/New_York",
+  "source_kind": "paste",
+  "user": {
+    "display_name": "Jordan Ellis",
+    "aliases": [
+      "jordan.ellis@example.com",
+      "Jordan"
+    ]
+  },
+  "ambiguous": false
+}

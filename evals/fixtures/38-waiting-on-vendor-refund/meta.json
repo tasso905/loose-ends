@@ -1,0 +1,25 @@
+{
+  "description": "Customer-care email written Tue Oct 20, 2026, Phoenix (no DST). Two things the user is waiting on (a dated shipment, a refund with a range of business days that must never become a date) and one request with no date.",
+  "covers": [
+    "email",
+    "waiting_on",
+    "commitment_by_other",
+    "range_never_a_date",
+    "amount",
+    "request_to_user",
+    "undated_request",
+    "timezone_without_dst"
+  ],
+  "reference_date": "2026-10-20",
+  "reference_date_source": "user",
+  "timezone": "America/Phoenix",
+  "source_kind": "paste",
+  "user": {
+    "display_name": "Alex Morgan",
+    "aliases": [
+      "alex.morgan@example.com",
+      "Alex"
+    ]
+  },
+  "ambiguous": false
+}

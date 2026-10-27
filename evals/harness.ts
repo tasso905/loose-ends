@@ -10,13 +10,18 @@
  *                                         "timezone": "America/New_York",
  *                                         "source_kind": "paste" | "upload" | "quick_add",
  *                                         "user": { "display_name": "Sam", "aliases": ["sam@example.com"] },
- *                                         "ambiguous": true | false }
+ *                                         "ambiguous": true | false,
+ *                                         "page_offsets": [0, 812] }   (optional, uploads: start
+ *                                         offset of each page in input.txt, as lib/capture/document.ts
+ *                                         joinPages() records them; passed to the pipeline so evidence
+ *                                         carries a page)
  *   <fixturesDir>/<name>/expected.json  { "items": [ { "type": "...", "owner": "user|other|unknown",
  *                                         "quote": "<substring of input.txt>",
  *                                         "due_date": "YYYY-MM-DD" | null,
  *                                         "band": "high|medium|low|ignore" } ] }
  *                                         (optional, scored when present: "due_certainty",
- *                                         "certainty"; other tester extensions are ignored)
+ *                                         "certainty", "page" (informational); other tester
+ *                                         extensions are ignored)
  * A predicted item matches an expected one when one quote contains the other (normalized,
  * case-insensitive) AND the shorter covers at least MIN_QUOTE_COVERAGE of the longer's words, so a
  * fragment ("Ravi") or a blob spanning several sentences matches nothing on its own. Matching is
@@ -143,6 +148,8 @@ interface Expected {
   due_certainty?: DueCertainty;
   /** Tester extension: the certainty a correct model gives (absent on "ignore" items). Used for F19. */
   certainty?: "explicit" | "implied" | "speculative";
+  /** Tester extension: 1-based page of the quote in an upload with meta.page_offsets. Informational. */
+  page?: number;
 }
 
 /**
@@ -218,6 +225,8 @@ export interface EvalReport {
     due_certainty: number | null;
     /** Matched items whose type equals the golden (informational). */
     type: number | null;
+    /** Matched items with a golden page whose first evidence quote is on that page (informational). */
+    page: number | null;
     /** Shown items with a verified quote ÷ shown items (PRD scorecard; must be 100%). */
     verified_quotes: number | null;
     unverified_quotes_shown: number;
@@ -304,7 +313,7 @@ export function listFixtures(dir: string): string[] {
 
 type Tally = Record<
   | "expected" | "matched" | "shown" | "shownMatched" | "dated" | "dateOk" | "owner" | "ownerOk"
-  | "bandAll" | "bandAllOk" | "bandAmb" | "bandAmbOk" | "dueCert" | "dueCertOk" | "type" | "typeOk"
+  | "bandAll" | "bandAllOk" | "bandAmb" | "bandAmbOk" | "dueCert" | "dueCertOk" | "type" | "typeOk" | "page" | "pageOk"
   | "unverifiedShown" | "specHigh" | "explicitLow" | "failures",
   number
 >;
@@ -359,6 +368,10 @@ function scoreFixture(text: string, expected: Expected[], proposals: Proposal[],
       if (p!.date.due_certainty === goldCert) t.dueCertOk++;
       else r.diffs.push({ field: "due_certainty", expected: goldCert, got: p!.date.due_certainty });
     }
+    if (e.page !== undefined) {
+      t.page++;
+      if (p!.evidence[0]?.page === e.page) t.pageOk++;
+    }
     const got = p!.date.due_date;
     if (e.due_date !== null || got !== null) {
       t.dated++;
@@ -387,7 +400,7 @@ export async function runEval(opts: RunEvalOptions): Promise<EvalReport> {
   const names = listFixtures(opts.fixturesDir);
 
   const t = Object.fromEntries(
-    ["expected", "matched", "shown", "shownMatched", "dated", "dateOk", "owner", "ownerOk", "bandAll", "bandAllOk", "bandAmb", "bandAmbOk", "dueCert", "dueCertOk", "type", "typeOk", "unverifiedShown", "specHigh", "explicitLow", "failures"].map((k) => [k, 0]),
+    ["expected", "matched", "shown", "shownMatched", "dated", "dateOk", "owner", "ownerOk", "bandAll", "bandAllOk", "bandAmb", "bandAmbOk", "dueCert", "dueCertOk", "type", "typeOk", "page", "pageOk", "unverifiedShown", "specHigh", "explicitLow", "failures"].map((k) => [k, 0]),
   ) as Tally;
   const failuresByKind: Partial<Record<AiFailureKind, number>> = {};
   const perFixture: FixtureResult[] = [];
@@ -399,6 +412,7 @@ export async function runEval(opts: RunEvalOptions): Promise<EvalReport> {
     const meta = JSON.parse(readFileSync(join(dir, "meta.json"), "utf8"));
     const expected: Expected[] = JSON.parse(readFileSync(join(dir, "expected.json"), "utf8")).items;
     const ambiguous = meta.ambiguous === true;
+    const pageOffsets: number[] | null = Array.isArray(meta.page_offsets) ? meta.page_offsets : null;
     if (ambiguous) ambiguousCount++;
 
     let proposals: Proposal[] = [];
@@ -422,6 +436,7 @@ export async function runEval(opts: RunEvalOptions): Promise<EvalReport> {
         referenceDate: meta.reference_date,
         referenceDateSource: meta.reference_date_source ?? "user",
         timezone: meta.timezone ?? "America/New_York",
+        pageOffsets,
         logger: () => {},
       }).proposals.filter((p) => p.item.type !== "key_fact");
     } catch (err) {
@@ -460,6 +475,7 @@ export async function runEval(opts: RunEvalOptions): Promise<EvalReport> {
     band_all: ratio(t.bandAllOk, t.bandAll),
     due_certainty: ratio(t.dueCertOk, t.dueCert),
     type: ratio(t.typeOk, t.type),
+    page: ratio(t.pageOk, t.page),
     verified_quotes: ratio(t.shown - t.unverifiedShown, t.shown),
     unverified_quotes_shown: t.unverifiedShown,
     speculative_scored_high: t.specHigh,
@@ -557,6 +573,7 @@ export function renderScorecard(r: EvalReport): string {
     `- Band accuracy, all fixtures: ${pct(s.band_all)}`,
     `- Date certainty (explicit / inferred / none) accuracy: ${pct(s.due_certainty)}`,
     `- Item type accuracy: ${pct(s.type)}`,
+    `- Evidence page accuracy (uploads with page offsets): ${pct(s.page)}`,
   ];
   const failures = Object.entries(r.failures_by_kind);
   if (failures.length) lines.push(`- Failures by kind: ${failures.map(([k, n]) => `${k} ${n}`).join(", ")}`);

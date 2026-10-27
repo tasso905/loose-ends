@@ -1,0 +1,27 @@
+{
+  "description": "Work email written Tue Oct 20, 2026, Chicago; the user is Tomás. Deadline idioms: 'by the end of the day' is the written-on day (T-C1 guard), 'Thursday at the latest' is Thursday, 'tomorrow morning at 8' is 8:00 AM with no AM/PM line (T-D1). 'closes tonight' is a fact, not a second deadline.",
+  "covers": [
+    "email",
+    "end_of_the_day",
+    "at_the_latest",
+    "morning_bare_hour",
+    "stated_meridiem_morning",
+    "request_to_user",
+    "commitment_by_other",
+    "accented_name",
+    "tonight_fact_decoy"
+  ],
+  "reference_date": "2026-10-20",
+  "reference_date_source": "user",
+  "timezone": "America/Chicago",
+  "source_kind": "paste",
+  "user": {
+    "display_name": "Tomás Rivera",
+    "aliases": [
+      "tomas.rivera@example.org",
+      "Tomás",
+      "Tomas"
+    ]
+  },
+  "ambiguous": false
+}

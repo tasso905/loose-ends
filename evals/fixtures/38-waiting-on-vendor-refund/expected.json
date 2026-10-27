@@ -1,0 +1,46 @@
+{
+  "items": [
+    {
+      "type": "waiting_on",
+      "title": "Replacement blender jar from Copperleaf Kitchen",
+      "owner": "other",
+      "quote": "We'll ship a replacement jar by Nov 6 at no cost to you.",
+      "date_text": "by Nov 6",
+      "due_date": "2026-11-06",
+      "due_certainty": "explicit",
+      "certainty": "explicit",
+      "counterparty": "Copperleaf Kitchen",
+      "amount_text": null,
+      "band": "high",
+      "note": "0.90."
+    },
+    {
+      "type": "waiting_on",
+      "title": "Refund for expedited shipping",
+      "owner": "other",
+      "quote": "Your refund of $14.50 for the expedited shipping will be processed within 5-7 business days.",
+      "date_text": "within 5-7 business days",
+      "due_date": null,
+      "due_certainty": "none",
+      "certainty": "explicit",
+      "counterparty": "Copperleaf Kitchen",
+      "amount_text": "$14.50",
+      "band": "high",
+      "note": "A range: chrono refuses it, so no date (rule 3: never fill). 0.85. If the model also gives a date_iso it is discarded (model_only, -0.15): 0.70, Maybe; this fixture is not band-gated."
+    },
+    {
+      "type": "request",
+      "title": "Send a photo of the cracked jar",
+      "owner": "user",
+      "quote": "Please send us a photo of the cracked jar by replying to this email, so we can close the claim.",
+      "date_text": null,
+      "due_date": null,
+      "due_certainty": "none",
+      "certainty": "explicit",
+      "counterparty": "Copperleaf Kitchen",
+      "amount_text": null,
+      "band": "high",
+      "note": "No date ('by replying' is not a date). 0.85."
+    }
+  ]
+}

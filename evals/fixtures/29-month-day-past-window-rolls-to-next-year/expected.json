@@ -1,0 +1,47 @@
+{
+  "notes": "'January 15' is the training start (an event date), not the medical-form deadline.",
+  "items": [
+    {
+      "type": "request",
+      "title": "Pay Sofia's uniform deposit",
+      "owner": "user",
+      "quote": "Please pay Sofia's $30 uniform deposit, which was due Oct 1.",
+      "date_text": "Oct 1",
+      "due_date": "2026-10-01",
+      "due_certainty": "explicit",
+      "certainty": "explicit",
+      "counterparty": "Westside Youth Soccer",
+      "amount_text": "$30",
+      "band": "high",
+      "note": "19 days back: inside the 30-day window, so 2026 and already overdue. 0.90."
+    },
+    {
+      "type": "request",
+      "title": "Register Sofia for next fall's season",
+      "owner": "user",
+      "quote": "Please register Sofia by Sep 3 to keep her spot on the team.",
+      "date_text": "by Sep 3",
+      "due_date": "2027-09-03",
+      "due_certainty": "explicit",
+      "certainty": "explicit",
+      "counterparty": "Westside Youth Soccer",
+      "amount_text": null,
+      "band": "high",
+      "note": "47 days back: outside the 30-day window, so the next Sep 3 (2027). 0.90."
+    },
+    {
+      "type": "request",
+      "title": "Send Sofia's updated medical form",
+      "owner": "user",
+      "quote": "Please send us Sofia's updated medical form by January 8.",
+      "date_text": "by January 8",
+      "due_date": "2027-01-08",
+      "due_certainty": "explicit",
+      "certainty": "explicit",
+      "counterparty": "Westside Youth Soccer",
+      "amount_text": null,
+      "band": "high",
+      "note": "Forward rollover into 2027. 0.90."
+    }
+  ]
+}

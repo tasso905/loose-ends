@@ -1,0 +1,25 @@
+{
+  "description": "Club email written Tue Oct 20, 2026, Denver. Three month-days with no year: 'Oct 1' is 19 days back (inside the 30-day window, D28) so it stays 2026 and is overdue; 'Sep 3' is 47 days back (outside the window) so it rolls to Sep 3, 2027; 'January 8' is ahead and rolls to 2027.",
+  "covers": [
+    "email",
+    "month_day_no_year",
+    "past_window_30_days",
+    "month_day_more_than_30_days_back_rolls_to_next_year",
+    "overdue_month_day_d28",
+    "year_rollover_forward",
+    "deadline_with_amount",
+    "event_date_decoy"
+  ],
+  "reference_date": "2026-10-20",
+  "reference_date_source": "user",
+  "timezone": "America/Denver",
+  "source_kind": "paste",
+  "user": {
+    "display_name": "Nadia Petrova",
+    "aliases": [
+      "nadia.petrova@example.net",
+      "Nadia"
+    ]
+  },
+  "ambiguous": false
+}
