@@ -83,7 +83,7 @@ Field-level content, constraints and copy are defined in the content model v1.1;
 | Account menu | `Settings`, `Export data`, `Sign out` |
 | Review chip | Real pending count only |
 | Demo banner | `Demo account with made-up data · Demo date: {Weekday Mon D, YYYY}` (approved Oct 22, D59; *was:* `Demo date: {Weekday Mon D, YYYY}`); demo (anonymous) accounts only (D55) |
-| Demo clock control (D59) | Inside the demo banner, demo accounts only: `+3 days`, `+3 months` and `Reset` (back to Mon Oct 5, 2026). Labels *Proposed* (PRD Question #15). The server checks the `is_anonymous` claim and refuses the change for a real account; the new date shows only after the server confirms it (rule 10) |
+| Demo clock control (D59) | Inside the demo banner, demo accounts only: `+3 days`, `+3 months` and `Reset` (back to Mon Oct 5, 2026). Labels approved Oct 27 (D60); the control's accessible name and its failure message are *Proposed* in the demo PR (PRD Question #15). The server checks the `is_anonymous` claim and refuses the change for a real account; the new date shows only after the server confirms it (rule 10) |
 
 ### 2.2 Add / Capture
 
@@ -256,7 +256,7 @@ Field-level content, constraints and copy are defined in the content model v1.1;
 | `demo_unavailable`, budget spent (D55, approved D59) | `The demo is full for today. It opens again after midnight (UTC). You can still sign in with your email.` | `Try the demo` disabled; email field | Later |
 | `demo_unavailable`, switched off (D55, approved D59) | `The demo isn't available right now. You can still sign in with your email.` | `Try the demo` disabled; email field | No |
 | `demo_captcha_failed` (D55, approved D59) | `I couldn't check that you're a person. Try again.` | Under `Try the demo` | Yes |
-| Sign-in CAPTCHA failed on the email form (D59, *Proposed*, PRD Question #15) | `I couldn't check that you're a person. Try again.` | Inline under the email field | Yes |
+| Sign-in CAPTCHA failed on the email form (D59; approved Oct 27, D60) | `I couldn't check that you're a person. Try again.` | Inline under the email field | Yes |
 | `demo_rate_limited` (D55, approved D59; Supabase's per-IP anonymous sign-in limit) | `Too many demos were started from this network. Try again later, or sign in with your email.` | Under `Try the demo` | Later |
 | `demo_start_failed` (D55, approved D59) | `I couldn't start the demo. Try again.` | Under `Try the demo` | Yes |
 | `?error=oauth_failed` | `Google sign-in didn't finish. Try again, or use your email.` | `Continue with Google` or the email field. Applies only while Google sign-in is switched on (D41) | Yes |

@@ -14,7 +14,7 @@
 | Product name | Names the product | `Loose Ends` as the wordmark (DESIGN_STANDARD "Wordmark and favicon"), at the top of the page. It is not a heading. The sign-in page is also the first screen for new users and judges; there is no landing page (D38) |
 | Pitch headline | Says what the product is for | Exactly `Tie up your loose ends.` (D38, Oct 19). The page's only h1, replacing the earlier "`Loose Ends` heading". Below the wordmark, above the subline |
 | Pitch subline | Says how it works | Exactly `Paste in the mess. Get back what's still open, each with the sentence it came from.` (D38, Oct 19). Body text directly below the headline, above the email field. Order: wordmark → headline → subline → sign-in form → notices. No other marketing copy; no privacy or speed claims (rule 9) |
-| Email field | Magic-link address | Label `Email`. Standard email validation; one field only. Invalid input shows `Enter an email address, like name@example.com.` (D39; all sign-in errors in SITE_CONTRACT §2.13) |
+| Email field | Magic-link address | Label `Email`. Standard email validation; one field only. Invalid input shows `Enter an email address, like name@example.com.` (D39; all sign-in errors in SITE_CONTRACT §2.13). Protected by Turnstile (D59); a failed CAPTCHA shows `I couldn't check that you're a person. Try again.` (D60) |
 | Send link button | Requests a magic link | Label `Email me a sign-in link`; disabled while sending |
 | Divider | Separates the two sign-in methods | `or`, between the email form and the Google button (D39). Shown only when Google sign-in is switched on (D41) |
 | Google button | Identity-only Google sign-in | Label `Continue with Google`; no mailbox scopes. Conditional (D41): shown only if the Google OAuth setup and a manual check pass by Oct 24; otherwise hidden, and this row and the divider row are removed at the Oct 25 scope review |
@@ -36,7 +36,7 @@
 | Account menu | Account and data controls | `Settings`, `Export data`, `Sign out` |
 | Review chip | Pending proposals | `N to review`; shown only when N ≥ 1; count is real pending proposals |
 | Demo-date banner | Simulated clock indicator | Only for a demo (anonymous) account with a demo date, never for a real account: `Demo account with made-up data · Demo date: Thu Oct 8, 2026` (D12, D55; approved Oct 22, D59; *was:* `Demo date: Thu Oct 8, 2026`) |
-| Demo clock control (D59) | Moves the demo date for the 2-minute demo | Inside the demo banner, demo accounts only, server-checked: `+3 days`, `+3 months`, `Reset` (back to Mon Oct 5, 2026). Labels *Proposed* (PRD Question #15) |
+| Demo clock control (D59) | Moves the demo date for the 2-minute demo | Inside the demo banner, demo accounts only, server-checked: `+3 days`, `+3 months`, `Reset` (back to Mon Oct 5, 2026). Labels approved Oct 27 (D60); the accessible name is *Proposed* in the demo PR (PRD Question #15) |
 
 ### 2. Add / Capture
 
