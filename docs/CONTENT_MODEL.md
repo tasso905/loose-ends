@@ -141,10 +141,10 @@
 |---|---|---|
 | Sheet heading | Asks how it ended | `How did this end?` |
 | Resolution choice | How the loop ended | `Done`, `Decided`, or `Not needed` (D10); user-selected. Threads of kind `decision` get only `Decided` and `Not needed` (D56) |
-| Decision | Outcome or choice | `What did you decide?`; shown when Decided; starts empty, because no options are stored to prefill from (D56; *was:* prefilled from the thread); up to 300 characters; preserve user's wording. Saving it empty shows `Write what you decided, or choose another option.` |
-| Remember why? | Optional prompt to save rationale | `Want me to remember why?`; up to 2,000 characters (D56); Skip is one tap and equally prominent; never re-prompted |
+| Decision | Outcome or choice | `What did you decide?`; shown when Decided; starts empty, because no options are stored to prefill from (D56; *was:* prefilled from the thread); up to 300 characters, over which it shows `Decisions can be up to 300 characters.` (D57); preserve user's wording. Saving it empty shows `Write what you decided, or choose another option.` |
+| Remember why? | Optional prompt to save rationale | `Want me to remember why?`; up to 2,000 characters (D56), over which it shows `Reasons can be up to 2,000 characters.` (D57); Skip is one tap and equally prominent; never re-prompted |
 | Close and undo (D56) | Leaving the sheet; reversing a resolve | `Cancel` closes the sheet without saving. Toast `Resolved: "{title}"` + `Undo`; undo after Decided also deletes the decision it created (D44) |
-| User reason | User's explanation for the decision | Preserve verbatim; optional |
+| User reason | User's explanation for the decision | Preserve verbatim; optional. If skipped, it can be added later with `Add a reason now`, once, only while empty (D58) |
 | AI summary | Condensed rationale, if generated | Optional; labelled AI-generated; never replaces original wording |
 | Resolution date/context | When and in what context it was resolved | Timestamp; context facts snapshotted with evidence IDs |
 
@@ -153,13 +153,14 @@
 | Field | Description | Constraints |
 |---|---|---|
 | Page heading | Names the destination | `Decisions` |
-| Question input | User asks about a past decision | Placeholder `Ask about a past decision`; scoped to stored decisions |
-| Grounded answer | Response from saved decisions | Parts labelled `You decided` (date) · `You wrote:` (verbatim, in quotes) · `From the source:` · `Interpretation:` |
+| Question input | User asks about a past decision | Placeholder `Ask about a past decision`; button `Ask` (D57); scoped to stored decisions. Empty: `Write a question first.` (D57). A `?q=` link prefills it and never asks automatically (D57) |
+| Grounded answer | Response from saved decisions | Parts labelled `You decided` (date) · `You wrote:` (verbatim, in quotes; always the whole stored reason, even if the model omits it, D33, D57) · `From the source:` · `Interpretation:` |
 | Context link | Opens the supporting record | `Open thread` |
 | No-recorded-decision state | No match | `I don't have a recorded decision about that.`; no LLM call |
-| No-recorded-reason state | Decision exists without a reason | Say so plainly; offer `Add a reason now` |
+| No-recorded-reason state | Decision exists without a reason | `You didn't record a reason for this decision.` + `Add a reason now` (D58): the reason is added once, only while empty, stored verbatim and recorded in History. Form copy pending user approval (S9b) |
 | Ask-failed state (D54) | The Ask-why model call failed | `I couldn't answer that just now. Try asking again.` + `Try again` (code `ask_failed`, SITE_CONTRACT §2.13), inline under the Ask box; question kept; no partial answer; same copy for every failure kind, including provider quota |
-| Decision list | All decisions, newest first | Choice, thread title, date; empty state `Decisions you record when resolving threads will appear here.` |
+| Decision list | All decisions, newest first | Heading `Recorded decisions` (D57); choice, thread title, date; empty state `Decisions you record when resolving threads will appear here.`; load failure `I couldn't load your decisions.` + `Try again` (D57) |
+| Ask why link (D57) | From a decision on Thread detail | `Ask why`; opens `/decisions?q=` with the thread title prefilled |
 
 ### 11. Settings and Data
 
