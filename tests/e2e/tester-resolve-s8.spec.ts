@@ -32,7 +32,19 @@ const reopen = async () => {
 };
 const sheet = () => page.getByRole("dialog", { name: "How did this end?" });
 const isServerAction = (method: string, headers: Record<string, string>) => method === "POST" && "next-action" in headers;
+// axe samples colours as rendered: run it only after finite animations (the sheet's fade-in) end,
+// so a half-faded label is not reported as low contrast. Infinite ones (spinners) are skipped.
+const animationsSettled = () =>
+  page.evaluate(() =>
+    Promise.all(
+      document
+        .getAnimations()
+        .filter((a) => a.effect?.getComputedTiming().endTime !== Infinity)
+        .map((a) => a.finished.catch(() => undefined)),
+    ),
+  );
 async function axe() {
+  await animationsSettled();
   const r = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"]).analyze();
   expect(r.violations.map((v) => `${v.id}: ${v.nodes.map((n) => n.target.join(" ")).join(", ")}`)).toEqual([]);
 }
