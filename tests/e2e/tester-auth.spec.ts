@@ -663,8 +663,16 @@ test.describe("D39 sign-in and onboarding copy", () => {
     // The hint and the always-included line share the field's description (aria-describedby).
     await expect(page.locator("#answer-hint")).toHaveText(`${HINT} Your sign-in email, ${email}, is always included.`);
     await expect(page.getByText(/tell your messages apart/)).toHaveCount(0);
-    await expect(page.getByText("Loose Ends counts which features you use. Analytics never include what you paste.")).toBeVisible();
-    await expect(page.getByRole("link", { name: "Turn off analytics" })).toHaveAttribute("href", "/settings#profile");
+    const notice = page.getByText("Loose Ends counts which features you use. Analytics never include what you paste.");
+    if (process.env.LE_S1_GATE_ON === "0") {
+      // Lead-tester: a server without ANALYTICS_ENABLED / POSTHOG_KEY shows no notice and no link
+      // (rule 9: no analytics claim where analytics cannot run; the link would 404).
+      await expect(notice).toHaveCount(0);
+      await expect(page.getByRole("link", { name: "Turn off analytics" })).toHaveCount(0);
+    } else {
+      await expect(notice).toBeVisible();
+      await expect(page.getByRole("link", { name: "Turn off analytics" })).toHaveAttribute("href", "/settings#profile");
+    }
     await axe(page);
   });
 });

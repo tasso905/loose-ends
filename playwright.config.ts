@@ -8,6 +8,11 @@ const sb = localSupabase();
 const PORT = Number(process.env.E2E_PORT ?? 3000);
 const BASE_URL = `http://127.0.0.1:${PORT}`;
 const PROD = Boolean(process.env.CI || process.env.E2E_PROD);
+// Lead-tester: LE_E2E_POSTHOG_HOST points the server at tests/e2e/tester-analytics-capture.spec.ts's local
+// catcher. Only a 127.0.0.1 URL is accepted, so E2E can never send to a real PostHog host.
+const E2E_POSTHOG_HOST = /^http:\/\/127\.0\.0\.1:\d+$/.test(process.env.LE_E2E_POSTHOG_HOST ?? "")
+  ? process.env.LE_E2E_POSTHOG_HOST!
+  : "http://127.0.0.1:9";
 
 export default defineConfig({
   testDir: "tests/e2e",
@@ -16,8 +21,7 @@ export default defineConfig({
   retries: 0,
   timeout: 120_000,
   reporter: process.env.CI ? [["list"], ["html", { open: "never" }]] : "list",
-  use: { baseURL: BASE_URL, trace: "retain-on-failure" },
-  projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
+  use: { baseURL: BASE_URL, trace: "retain-on-failure" },  projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
   webServer: {
     // CI (or E2E_PROD=1) tests the production build; locally `next dev` keeps the loop fast.
     command: PROD ? `pnpm build && pnpm start --hostname 127.0.0.1 --port ${PORT}` : `pnpm dev --hostname 127.0.0.1 --port ${PORT}`,
@@ -39,7 +43,7 @@ export default defineConfig({
       // starts the server without them, for tester-settings-s1's gate-off checks.
       ...(process.env.LE_S1_GATE_ON === "0"
         ? {}
-        : { ANALYTICS_ENABLED: "true", POSTHOG_KEY: "phc_e2e_placeholder", POSTHOG_HOST: "http://127.0.0.1:9" }),
+        : { ANALYTICS_ENABLED: "true", POSTHOG_KEY: "phc_e2e_placeholder", POSTHOG_HOST: E2E_POSTHOG_HOST }),
     },
   },
 });
