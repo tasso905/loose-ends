@@ -21,8 +21,8 @@
 | Check-your-email state | Confirms the link was sent | Heading `Check your email`. Body `I sent a sign-in link to {email}. Open it in this browser to sign in.` then `The link works for 1 hour.` (D39; tied to Supabase `otp_expiry = 3600`, so the setting and this line change together). Offers `Use a different email`; never claims sign-in succeeded |
 | No-JavaScript message | Explains why sign-in can't work | `Signing in needs JavaScript. Turn it on in your browser, then reload this page.` (D39) |
 | Aliases question | Helps tell "you" from others in pasted threads | "What name and emails do people use for you?"; field label `Names and emails`; hint `Separate them with commas. I use these to tell which tasks are yours.`; below it `Your sign-in email, {email}, is always included.`; actions `Save` and `Skip`. Up to 20 names and emails, each up to 100 characters (limits decided, D40), with the errors in SITE_CONTRACT §2.13 (D39). Skippable; signed-in email always saved as an alias |
-| Try the demo (D55) | Lets judges and visitors try it without email | Button `Try the demo`, below the sign-in methods, behind a Turnstile CAPTCHA. Creates a fresh anonymous account seeded with the "Sam" data on the demo date Mon Oct 5, 2026; skips onboarding. *Proposed* (PRD Question #14): the line `Explore with made-up data. No email needed. Demo accounts are deleted within 2 days.` |
-| Demo unavailable (D55) | Explains why the demo button is off | Button disabled with the reason under it. *Proposed:* budget spent `The demo is full for today. It opens again after midnight (UTC). You can still sign in with your email.`; switched off `The demo isn't available right now. You can still sign in with your email.` Other demo errors in SITE_CONTRACT §2.13 |
+| Try the demo (D55) | Lets judges and visitors try it without email | Button `Try the demo`, below the sign-in methods, behind a Turnstile CAPTCHA. Creates a fresh anonymous account seeded with the "Sam" data on the demo date Mon Oct 5, 2026; skips onboarding. The line `Explore with made-up data. No email needed. Demo accounts are deleted within 2 days.` (approved Oct 22, D59) |
+| Demo unavailable (D55) | Explains why the demo button is off | Button disabled with the reason under it. Approved Oct 22 (D59): budget spent `The demo is full for today. It opens again after midnight (UTC). You can still sign in with your email.`; switched off `The demo isn't available right now. You can still sign in with your email.` Other demo errors in SITE_CONTRACT §2.13 |
 | Sensitive-data note | Sets expectations before first paste | "Don't paste passwords or full account numbers."; shown on the sign-in page and in onboarding |
 | Analytics notice | Explains event-only analytics | Plain statement + opt-out link; no content is ever sent. Ships with the first PostHog event and stays hidden until then (D40, rule 9). Approved wording (D46, Oct 21): `Loose Ends counts which features you use. Analytics never include what you paste.` Opt-out link: `Turn off analytics` |
 
@@ -35,7 +35,8 @@
 | Global Add | Capture from anywhere | Button labelled `Add`; opens the Add page/sheet |
 | Account menu | Account and data controls | `Settings`, `Export data`, `Sign out` |
 | Review chip | Pending proposals | `N to review`; shown only when N ≥ 1; count is real pending proposals |
-| Demo-date banner | Simulated clock indicator | Only for a demo (anonymous) account with a demo date, never for a real account: `Demo date: Thu Oct 8, 2026` (D12, D55). *Proposed* (PRD Question #14): `Demo account with made-up data · Demo date: Thu Oct 8, 2026` |
+| Demo-date banner | Simulated clock indicator | Only for a demo (anonymous) account with a demo date, never for a real account: `Demo account with made-up data · Demo date: Thu Oct 8, 2026` (D12, D55; approved Oct 22, D59; *was:* `Demo date: Thu Oct 8, 2026`) |
+| Demo clock control (D59) | Moves the demo date for the 2-minute demo | Inside the demo banner, demo accounts only, server-checked: `+3 days`, `+3 months`, `Reset` (back to Mon Oct 5, 2026). Labels *Proposed* (PRD Question #15) |
 
 ### 2. Add / Capture
 
