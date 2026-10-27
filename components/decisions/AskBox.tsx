@@ -1,15 +1,16 @@
 "use client";
-import { useId, useRef, useState, useTransition } from "react";
+import { useEffect, useId, useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import { PenLine, Quote } from "lucide-react";
-import { askAction } from "@/app/decisions/actions";
+import { addReasonAction, askAction } from "@/app/decisions/actions";
 import { Spinner } from "@/components/auth/Spinner";
 import { FieldError } from "@/components/Notice";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { Input, Textarea } from "@/components/ui/input";
 import { ASK_MAX, type AskView } from "@/lib/decisions/view";
 import { DECISIONS_COPY as D } from "@/lib/decisions/copy";
 import { apiError, type ApiError } from "@/lib/errors";
+import { clampChars, DECISION_REASON_MAX, isBlankText } from "@/lib/threads/transition";
 import { formatDecisionDate } from "@/lib/threads/view";
 
 /**
@@ -21,7 +22,8 @@ import { formatDecisionDate } from "@/lib/threads/view";
  * reloaded; opening the link does not ask by itself (each ask counts toward the 50 a day).
  */
 export function AskBox({ initialQuestion, timezone }: { initialQuestion: string; timezone: string }) {
-  const [question, setQuestion] = useState(initialQuestion.slice(0, ASK_MAX));
+  // Counted in characters (code points), like the server; maxLength would count UTF-16 units.
+  const [question, setQuestion] = useState(clampChars(initialQuestion, ASK_MAX));
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<ApiError["error"] | null>(null);
   const [view, setView] = useState<AskView | null>(null);
@@ -72,10 +74,9 @@ export function AskBox({ initialQuestion, timezone }: { initialQuestion: string;
             type="text"
             name="question"
             value={question}
-            maxLength={ASK_MAX}
             placeholder={D.askPlaceholder}
             autoComplete="off"
-            onChange={(e) => setQuestion(e.target.value)}
+            onChange={(e) => setQuestion(clampChars(e.target.value, ASK_MAX))}
             aria-invalid={error ? true : undefined}
             aria-describedby={error ? errorId : undefined}
             className="min-w-0 flex-1"
@@ -105,6 +106,8 @@ export function AskBox({ initialQuestion, timezone }: { initialQuestion: string;
 }
 
 function AnswerCard({ view, timezone }: { view: AskView; timezone: string }) {
+  // Reasons added here after the server confirmed them (rule 10), by decision id.
+  const [added, setAdded] = useState<Record<string, string>>({});
   if (!view.found) {
     return (
       <div className="mt-6 rounded-card border border-le-border bg-le-surface p-5">
@@ -116,6 +119,7 @@ function AnswerCard({ view, timezone }: { view: AskView; timezone: string }) {
     <div className="mt-6 space-y-4">
       {view.decisions.map((d) => {
         const date = formatDecisionDate(d.decided_at, timezone);
+        const reason = d.reason_user ?? added[d.id] ?? null;
         return (
           <article key={d.id} aria-label={`${D.youDecided} · ${date}`} className="space-y-4 rounded-card border border-le-border bg-le-surface p-5">
             <div>
@@ -124,20 +128,20 @@ function AnswerCard({ view, timezone }: { view: AskView; timezone: string }) {
               </p>
               <p className="mt-1 text-body-strong whitespace-pre-wrap text-le-text">{d.choice}</p>
             </div>
-            {d.reason_user !== null ? (
-              <figure className="border-l-2 border-le-border-strong pl-4">
+            {reason !== null ? (
+              <figure id={`reason-${d.id}`} tabIndex={-1} className="focus-ring rounded-r-control border-l-2 border-le-border-strong pl-4">
                 <figcaption className="flex items-center gap-1 text-label text-le-text-secondary">
                   <PenLine aria-hidden strokeWidth={1.75} className="size-3.5" />
                   {D.youWrote}
                 </figcaption>
                 <blockquote className="mt-1 text-body whitespace-pre-wrap text-le-text">
                   <span aria-hidden>“</span>
-                  <span data-testid="reason">{d.reason_user}</span>
+                  <span data-testid="reason">{reason}</span>
                   <span aria-hidden>”</span>
                 </blockquote>
               </figure>
             ) : (
-              <p className="text-body text-le-text-secondary">{D.noReason}</p>
+              <NoReason decisionId={d.id} onAdded={(text) => setAdded((a) => ({ ...a, [d.id]: text }))} />
             )}
             {d.facts.map((f) => (
               <figure key={f} className="rounded-r-control border-l-2 border-(--le-evidence-rule) bg-(--le-evidence-bg) px-4 py-3">
@@ -169,6 +173,109 @@ function Interpretation({ text }: { text: string }) {
     <div className="border-l-2 border-dashed border-le-border-strong pl-4">
       <p className="text-label text-le-text-secondary">{D.interpretation}</p>
       <p className="mt-1 text-body text-le-text-secondary">{text}</p>
+    </div>
+  );
+}
+
+/**
+ * The no-reason state (SITE_CONTRACT §2.11, CONTENT_MODEL §10, D58): says so plainly and offers
+ * `Add a reason now`, which opens an inline field. Save sends the text exactly as typed (rule 5);
+ * the reason appears only after the server confirms (rule 10), in the You wrote voice, and focus
+ * moves to it. Cancel closes the field and returns focus to `Add a reason now`. Limits and the
+ * blank check match Resolve (2,000 characters, counted as characters).
+ */
+function NoReason({ decisionId, onAdded }: { decisionId: string; onAdded: (reason: string) => void }) {
+  const [open, setOpen] = useState(false);
+  const [text, setText] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [pending, startTransition] = useTransition();
+  const fieldId = useId();
+  const errorId = useId();
+  const fieldRef = useRef<HTMLTextAreaElement>(null);
+  const openRef = useRef<HTMLButtonElement>(null);
+  const focusOpen = useRef(false);
+
+  useEffect(() => {
+    if (open) fieldRef.current?.focus();
+    else if (focusOpen.current) {
+      focusOpen.current = false;
+      openRef.current?.focus();
+    }
+  }, [open]);
+
+  function save() {
+    if (pending) return;
+    if (isBlankText(text)) {
+      setError(D.reasonRequired);
+      fieldRef.current?.focus();
+      return;
+    }
+    setError(null);
+    startTransition(async () => {
+      try {
+        const res = await addReasonAction(decisionId, text);
+        if (!res.ok) {
+          setError(res.error.message);
+          fieldRef.current?.focus();
+          return;
+        }
+        onAdded(res.reason);
+        // The card re-renders with the reason; focus follows it so it is announced and not lost.
+        requestAnimationFrame(() => document.getElementById(`reason-${decisionId}`)?.focus());
+      } catch {
+        setError(apiError(typeof navigator !== "undefined" && !navigator.onLine ? "offline" : "save_failed").error.message);
+      }
+    });
+  }
+
+  return (
+    <div>
+      <p className="text-body text-le-text-secondary">{D.noReason}</p>
+      {open ? (
+        <form
+          className="mt-3"
+          onSubmit={(e) => {
+            e.preventDefault();
+            save();
+          }}
+        >
+          <label htmlFor={fieldId} className="block text-label text-le-text">
+            {D.addReasonLabel}
+          </label>
+          <Textarea
+            ref={fieldRef}
+            id={fieldId}
+            value={text}
+            onChange={(e) => setText(clampChars(e.target.value, DECISION_REASON_MAX))}
+            aria-invalid={error ? true : undefined}
+            aria-describedby={error ? errorId : undefined}
+            className="mt-2"
+          />
+          {error ? <FieldError id={errorId}>{error}</FieldError> : null}
+          <div className="mt-3 flex flex-wrap gap-3">
+            <Button type="submit" size="small" disabled={pending}>
+              {pending ? <Spinner /> : null}
+              {D.save}
+            </Button>
+            <Button
+              variant="ghost"
+              size="small"
+              disabled={pending}
+              onClick={() => {
+                focusOpen.current = true;
+                setError(null);
+                setOpen(false);
+              }}
+            >
+              {D.cancel}
+            </Button>
+          </div>
+        </form>
+      ) : (
+        <Button ref={openRef} variant="secondary" size="small" className="mt-3" onClick={() => setOpen(true)}>
+          {D.addReason}
+        </Button>
+      )}
     </div>
   );
 }

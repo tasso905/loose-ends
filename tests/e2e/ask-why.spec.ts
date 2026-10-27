@@ -68,7 +68,12 @@ test("Decisions with nothing recorded: nav item, heading, Ask box, empty state; 
   await expect(page.getByRole("link", { name: "Decisions" })).toHaveAttribute("aria-current", "page");
   await expect(page.getByRole("heading", { level: 1, name: "Decisions" })).toBeVisible();
   await expect(box()).toHaveAttribute("placeholder", "Ask about a past decision");
-  await expect(box()).toHaveAttribute("maxlength", "300");
+  // 300 characters, counted like the server (code points): 300 emoji fit, the 301st is cut, and no
+  // surrogate pair is split (S9b; maxLength would have stopped at 150 emoji).
+  await box().fill("\u{1F600}".repeat(301));
+  expect([...(await box().inputValue())]).toHaveLength(300);
+  expect(await box().inputValue()).toBe("\u{1F600}".repeat(300));
+  await box().fill("");
   await expect(askButton()).toBeDisabled();
   await expect(page.getByText("Decisions you record when resolving threads will appear here.")).toBeVisible();
   await expectNoViolations();

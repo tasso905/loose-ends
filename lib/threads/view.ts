@@ -121,6 +121,9 @@ export function historyLine(e: HistoryEvent): string {
       return "You snoozed this.";
     case "edited":
       return "You edited this.";
+    // PROPOSED (S9b; not in the docs).
+    case "reason_added":
+      return "You added a reason for your decision.";
     case "status_changed":
       return `Status changed to ${STATUS_LABEL[e.after?.status as ThreadStatus] ?? "a new status"}.`;
     default:

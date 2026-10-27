@@ -29,4 +29,13 @@ export const DECISIONS_COPY = {
   tryAgain: "Try again",
   /** APPROVED (D57). */
   askWhyLink: "Ask why",
+  /** SITE_CONTRACT §2.11 / CONTENT_MODEL §10 (D58). */
+  addReason: "Add a reason now",
+  /** PROPOSED (S9b): the field label, reusing the Resolve sheet's question. */
+  addReasonLabel: "Want me to remember why?",
+  /** PROPOSED (S9b): Save reuses the Resolve sheet's word; Cancel is D56's. */
+  save: "Save",
+  cancel: "Cancel",
+  /** PROPOSED (S9b): Save with an empty or blank reason. */
+  reasonRequired: "Write a reason first.",
 } as const;

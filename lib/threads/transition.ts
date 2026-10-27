@@ -92,6 +92,16 @@ export const DECISION_REASON_MAX = 2000;
 export const charCount = (s: string) => [...s].length;
 
 /**
+ * Cuts `s` to at most `max` characters (code points), never inside a surrogate pair. Text fields use
+ * this instead of the maxLength attribute, which counts UTF-16 units (an emoji counts twice) and so
+ * disagrees with the server's limit.
+ */
+export function clampChars(s: string, max: number): string {
+  const chars = [...s];
+  return chars.length <= max ? s : chars.slice(0, max).join("");
+}
+
+/**
  * The event an Undo reverses (D44 option a, approved Oct 21). The caller reads it
  * from `thread_events`; `latest` says whether it is the thread's newest event.
  */

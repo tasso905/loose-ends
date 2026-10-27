@@ -49,6 +49,7 @@ const VALID: Record<string, Record<string, unknown>> = {
   marked_wrong: { thread_id: TID, next_step: "edit" },
   not_useful: { thread_id: TID, surface: "digest" },
   resolve_saved: { resolution: "decided", reason_given: true },
+  reason_added: {},
   ask_submitted: { answer_found: true, parts_by_kind: { user_reason: 1, source_fact: 2 } },
   source_deleted: { cascade: true },
   data_exported: {},
