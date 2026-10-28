@@ -22,7 +22,7 @@
 | 9 | Source viewer | The original text with the quoted span highlighted. |
 | 10 | Resolve / Decision Memory | How the loop ended, optional decision and reason. |
 | 11 | Decisions / Ask Why | Decision list and grounded answers about past decisions. |
-| 12 | Settings and Data | Profile, aliases, timezone, analytics, sources, retention, export, account deletion, sign-out. |
+| 12 | Settings and Data | Profile, aliases, timezone, analytics, sources, export, account deletion, sign-out. |
 
 ### 1.1 Persistent app shell
 
@@ -67,7 +67,7 @@ Field-level content, constraints and copy are defined in the content model v1.1;
 | Email + `Email me a sign-in link` | Field label `Email`. Button disabled while sending. Protected by Cloudflare Turnstile, because Supabase CAPTCHA protection covers every auth endpoint (D59). Field errors per §2.13 "Sign in and onboarding" |
 | Check-your-email state (D39) | Shown only after Supabase confirms the link was sent (rule 10). Heading `Check your email`. Body `I sent a sign-in link to {email}. Open it in this browser to sign in.` then `The link works for 1 hour.` Offers `Use a different email`. The lifetime line is tied to Supabase `otp_expiry = 3600`; the copy and the setting (local config and the production project) change together |
 | Divider | `or`, between the email form and `Continue with Google` (D39). Rendered only when Google sign-in is switched on (D41) |
-| `Continue with Google` | Identity scopes only (`openid email profile`). Conditional (D41): rendered whenever `NEXT_PUBLIC_AUTH_GOOGLE_ENABLED=true`; set that flag only where the Supabase Google provider is enabled (the release checklist enables both). It ships on only if the Google OAuth setup and a manual check pass by Oct 24; otherwise it stays hidden and the email link is the only sign-in method. If it does not ship, this row, the divider row and `oauth_failed` (§2.13) are removed at the Oct 25 scope review |
+| `Continue with Google` | Identity scopes only (`openid email profile`). Conditional (D41): rendered whenever `NEXT_PUBLIC_AUTH_GOOGLE_ENABLED=true`; set that flag only where the Supabase Google provider is enabled (the release checklist enables both). Switched on (D61, Oct 27): it goes live in production once the D41 release checklist is done and a manual production check passes; until then the flag keeps it hidden in production |
 | `Try the demo` (D55) | Below the sign-in methods, a secondary button labelled `Try the demo`, with the line `Explore with made-up data. No email needed. Demo accounts are deleted within 2 days.` (approved Oct 22, D59). Protected by a Cloudflare Turnstile CAPTCHA. Pressing it creates a fresh anonymous demo account seeded with the "Sam" data on the demo date Mon Oct 5, 2026, then opens Today; it shows a pending state while the account is created and never claims the demo started before the server confirms (rule 10). Hidden when JavaScript is off |
 | Demo unavailable (D55) | When `DEMO_ENABLED` is off or the day's demo AI budget is spent, the button is disabled and the reason is shown under it (copy in §2.13, approved D59). The email sign-in stays available |
 | No JavaScript | `Signing in needs JavaScript. Turn it on in your browser, then reload this page.` (D39) |
@@ -202,7 +202,7 @@ Field-level content, constraints and copy are defined in the content model v1.1;
 | Field | Constraints |
 |---|---|
 | Profile | Section heading `Profile`. Display name, aliases (add/remove), timezone (IANA select), analytics toggle labelled `Analytics`, described by the notice sentence `Loose Ends counts which features you use. Analytics never include what you paste.` (ships with the first PostHog event, hidden until then; D40, D46). If settings fail to load: `Settings didn't load. Try again.` + `Try again` (D46) |
-| Data | Retention toggle; sources list with two delete options; `Export data (JSON)`; `Delete account…` (D14) |
+| Data | Sources list with two delete options (source text is kept until the source or account is deleted; no retention toggle, D61); `Export data (JSON)`; `Delete account…` (D14) |
 | Privacy explanation | Matches PRIVACY.md. Names Google (Gemini API) as the AI provider and, if the free tier is used, says Google may use pasted text and Ask-why context to improve its products and people may read it (D42) |
 | SHOULD fields | Digest and type toggles only if F15/F17 ship |
 | Sign out | Ends the session in this browser only; there is no "sign out everywhere" (D39). Confirms only after the session has ended |
