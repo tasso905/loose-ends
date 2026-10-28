@@ -305,9 +305,32 @@ function chronoResolve(text: string, ctx: DateContext): ChronoReading {
 function modelWall(iso: string, timezone: string): Wall | null {
   const s = iso.trim();
   if (DATE_ONLY.test(s)) return isRealDate(s) ? { date: s, time: null } : null;
-  const instant = HAS_OFFSET.test(s) ? new Date(s) : fromZonedTime(s, timezone);
+  // A local wall time is read the same way as chrono's (zonedInstant), so a time inside a
+  // spring-forward gap moves forward by the gap on both sides (T-D4).
+  const local = LOCAL_DATE_TIME.exec(s);
+  const instant = HAS_OFFSET.test(s)
+    ? new Date(s)
+    : local && isRealDate(local[1]!)
+      ? zonedInstant(local[1]!, local[2]!, timezone)
+      : fromZonedTime(s, timezone);
   if (Number.isNaN(instant.getTime())) return null;
+  return instantWall(instant, timezone);
+}
+
+/** "2027-03-14T02:30" or "2027-03-14T02:30:00(.000)" with no offset: [date, HH:mm]. */
+const LOCAL_DATE_TIME = /^(\d{4}-\d{2}-\d{2})[T ]((?:[01]\d|2[0-3]):[0-5]\d)(?::[0-5]\d(?:\.\d+)?)?$/;
+
+function instantWall(instant: Date, timezone: string): Wall {
   return { date: formatInTimeZone(instant, timezone, "yyyy-MM-dd"), time: formatInTimeZone(instant, timezone, "HH:mm") };
+}
+
+/**
+ * chrono's reading as the wall clock of the instant it is stored at. A time inside a
+ * spring-forward gap ("Sunday at 2:30am" on the US change day) does not exist and is stored at
+ * 3:30 AM, so that is what the model's reading is compared with (T-D4).
+ */
+function normalizedWall(w: Wall, timezone: string): Wall {
+  return w.time === null ? w : instantWall(zonedInstant(w.date, w.time, timezone), timezone);
 }
 
 function isRealDate(ymd: string): boolean {
@@ -389,7 +412,7 @@ export function resolveDate(input: DateInput, ctx: DateContext): ResolvedDate {
   }
   const fromChrono = reading;
 
-  const agreement: DateAgreement = !input.date_iso ? "chrono_only" : fromModel && sameWall(fromChrono, fromModel) ? "agree" : "disagree";
+  const agreement: DateAgreement = !input.date_iso ? "chrono_only" : fromModel && sameWall(normalizedWall(fromChrono, ctx.timezone), fromModel) ? "agree" : "disagree";
 
   const label = formatWall(fromChrono, refYear);
   const dated = ctx.referenceDateSource === "defaulted" ? `I assumed this was written today, ${refLabel}` : `message dated ${refLabel}`;

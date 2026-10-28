@@ -13,8 +13,8 @@ const NY: DateContext = { referenceDate: "2027-03-11", referenceDateSource: "use
 const r = (iso: string | null) => resolveDate({ date_text: "Sunday at 2:30am", date_iso: iso }, NY);
 
 describe("T-D4: a time inside the spring-forward gap", () => {
-  // OPEN DEFECT T-D4: it.fails until resolveDates compares instants.
-  it.fails.each(["2027-03-14T02:30:00", "2027-03-14T03:30:00", "2027-03-14T07:30:00Z", "2027-03-14T02:30:00-05:00"])(
+  // T-D4 fixed: chrono's wall time is normalised to the stored instant before comparing.
+  it.each(["2027-03-14T02:30:00", "2027-03-14T03:30:00", "2027-03-14T07:30:00Z", "2027-03-14T02:30:00-05:00"])(
     "model %s agrees with chrono's 'Sunday at 2:30am' (3:30 AM EDT)",
     (iso) => {
       const d = r(iso);
