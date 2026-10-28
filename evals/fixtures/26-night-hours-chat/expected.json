@@ -35,7 +35,7 @@
       "note": "Friday night at 2 = 2:00 AM Sat Oct 24 EDT (06:00Z), inferred. 0.90. Alternate: the user's acceptance names the same loop. It carries no date of its own, so an item quoting only it gets a date miss."
     },
     {
-      "type": "commitment",
+      "type": "waiting_on",
       "title": "Marcus to send the call link",
       "owner": "other",
       "quote": "I'll send the call link tomorrow",
@@ -46,7 +46,7 @@
       "counterparty": "Marcus",
       "amount_text": null,
       "band": "high",
-      "note": "Written by Marcus: owner other. 0.95."
+      "note": "Written by Marcus: owner other. 0.80 + 0.05 + 0.05 = 0.90. D63: another person's promise to the user is waiting_on (no first-person-modal bonus)."
     }
   ]
 }
