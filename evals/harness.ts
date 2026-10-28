@@ -20,14 +20,19 @@
  *                                         "due_date": "YYYY-MM-DD" | null,
  *                                         "band": "high|medium|low|ignore" } ] }
  *                                         (optional, scored when present: "due_certainty",
- *                                         "certainty", "page" (informational); other tester
- *                                         extensions are ignored)
+ *                                         "certainty", "page" (informational), "alt_quotes"
+ *                                         (matching only, below); other tester extensions are
+ *                                         ignored)
  * A predicted item matches an expected one when one quote contains the other (normalized,
  * case-insensitive) AND the shorter covers at least MIN_QUOTE_COVERAGE of the longer's words, so a
  * fragment ("Ravi") or a blob spanning several sentences matches nothing on its own. Matching is
  * one-to-one: each golden item takes at most one predicted item and vice versa (best coverage
  * first), so duplicates and blobs count as extras. Items with expected band "ignore" must not be
- * shown.
+ * shown. A golden may list `alt_quotes`: other verbatim spans that state the same loop (the
+ * whole sentence round a clause, the neighbouring sentence that carries the action, the user's
+ * acceptance of a request). A prediction matches the golden when it matches the quote or any
+ * alternate under the same containment and coverage rule; the item is still reported by the
+ * hash of the primary quote, and one-to-one assignment is unchanged.
  *
  * Scoring (see EvalReport.scores): a failed fixture is scored as if the model returned nothing, so
  * its golden items are misses; any failure, any null gated metric, or any F19 sub-threshold miss
@@ -151,6 +156,8 @@ interface Expected {
   certainty?: "explicit" | "implied" | "speculative";
   /** Tester extension: 1-based page of the quote in an upload with meta.page_offsets. Informational. */
   page?: number;
+  /** Tester extension: other verbatim spans of the same loop that also count as a match (see header). */
+  alt_quotes?: string[];
 }
 
 /**
@@ -277,7 +284,8 @@ export function quoteMatch(a: string, b: string): number {
   const coverage = Math.min(wa, wb) / Math.max(wa, wb);
   return coverage >= MIN_QUOTE_COVERAGE ? coverage : 0;
 }
-const pairScore = (p: Proposal, e: Expected) => Math.max(0, ...p.evidence.map((ev) => quoteMatch(ev.quote, e.quote)));
+const goldenQuotes = (e: Expected) => [e.quote, ...(e.alt_quotes ?? [])];
+const pairScore = (p: Proposal, e: Expected) => Math.max(0, ...p.evidence.flatMap((ev) => goldenQuotes(e).map((q) => quoteMatch(ev.quote, q))));
 
 /**
  * One-to-one assignment of proposals to golden items: every matching pair, best coverage first

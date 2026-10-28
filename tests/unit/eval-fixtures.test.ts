@@ -10,6 +10,7 @@ import { joinPages } from "@/lib/capture/document";
 import { processExtraction } from "@/lib/pipeline/proposals";
 import { containsWholePhrase } from "@/lib/pipeline/verifyQuotes";
 import { Band, DueCertainty } from "@/lib/schemas";
+import { quoteMatch } from "@/evals/harness";
 
 /**
  * Checks the eval fixtures in evals/fixtures without any live model call.
@@ -20,6 +21,7 @@ import { Band, DueCertainty } from "@/lib/schemas";
  *    joined as lib/capture/document.ts joinPages() does (a blank line between pages).
  * 2. Every golden quote is a verbatim substring of input.txt, no two golden quotes overlap (the
  *    runner matches by quote containment), and golden date/amount/name phrases appear in the source.
+ *    Optional alt_quotes are verbatim too and cannot capture another golden's own quote.
  * 3. Synthetic only: every email address and web domain uses a reserved example domain, and
  *    phone numbers use the fictional 555-01xx range.
  * 4. "Perfect model" replay: the golden items are turned into a model response, replayed through
@@ -78,6 +80,9 @@ const ExpectedItem = z
     // The date_iso a correct model gives when it differs from the pipeline's due_date (e.g. a
     // weekday that contradicts its date: the model reads the date, chrono refuses the phrase).
     model_date_iso: YMD.optional(),
+    // Other verbatim spans of the same loop that the runner also accepts as a match (evals/harness.ts):
+    // the whole sentence round a clause, the neighbouring sentence with the action, an acceptance.
+    alt_quotes: z.array(z.string().min(3).max(400)).min(1).optional(),
   })
   .strict()
   .refine((e) => e.band === "ignore" || e.certainty !== undefined, { message: "shown items need the expected model certainty" })
@@ -152,6 +157,25 @@ describe("eval fixtures", () => {
       }
       const q = f.expected.items.map((e) => e.quote);
       for (let i = 0; i < q.length; i++) for (let j = i + 1; j < q.length; j++) expect(overlaps(q[i]!, q[j]!), `${q[i]} / ${q[j]}`).toBe(false);
+    });
+
+    it("alternate quotes are verbatim, distinct, and cannot capture another golden's own quote", () => {
+      const items = f.expected.items;
+      items.forEach((e, i) => {
+        for (const alt of e.alt_quotes ?? []) {
+          expect(f.text.includes(alt), `alt quote not verbatim: ${alt}`).toBe(true);
+          expect(norm(alt), `alt repeats its own quote: ${alt}`).not.toBe(norm(e.quote));
+          items.forEach((o, j) => {
+            if (j === i) return;
+            // An alternate may contain another golden's quote (a two-clause sentence), but it must never
+            // equal it or sit inside it, so a perfect prediction for `o` always matches `o` best (coverage 1).
+            for (const oq of [o.quote, ...(o.alt_quotes ?? [])]) {
+              expect(norm(oq).includes(norm(alt)), `alt ${alt} inside ${oq}`).toBe(false);
+            }
+            expect(quoteMatch(alt, o.quote), `alt ${alt} vs ${o.quote}`).toBeLessThan(1);
+          });
+        }
+      });
     });
 
     it("page offsets (uploads) are page starts joined as joinPages() joins them", () => {

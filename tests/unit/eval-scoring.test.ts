@@ -43,7 +43,7 @@ const Q = {
   gate: "Ravi will fix the gate.",
   plants: "I'll water the plants.",
 };
-type Golden = { type: string; owner: string; quote: string; due_date: string | null; band: string; due_certainty?: string; certainty?: string };
+type Golden = { type: string; owner: string; quote: string; due_date: string | null; band: string; due_certainty?: string; certainty?: string; alt_quotes?: string[] };
 const G: Record<keyof typeof Q, Golden> = {
   invoice: { type: "commitment", owner: "user", quote: Q.invoice, due_date: "2026-10-09", band: "high", due_certainty: "explicit", certainty: "explicit" },
   lunch: { type: "intention", owner: "user", quote: Q.lunch, due_date: null, band: "low", due_certainty: "none", certainty: "speculative" },
@@ -398,6 +398,38 @@ describe("one-to-one matching (D-S0-1, D-S0-3) and quota judging (F-S0-4)", () =
       },
     });
     expect((await run(model)).result).toBe("incomplete_quota");
+  });
+});
+
+describe("alt_quotes: a golden's alternate spans of the same loop also match (Oct 28 live-eval review)", () => {
+  const T = `Synthetic ${MARK}. Invoice: the balance is $90. I'll send Dana the invoice on Friday, with terms of 15 days. Ravi will fix the gate.`;
+  const inv: Golden = { ...G.invoice, quote: "I'll send Dana the invoice on Friday" };
+  const gate: Golden = { ...G.gate, quote: "Ravi will fix the gate." };
+  // 8 of 18 words: below MIN_QUOTE_COVERAGE against the primary quote.
+  const blob = "Invoice: the balance is $90. I'll send Dana the invoice on Friday, with terms of 15 days.";
+  const dated = { date_text: "on Friday", date_iso: "2026-10-09" };
+
+  it("without alternates, the longer span is a miss plus an extra", async () => {
+    fixture("a", [inv, gate], { text: T, ambiguous: false });
+    const r = await run(recorded({ [T]: [item(blob, dated), item(gate.quote, { owner: "other" })] }));
+    expect(r.perFixture[0]!.counts).toEqual({ matched: 1, missed: 1, extra: 1, ignore_shown: 0 });
+  });
+
+  it("listed as an alternate, the span matches, is scored, and is reported by the primary quote's hash", async () => {
+    fixture("a", [{ ...inv, alt_quotes: [blob] }, gate], { text: T, ambiguous: false });
+    const r = await run(recorded({ [T]: [item(blob, dated), item(gate.quote, { owner: "other" })] }));
+    expect(r.perFixture[0]!.counts).toEqual({ matched: 2, missed: 0, extra: 0, ignore_shown: 0 });
+    expect(r.scores).toMatchObject({ recall: 1, precision: 1, date: 1 });
+    const g0 = r.perFixture[0]!.items.find((i) => i.golden_index === 0)!;
+    expect(g0.status).toBe("matched");
+    expect(g0.quote_sha256).toBe(quoteHash(inv.quote));
+    noContent(r);
+  });
+
+  it("matching stays one-to-one: two predictions of the alternate give one match and one extra", async () => {
+    fixture("a", [{ ...inv, alt_quotes: [blob] }, gate], { text: T, ambiguous: false });
+    const r = await run(recorded({ [T]: [item(blob, dated), item(blob, dated)] }));
+    expect(r.perFixture[0]!.counts).toEqual({ matched: 1, missed: 1, extra: 1, ignore_shown: 0 });
   });
 });
 

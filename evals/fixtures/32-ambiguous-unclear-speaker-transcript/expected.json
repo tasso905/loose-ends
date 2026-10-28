@@ -16,7 +16,7 @@
       "note": "Clear promise, unknown speaker: 0.80 + 0.05 - 0.25 + 0.05 = 0.65, Maybe."
     },
     {
-      "type": "request",
+      "type": "deadline",
       "title": "Get the flyers to the printer",
       "owner": "unknown",
       "quote": "somebody has to get the flyers to the printer by Friday or they won't be ready",
@@ -26,8 +26,8 @@
       "certainty": "explicit",
       "counterparty": null,
       "amount_text": null,
-      "band": "medium",
-      "note": "Unassigned task: 0.65, Maybe."
+      "band": "high",
+      "note": "Passive deadline with a stated consequence, the same shape as 17 item 2 ('Signs have to be taken down by Sunday evening or ...'): the owner-unknown penalty applies only to commitments and requests. 0.80 + 0.05 exact + 0.05 date agrees = 0.90, Likely. Was request/Maybe until the Oct 28 live-eval review."
     },
     {
       "type": "commitment",
