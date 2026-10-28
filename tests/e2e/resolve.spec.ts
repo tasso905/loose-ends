@@ -123,7 +123,8 @@ test("rule 10: while Save is in flight the sheet stays open and nothing claims s
   // Regression guard (CI run 40501493393): the sheet must open on fresh state, not show the previous
   // test's Decided + field error for a frame. Record the dialog's contents the moment it opens.
   await page.evaluate(() => {
-    const d = document.querySelector("dialog")!;
+    // The Resolve sheet's own <dialog> (the page can hold others, e.g. the Why panel).
+    const d = [...document.querySelectorAll("dialog")].find((x) => x.querySelector("h3")?.textContent === "How did this end?")!;
     const w = window as unknown as { __openFrame?: string };
     delete w.__openFrame;
     const o = new MutationObserver(() => {
