@@ -59,8 +59,8 @@ export async function loadWhy(client: SupabaseClient, threadId: string, timezone
   if (!thread.success) return fail("thread_parse");
 
   const [ev, items, events] = await Promise.all([
-    client.from("evidence").select("id, quote, start_offset, end_offset, page, source_id").eq("thread_id", threadId).order("id").limit(1),
-    client.from("extraction_items").select("band, payload").eq("thread_id", threadId).limit(1),
+    client.from("evidence").select("id, quote, start_offset, end_offset, page, source_id").eq("thread_id", threadId).order("created_at").order("id").limit(1),
+    client.from("extraction_items").select("band, payload").eq("thread_id", threadId).order("created_at").order("id").limit(1),
     client.from("thread_events").select("type, actor, before, after").eq("thread_id", threadId).eq("type", "edited").order("id"),
   ]);
   if (ev.error || items.error || events.error) return fail("related");

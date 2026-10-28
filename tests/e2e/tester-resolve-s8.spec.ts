@@ -32,7 +32,19 @@ const reopen = async () => {
 };
 const sheet = () => page.getByRole("dialog", { name: "How did this end?" });
 const isServerAction = (method: string, headers: Record<string, string>) => method === "POST" && "next-action" in headers;
+// axe samples colours as rendered: run it only after finite animations (the sheet's fade-in) end,
+// so a half-faded label is not reported as low contrast. Infinite ones (spinners) are skipped.
+const animationsSettled = () =>
+  page.evaluate(() =>
+    Promise.all(
+      document
+        .getAnimations()
+        .filter((a) => a.effect?.getComputedTiming().endTime !== Infinity)
+        .map((a) => a.finished.catch(() => undefined)),
+    ),
+  );
 async function axe() {
+  await animationsSettled();
   const r = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"]).analyze();
   expect(r.violations.map((v) => `${v.id}: ${v.nodes.map((n) => n.target.join(" ")).join(", ")}`)).toEqual([]);
 }
@@ -90,15 +102,27 @@ test("keyboard only: Resolve… → arrow to Decided → type decision and a mul
   await keyboardResolve();
 });
 
-// DEFECT (a11y, SITE_CONTRACT §3.3 "return focus"; WCAG 2.4.3): after Save the focus is lost to
-// <body>. ThreadActions.resolved() calls #thread-status.focus() while the modal dialog is still open
-// (the page behind it is inert, so the call does nothing); the dialog then closes and the browser
-// returns focus to Resolve…, which the refresh removes. A keyboard or screen-reader user is dropped
-// at the top of the document. The same pattern was solved for Cancel (focusResolveOnClose). Safe:
-// focus #thread-status after the dialog has closed (as the comment in resolved() intends).
+// REGRESSION GUARD (a11y, SITE_CONTRACT §3.3; WCAG 2.4.3; fixed in 7c4c3fa): focus used to be lost
+// to <body> after Save, because #thread-status was focused while the modal dialog still made the
+// page inert. It now moves once the dialog has closed, and stays there after the refresh.
 test("after Save, focus lands on the thread status, never <body>", async () => {
   await keyboardResolve();
   await expect.poll(activeId, { timeout: 5_000 }).toBe("thread-status");
+  await page.waitForTimeout(1_000);
+  expect(await activeId()).toBe("thread-status");
+});
+
+test("after Save with the mouse (Not needed), focus also lands on the status; Undo returns it to Done", async () => {
+  await reopen();
+  await page.goto(threadUrl);
+  await page.getByRole("button", { name: "Resolve…" }).click();
+  await sheet().getByRole("radio", { name: "Not needed" }).check();
+  await sheet().getByRole("button", { name: "Save" }).click();
+  await expect(sheet()).toBeHidden({ timeout: 10_000 });
+  await expect.poll(activeId, { timeout: 5_000 }).toBe("thread-status");
+  await page.getByRole("button", { name: /^Undo resolve:/ }).click();
+  await expect(page.locator("#thread-status")).toHaveText("Open");
+  await expect(page.getByRole("button", { name: "Done", exact: true })).toBeFocused();
 });
 
 test("Enter in the decision field submits once (implicit submission); a fast double-click on Save writes one decision and shows no error", async () => {

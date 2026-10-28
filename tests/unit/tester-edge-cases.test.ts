@@ -268,6 +268,17 @@ describe("transition(): invariants", () => {
     ["open", { type: "edit", fields: { title: "New title" } }],
   ];
 
+  // S8 (tester review of the lead developer's row change above): parity with thread_resolve().
+  it.each<[string, ThreadAction]>([
+    ["Decided with no decision", { type: "resolve", resolution: "decided" }],
+    ["Not needed with a decision", { type: "resolve", resolution: "not_needed", decision: { choice: "x", reason: null } }],
+    ["Done with a decision", { type: "resolve", resolution: "done", decision: { choice: "x", reason: null } }],
+    ["a zero-width-only decision", { type: "resolve", resolution: "decided", decision: { choice: "​﻿", reason: null } }],
+    ["a 301-character decision", { type: "resolve", resolution: "decided", decision: { choice: "😀".repeat(301), reason: null } }],
+  ])("resolve: %s is invalid_transition", (_n, action) => {
+    expect(transition(thread("open"), action, { now: NOW })).toMatchObject({ ok: false });
+  });
+
   it.each(STATE_CHANGES)("from %s, %o writes an event with non-empty before and after (F9)", (from, action) => {
     const r = transition(thread(from), action, { now: NOW });
     expect(r.ok).toBe(true);
