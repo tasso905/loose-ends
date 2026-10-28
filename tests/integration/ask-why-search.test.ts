@@ -232,7 +232,7 @@ describe("Ask-why eval runner (recorded answers)", () => {
       failures: 0,
       result: "pass",
       pass: true,
-      prompt_version: "ask-why.v2",
+      prompt_version: "ask-why.v3",
       schema_version: "ask-why.v1",
     });
     for (const r of report.perQuestion.filter((x) => !x.answerable)) expect(r).toMatchObject({ retrieved: 0, llm_called: false, answer_found: false });
@@ -240,7 +240,7 @@ describe("Ask-why eval runner (recorded answers)", () => {
     // The scorecard row reports the count instead of "not run"; content-free (IDs, counts, enums).
     const card = renderScorecard({ ...EMPTY_REPORT }, report);
     expect(card).toContain("| Ask-why fabrications | 0 | 0 |");
-    expect(card).toContain("prompt ask-why.v2");
+    expect(card).toContain("prompt ask-why.v3");
     for (const d of set.decisions) {
       expect(card).not.toContain(d.choice);
       if (d.reason_user) expect(card).not.toContain(d.reason_user);

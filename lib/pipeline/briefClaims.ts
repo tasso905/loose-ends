@@ -40,6 +40,14 @@ const wordAmounts = (s: string) =>
 
 export type ClaimKind = "date" | "amount";
 
+/** True when `line` states any date or time ("Thursday", "Oct 9", "by 5pm"); amounts are not dates. */
+export function statesDate(line: string): boolean {
+  const withoutAmounts = blank(line, [AMOUNT, PERCENT, WORDS_AMOUNT]);
+  // chrono's casual parser does not read a bare day of month ("the 15th").
+  if (/\bthe\s+\d{1,2}(?:st|nd|rd|th)\b/i.test(withoutAmounts)) return true;
+  return chrono.parse(withoutAmounts, SPAN_REFERENCE).some((r) => r.text.trim() !== "" && !NOT_A_DATE.test(r.text.trim()));
+}
+
 /** The kinds of claim in `line` that the source does not support (empty when the line is fine). */
 export function unsupportedClaims(line: string, sourceText: string): ClaimKind[] {
   const out: ClaimKind[] = [];

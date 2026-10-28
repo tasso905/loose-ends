@@ -172,7 +172,20 @@ describe("B1: failed fixtures cannot pass", () => {
 describe("runner gaps", () => {
   it("rule 3: a date on a dateless golden is a date error ('invented')", async () => {
     fixture("a", [G.invoice, G.gate]);
-    const r = await run(recorded({ [TEXT]: [item(Q.invoice, { date_text: "on Friday", date_iso: "2026-10-09" }), item(Q.gate, { owner: "other", date_text: "on Friday", date_iso: "2026-10-09" })] }));
+    // The date phrase must be inside one of the item's own quotes to survive verifyFields (eval
+    // gate, Oct 27), so the wrong item cites a second quote that carries it.
+    const gateEvidence = [
+      { quote: Q.gate, speaker: null },
+      { quote: "invoice on Friday", speaker: null },
+    ];
+    const r = await run(
+      recorded({
+        [TEXT]: [
+          item(Q.invoice, { date_text: "on Friday", date_iso: "2026-10-09" }),
+          item(Q.gate, { owner: "other", date_text: "on Friday", date_iso: "2026-10-09", evidence: gateEvidence }),
+        ],
+      }),
+    );
     expect(r.scores.date).toBe(0.5);
     const gate = r.perFixture[0]!.items.find((i) => i.golden_index === 1)!;
     expect(gate.diffs).toContainEqual({ field: "due_date", error: "invented" });

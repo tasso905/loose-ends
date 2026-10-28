@@ -3,7 +3,7 @@ import { askWhy, NO_RECORD_MESSAGE, type RetrievedDecision } from "@/lib/ai/askW
 import { extract, ExtractionFailedError, type ExtractInput } from "@/lib/ai/extract";
 import { createRecordedModel, NoRecordingError } from "@/lib/ai/fake";
 import { AiConfigError, getModel } from "@/lib/ai/provider";
-import { loadPrompt } from "@/lib/ai/prompts";
+import { ASK_WHY_PROMPT_VERSION, EXTRACT_PROMPT_VERSION, loadPrompt } from "@/lib/ai/prompts";
 import { processExtraction } from "@/lib/pipeline/proposals";
 
 const input = (sourceText: string, over: Partial<ExtractInput> = {}): ExtractInput => ({
@@ -33,12 +33,21 @@ describe("prompts", () => {
     expect(loadPrompt("extract.v1")).toMatch(/^You read one message/);
     expect(loadPrompt("ask-why.v1")).toMatch(/^You answer a user's question/);
   });
+
+  it("the current versions load and older versions stay in the repo (eval gate, Oct 27)", () => {
+    expect(EXTRACT_PROMPT_VERSION).toBe("extract.v2");
+    expect(ASK_WHY_PROMPT_VERSION).toBe("ask-why.v3");
+    expect(loadPrompt("extract.v2")).toMatch(/^You read one message/);
+    expect(loadPrompt("extract.v2")).not.toContain("prompt: extract.v2");
+    expect(loadPrompt("ask-why.v3")).toMatch(/^You answer a user's question/);
+    expect(loadPrompt("ask-why.v2")).toMatch(/^You answer a user's question/);
+  });
 });
 
 describe("extract() with the recorded fake model", () => {
   it("returns validated output and the trace fields an extractions row needs (F5)", async () => {
     const run = await extract(input(MIKE), { model: createRecordedModel(), modelLabel: "fake:recorded", logger: () => {} });
-    expect(run).toMatchObject({ model: "fake:recorded", promptVersion: "extract.v1", schemaVersion: "extraction.v1", attempts: 1 });
+    expect(run).toMatchObject({ model: "fake:recorded", promptVersion: "extract.v2", schemaVersion: "extraction.v1", attempts: 1 });
     expect(run.inputTokens).toBeGreaterThan(0);
     expect(run.outputTokens).toBeGreaterThan(0);
     expect(run.latencyMs).toBeGreaterThanOrEqual(0);

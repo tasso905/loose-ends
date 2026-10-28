@@ -359,8 +359,13 @@ describe("S0 eval scoring integrity (B1 fixed; adversarial probes)", () => {
 
   it("rule 3: a model that invents a date on a dateless golden fails the run", async () => {
     fixture("a", [G.invoice, G.gate, G.lunch]);
-    const r = await run(recorded({ [TEXT]: [invoiceOk(), it_(Q.gate, { owner: "other", date_text: "Friday", date_iso: "2026-10-09" }), perfect()[2]!] }));
-    // date_text "Friday" must be in the source for verifyFields to keep it; it is (in the invoice line).
+    // date_text "Friday" must be inside one of the item's own quotes for verifyFields to keep it
+    // (eval gate, Oct 27), so the wrong item cites a second quote from the invoice line.
+    const evidence = [
+      { quote: Q.gate, speaker: null },
+      { quote: "invoice on Friday", speaker: null },
+    ];
+    const r = await run(recorded({ [TEXT]: [invoiceOk(), it_(Q.gate, { owner: "other", date_text: "Friday", date_iso: "2026-10-09", evidence }), perfect()[2]!] }));
     const gate = r.perFixture[0]!.items.find((i) => i.golden_index === 1)!;
     expect(gate.diffs).toContainEqual({ field: "due_date", error: "invented" });
     expect(r.scores.date).toBe(0.5);

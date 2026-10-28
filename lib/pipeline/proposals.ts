@@ -1,6 +1,7 @@
 import type { Extraction, Item } from "@/lib/ai/schema";
 import type { Logger } from "@/lib/log";
 import type { Band } from "@/lib/schemas";
+import { statesDate } from "./briefClaims";
 import { resolveDate, type DateContext, type ResolvedDate } from "./resolveDates";
 import { confidenceLabel, scoreItem, type Signal } from "./score";
 import { suppressionHash, verifyBrief, verifyQuotes, type VerifiedBrief, type VerifiedEvidence } from "./verifyQuotes";
@@ -55,8 +56,21 @@ export function processExtraction(output: Extraction, opts: ProcessOptions): Pro
   const droppedTypeIndexes: number[] = [];
 
   for (const v of verified.items) {
-    // A date_text not found in the source was cleared by verifyFields, so the item has no due date.
+    // A date_text not inside the item's own quote was cleared by verifyFields, so the item has no
+    // due date. Its "Not sure about" notes must not claim one either: a note stating a date is
+    // about the cleared date and is dropped (rule 3).
     const date = resolveDate(v.item, opts);
+    const dateCleared = output.items[v.index]?.date_text != null && v.item.date_text === null;
+    const notes = dateCleared ? v.item.uncertainty_notes.filter((n) => !statesDate(n)) : v.item.uncertainty_notes;
+    if (notes.length < v.item.uncertainty_notes.length) {
+      opts.logger?.("field_unverified", {
+        extraction_id: opts.extractionId ?? null,
+        item_index: v.index,
+        field: "uncertainty_notes",
+        reason: "date_cleared",
+        dropped: v.item.uncertainty_notes.length - notes.length,
+      });
+    }
     const s = scoreItem({
       type: v.item.type,
       owner: v.item.owner,
@@ -73,14 +87,14 @@ export function processExtraction(output: Extraction, opts: ProcessOptions): Pro
     const firstQuote = (v.evidence[0] as VerifiedEvidence).quote;
     proposals.push({
       index: v.index,
-      item: v.item,
+      item: notes === v.item.uncertainty_notes ? v.item : { ...v.item, uncertainty_notes: notes },
       evidence: v.evidence,
       date,
       score: s.score,
       band: s.band,
       signals: s.signals,
       label: confidenceLabel(v.item.type, s.band, s.signals),
-      not_sure: [...v.item.uncertainty_notes, ...date.not_sure],
+      not_sure: [...notes, ...date.not_sure],
       suppression_hash: suppressionHash(opts.sourceText, firstQuote),
     });
   }
