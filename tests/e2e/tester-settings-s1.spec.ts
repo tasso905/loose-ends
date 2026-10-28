@@ -9,12 +9,13 @@ import { localSupabase } from "./localSupabase";
 /**
  * Lead-tester, S1 (D40): /settings and the analytics notice.
  *
- * Default (the committed S1 state, gate off): /settings needs auth and is a 404 when signed in; the
- * onboarding notice is hidden. With LE_S1_GATE_ON=1 the server under test must have been started with
- * SETTINGS_ANALYTICS_TOGGLE_SHIPPED flipped locally and ANALYTICS_ENABLED=true + POSTHOG_KEY set; then
- * the toggle's axe, 44 px, keyboard and rule-10 checks run instead. Synthetic users only.
+ * Default (feat/analytics-on, D46: SETTINGS_ANALYTICS_TOGGLE_SHIPPED is true and playwright.config.ts
+ * starts the server with ANALYTICS_ENABLED=true and a placeholder POSTHOG_KEY pointed at an unreachable
+ * local host, so nothing reaches PostHog): the toggle's axe, 44 px, keyboard and rule-10 checks run.
+ * LE_S1_GATE_ON=0 runs the gate-off checks instead, against a server started without those variables.
+ * Synthetic users only. (Lead developer: the default flipped from off to on; the tests are unchanged.)
  */
-const GATE_ON = process.env.LE_S1_GATE_ON === "1";
+const GATE_ON = process.env.LE_S1_GATE_ON !== "0";
 const NOTICE = "Loose Ends counts which features you use. Analytics never include what you paste.";
 const created: string[] = [];
 test.afterAll(async () => deleteUsers(created));
@@ -54,30 +55,35 @@ test("signed out: /settings redirects to sign-in and keeps the destination", asy
   await expect(page).toHaveURL(/\/sign-in\?next=%2Fsettings/);
 });
 
-test.describe("gate off (S1 as committed)", () => {
-  test.skip(GATE_ON, "server was started with the gate flipped");
+test.describe("gate off (LE_S1_GATE_ON=0; analytics not configured on the server)", () => {
+  test.skip(GATE_ON, "the default server has analytics configured");
 
-  test("signed in: /settings shows the not-found page and onboarding shows no analytics notice", async ({ page }) => {
+  // Lead developer, S11 (adapted; coordinator-approved): /settings now holds the Data section (F13,
+  // D14), so it is a real page even where analytics is not configured; D57(d)'s 404 no longer
+  // applies. What the gate still guarantees (rule 9): no analytics toggle and no notice there.
+  test("signed in: /settings shows Data but no analytics toggle, and onboarding shows no analytics notice", async ({ page }) => {
     await signIn(page);
     await expect(page.getByText(NOTICE)).toHaveCount(0);
     await expect(page.getByRole("link", { name: "Turn off analytics" })).toHaveCount(0);
     await page.goto("/settings");
-    await expect(page.getByText("This page could not be found")).toBeVisible();
+    await expect(page.getByRole("heading", { level: 2, name: "Data" })).toBeVisible();
     await expect(page.getByRole("switch")).toHaveCount(0);
     await expect(page.getByText("Analytics", { exact: true })).toHaveCount(0);
+    await expect(page.getByRole("heading", { name: "Profile" })).toHaveCount(0);
   });
 
-  // Regression guard (D1, fixed in 8092143): notFound() in the page ran after loading.tsx had streamed
-  // a 200, a soft 404. The gate now lives in app/settings/layout.tsx.
-  test("signed in: /settings returns HTTP 404 while gated", async ({ page }) => {
+  // Was a regression guard for the 404 gate (D1, fixed in 8092143). With the gate gone, it checks the
+  // page is a real 200 (not a soft 404 streamed as 200).
+  test("signed in: /settings returns HTTP 200 with the Data section", async ({ page }) => {
     await signIn(page);
     const res = await page.goto("/settings");
-    expect(res?.status()).toBe(404);
+    expect(res?.status()).toBe(200);
+    await expect(page.getByText("This page could not be found")).toHaveCount(0);
   });
 });
 
-test.describe("gate flipped locally (LE_S1_GATE_ON=1)", () => {
-  test.skip(!GATE_ON, "needs a server with SETTINGS_ANALYTICS_TOGGLE_SHIPPED flipped locally");
+test.describe("gate on (shipped, D46; the default)", () => {
+  test.skip(!GATE_ON, "LE_S1_GATE_ON=0: server started without ANALYTICS_ENABLED / POSTHOG_KEY");
 
   test("notice: onboarding only, links to /settings#profile", async ({ page }) => {
     await page.goto("/sign-in");

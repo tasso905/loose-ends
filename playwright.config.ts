@@ -8,6 +8,11 @@ const sb = localSupabase();
 const PORT = Number(process.env.E2E_PORT ?? 3000);
 const BASE_URL = `http://127.0.0.1:${PORT}`;
 const PROD = Boolean(process.env.CI || process.env.E2E_PROD);
+// Lead-tester: LE_E2E_POSTHOG_HOST points the server at tests/e2e/tester-analytics-capture.spec.ts's local
+// catcher. Only a 127.0.0.1 URL is accepted, so E2E can never send to a real PostHog host.
+const E2E_POSTHOG_HOST = /^http:\/\/127\.0\.0\.1:\d+$/.test(process.env.LE_E2E_POSTHOG_HOST ?? "")
+  ? process.env.LE_E2E_POSTHOG_HOST!
+  : "http://127.0.0.1:9";
 
 export default defineConfig({
   testDir: "tests/e2e",
@@ -16,8 +21,7 @@ export default defineConfig({
   retries: 0,
   timeout: 120_000,
   reporter: process.env.CI ? [["list"], ["html", { open: "never" }]] : "list",
-  use: { baseURL: BASE_URL, trace: "retain-on-failure" },
-  projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
+  use: { baseURL: BASE_URL, trace: "retain-on-failure" },  projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
   webServer: {
     // CI (or E2E_PROD=1) tests the production build; locally `next dev` keeps the loop fast.
     command: PROD ? `pnpm build && pnpm start --hostname 127.0.0.1 --port ${PORT}` : `pnpm dev --hostname 127.0.0.1 --port ${PORT}`,
@@ -35,9 +39,14 @@ export default defineConfig({
       NEXT_PUBLIC_AUTH_GOOGLE_ENABLED: "true",
       // Account deletion (S11) uses the service role: the stack under test's key, never one from .env.local.
       SUPABASE_SERVICE_ROLE_KEY: sb.serviceRoleKey,
-      // Unless the analytics gate is deliberately flipped for tester-settings-s1 (LE_S1_GATE_ON=1), a
-      // local E2E run never sends to a real PostHog project, whatever .env.local says.
-      ...(process.env.LE_S1_GATE_ON === "1" ? {} : { ANALYTICS_ENABLED: "false" }),
+      // Analytics shipped (D46): the notice and /settings need ANALYTICS_ENABLED and a key. The key is
+      // a placeholder and the host an unreachable local port, so no event ever reaches PostHog
+      // (a failed capture is logged by class name and never affects the request). LE_S1_GATE_ON=0
+      // starts the server with analytics explicitly off, for tester-settings-s1's gate-off checks, so a
+      // key or flag in .env.local can never switch it on.
+      ...(process.env.LE_S1_GATE_ON === "0"
+        ? { ANALYTICS_ENABLED: "false" }
+        : { ANALYTICS_ENABLED: "true", POSTHOG_KEY: "phc_e2e_placeholder", POSTHOG_HOST: E2E_POSTHOG_HOST }),
     },
   },
 });
