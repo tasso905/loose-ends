@@ -1,12 +1,12 @@
 # CLAUDE.md — Loose Ends
 
-Loose Ends turns messages and documents the user pastes in into a short list of open loops, each backed by the exact sentence it came from, and remembers why the user closed them. MVP for Build Fest: 30 days, Oct 2 → Oct 31, 2026.
+Loose Ends turns messages and documents the user pastes in into a short list of open loops, each backed by the exact sentence it came from, and remembers why the user closed them. Started as a Build Fest MVP (Oct 2026); now a learning project with no deadline and no submission (D62).
 
 ## Source of truth
 
 Read the relevant document before changing behaviour, copy or visuals. When they conflict, the order below wins, and the conflict is raised with the lead-program-manager agent rather than resolved silently.
 
-1. `docs/PRD.md` (v1.1) — product, scope, schema, API, AI behaviour. Its **Decisions Log (D1–D61)** overrides older text anywhere. Entries marked *Proposed* take effect only after the user confirms them.
+1. `docs/PRD.md` (v1.1) — product, scope, schema, API, AI behaviour. Its **Decisions Log (D1–D63)** overrides older text anywhere. Entries marked *Proposed* take effect only after the user confirms them.
 2. `docs/SITE_CONTRACT.md` (v1.1) — pages, routes, states, error copy, behaviour.
 3. `docs/CONTENT_MODEL.md` (v1.1) — fields, constraints, user-facing glossary.
 4. `docs/DESIGN_STANDARD.md` — visual standard: tokens, type, spacing, components, motion, microcopy.
@@ -44,7 +44,7 @@ lib/pipeline/         normalize, redact, verifyQuotes, resolveDates, score, dedu
 lib/threads/          transition(), attentionScore(), why()
 lib/time.ts           getNow() — the only clock
 prompts/              extract.v1.md, ask-why.v1.md (versioned)
-supabase/migrations/  SQL, additive only during Build Fest
+supabase/migrations/  SQL; prefer additive changes
 evals/fixtures/       synthetic inputs + golden outputs; evals/run.ts
 tests/                unit, integration, e2e
 docs/                 PRD, SITE_CONTRACT, CONTENT_MODEL, DESIGN_STANDARD, ARCHITECTURE, PRIVACY, AI_BEHAVIOR
@@ -73,7 +73,7 @@ These encode the product's trust model. Breaking one is a bug even if tests pass
 - RLS on every table (`user_id = auth.uid()`). Use the service role only in `cron/daily`, account deletion and inbound email.
 - Validate every input with Zod. Error responses use `{error: {code, message, retryable}}` and the copy in SITE_CONTRACT §2.13.
 - Changing a prompt, model or schema requires running `pnpm eval` and recording the result; bump the prompt version.
-- Migrations are additive until Oct 31 — no dropped or renamed columns.
+- Prefer additive migrations; dropping or renaming a column needs a recorded decision (the Oct 31 additive-only rule is retired, D62).
 - Fixtures are synthetic only. Never commit real personal documents.
 
 ## UI conventions
@@ -97,26 +97,21 @@ Three project subagents live in `.claude/agents/`. Delegate to them by name ("us
 
 **Handoff loop:** program manager scopes the work against the MUST/SHOULD/NICE line → lead developer implements and lists the acceptance criteria touched → lead tester verifies independently and reports pass/fail with evidence → program manager updates status and the Decisions Log. The tester does not fix product code, and the developer does not mark their own work verified.
 
-## Schedule and gates
+## Scope and quality bars
 
-**Re-planned Oct 18 (day 17).** The day-14 checkpoint (Oct 15) was not met because nothing had been built. Plan, assumptions and block owners: PRD "Re-plan, Oct 18" (D15–D27). The user confirmed the gate dates below on Oct 21 (D19, D45). Days count from Oct 2 = day 1.
+**No deadline (D62, Oct 27).** The Build Fest submission was dropped; Loose Ends continues as a learning project. Gate dates, the feature freeze, the submission checklist (video, rehearsals) and the public `Try the demo` (D55, D59, D60: demo button, seed, clock, banner, Turnstile, demo cleanup, Sentry demo alerts) are retired. One production site with email and Google sign-in; the AI budget cap (`DAILY_AI_BUDGET_USD`) and per-user rate limits stay.
 
-| Gate | Date | Exit criteria |
-| --- | --- | --- |
-| Core-loop checkpoint (replaces day 14) | Fri Oct 23 | In production: magic link → paste → review → accept → thread → Done. Text-layer PDF → Explain card; scanned PDF shows the unsupported message. Quote, date, band and `transition()` unit tests pass. RLS test passes. `pnpm eval` runs on ≥ 20 fixtures |
-| Feature freeze (was Oct 22) | Mon Oct 26 | Resolve + Ask why work, including the zero-match path. Today ranks and caps at 5. Why panel renders from stored fields. Forget, source deletion, account deletion and export are verified by tests. Demo is ready: `Try the demo` with seed, clock and banner, guard rails and 24 h cleanup (D55; one production site, no separate demo deployment). Rate limit and budget cap are on. Cuts are recorded. Passed unmet; building continues until the work is finished (D61(f)) |
-| Eval gate (was Oct 27) | Wed Oct 28 | 40-fixture eval passes thresholds; Ask-why 0 fabrications; axe checks pass; E2E demo flow passes; scorecard generated |
-| Submission | Sat Oct 31 | README, ARCHITECTURE, AI_BEHAVIOR, PRIVACY, CONTRIBUTING, LICENSE merged; privacy copy check passes; 5 rehearsals under 2:30; video recorded. Target send Oct 30 |
+**Quality bars (the old gate criteria, now undated).** Core loop in production: magic link → paste → review → accept → thread → Done; text-layer PDF → Explain card; scanned PDF shows the unsupported message. Resolve + Ask why including the zero-match path. Today ranks and caps at 5. Why panel renders from stored fields. Forget, source deletion, account deletion and export verified by tests. Rate limit and budget cap on. 40-fixture eval passes thresholds; Ask-why 0 fabrications; axe checks pass. Docs: README, ARCHITECTURE, AI_BEHAVIOR, PRIVACY, CONTRIBUTING, LICENSE; privacy copy check passes.
 
-**Cuts applied: none (D61, Oct 27).** The user declined every proposed cut, including the cut order, F18 redaction and the MUST trims (F4, F6, F9), and kept the gate dates. All of F1–F19 stay in scope, built in D26 order. The Oct 26 freeze passed unmet while the agents were stopped (Oct 22–27); the user chose to keep building until the work is finished rather than hold the freeze (D61(f)). Google sign-in is on (D61(b)): it ships once the production OAuth checklist and a manual production check pass. A SHOULD feature's UI stays hidden and unclaimed (including redaction) until the lead-tester verifies it, and anything unfinished at submission is stated plainly in the README (rule 9).
+**No cuts (D61).** The user declined every proposed cut, including the cut order, F18 redaction and the MUST trims (F4, F6, F9). All of F1–F19 stay in scope. Google sign-in is on (D61(b)): it ships once the production OAuth checklist and a manual production check pass. A SHOULD feature's UI stays hidden and unclaimed (including redaction) until the lead-tester verifies it, and anything unfinished is stated plainly in the README (rule 9).
 
-**Scope review: Sun Oct 25 (day 24, D25).** The user decides cuts from one week of progress, applying the cut order and never-cut list below unchanged. The same review decides D17, D18 and D20(b)–(c), records the Google outcome (D41) and may reconsider the Mon Oct 26 freeze date (confirmed Oct 21, D45), which falls the next day. Weekday labels were corrected on Oct 22 (D53): the review is a Sunday and the freeze a Monday; the dates are unchanged.
+**Item types (D63).** A promise made by someone else to the user is `waiting_on` (owner = that person); `commitment` is only the user's own promises.
 
 **Build order (D26):** MUST and never-cut work first. Then SHOULD work in reverse cut order: "Worth considering" → DOCX → F14 dedupe → F17 toggles → F15 digest → F16 forwarding last. F18 redaction goes in with the F5 pipeline work where it fits. SHOULD work never displaces a MUST block.
 
-**LLM provider (D42):** Google Gemini via `@ai-sdk/google` (`AI_PROVIDER=google`, model pinned in `AI_MODEL`), chosen Oct 20. Free tier during development and eval, with synthetic fixtures only; free vs. paid for the public demo is decided at deployment (Gemini's free tier may use prompts to improve Google's products, so the privacy copy must say so if it stays). Tests and E2E use the fake recorded-fixture provider. **License:** MIT (D23).
+**LLM provider (D42):** Google Gemini via `@ai-sdk/google` (`AI_PROVIDER=google`, model pinned in `AI_MODEL`), chosen Oct 20. Free tier during development and eval, with synthetic fixtures only; production uses a billed key with the model pinned explicitly (`gemini-3.6-flash`, Oct 27; Question #12). Gemini's free tier may use prompts to improve Google's products, so the privacy copy must say so if production ever runs on it. Tests and E2E use the fake recorded-fixture provider. **License:** MIT (D23).
 
-**Cut order (applied at the Oct 25 review):** F16 forwarding → F15 digest → F17 toggles → F14 dedupe → DOCX → Explain card "Worth considering", then the D20 items. Anything beyond that touches a MUST and goes to the user. **Never cut:** quote verification, date re-resolution, review tray, Why panel, delete.
+**Cut order (reference only; no cuts are applied, D61):** F16 forwarding → F15 digest → F17 toggles → F14 dedupe → DOCX → Explain card "Worth considering", then the D20 items. Anything beyond that touches a MUST and goes to the user. **Never cut:** quote verification, date re-resolution, review tray, Why panel, delete.
 
 **Eval thresholds:** recall ≥ 80%, precision ≥ 75%, date accuracy ≥ 95%, owner accuracy ≥ 90%, band accuracy ≥ 85%, unverified quotes shown = 0, Ask-why fabrications = 0.
 
