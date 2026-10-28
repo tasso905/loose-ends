@@ -121,8 +121,10 @@ describe("configuredSiteUrl (D4, D5)", () => {
 });
 
 describe("isAnalyticsEnabled", () => {
-  it("stays off while the Settings toggle has not shipped, even with a key and the flag", () => {
-    expect(isAnalyticsEnabled({ POSTHOG_KEY: "phc_x", ANALYTICS_ENABLED: "true" })).toBe(false);
+  it("shipped (D46): on with a key and the flag; off without either, or with the toggle unshipped", () => {
+    expect(isAnalyticsEnabled({ POSTHOG_KEY: "phc_x", ANALYTICS_ENABLED: "true" })).toBe(true);
     expect(isAnalyticsEnabled({ POSTHOG_KEY: "phc_x" })).toBe(false);
+    expect(isAnalyticsEnabled({ ANALYTICS_ENABLED: "true" })).toBe(false);
+    expect(isAnalyticsEnabled({ POSTHOG_KEY: "phc_x", ANALYTICS_ENABLED: "true" }, false)).toBe(false);
   });
 });

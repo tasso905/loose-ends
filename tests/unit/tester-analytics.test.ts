@@ -363,14 +363,25 @@ describe("gates: zero network calls unless all four gates are open (D40)", () =>
     expect(sent).toEqual([]);
   });
 
-  it("the shipped default export track() sends nothing even with ANALYTICS_ENABLED and POSTHOG_KEY set in process.env", async () => {
-    vi.stubEnv("ANALYTICS_ENABLED", "true");
+  // Adapted by the lead developer on feat/analytics-on (D46: the toggle shipped). Was: "the shipped
+  // default export track() sends nothing even with ANALYTICS_ENABLED and POSTHOG_KEY set".
+  it("the default export track(): nothing without ANALYTICS_ENABLED; once configured it sends for an opted-in user and stops at once on opt-out", async () => {
     vi.stubEnv("POSTHOG_KEY", freshKey());
     track(UID, "trust_rating", { score: 5 });
-    track(UID, "thread_action", { thread_id: TID, action: "done", from_status: "open", to_status: "resolved", surface: "today" });
     await new Promise((r) => setTimeout(r, 50));
     expect(sent).toEqual([]);
-    expect(settingsRow.calls).toBe(0); // not even the opt-out lookup runs while unshipped
+    expect(settingsRow.calls).toBe(0); // the flag is checked before the opt-out lookup
+
+    vi.stubEnv("ANALYTICS_ENABLED", "true");
+    track(UID, "thread_action", { thread_id: TID, action: "done", from_status: "open", to_status: "resolved", surface: "today" });
+    await vi.waitFor(() => expect(sent.length).toBe(1));
+    expect(sent[0]!.body.batch.map((e) => e.event)).toEqual(["thread_action"]);
+
+    // Opt-out is read per event: the very next event after the setting changes is not sent.
+    settingsRow.value = { data: { analytics_enabled: false }, error: null };
+    track(UID, "trust_rating", { score: 5 });
+    await new Promise((r) => setTimeout(r, 50));
+    expect(sent.length).toBe(1);
   });
 
   it("gated off, the opt-out lookup is never queried (no DB round trip per event)", async () => {
