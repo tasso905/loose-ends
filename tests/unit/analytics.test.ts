@@ -274,7 +274,8 @@ describe("PostHog client and settings", () => {
   });
 
   it("isAnalyticsEnabled needs the shipped toggle, the flag and a key", () => {
-    expect(isAnalyticsEnabled(ON)).toBe(false); // not shipped in S1
+    expect(isAnalyticsEnabled(ON)).toBe(true); // shipped (D46, feat/analytics-on)
+    expect(isAnalyticsEnabled(ON, false)).toBe(false);
     expect(isAnalyticsEnabled(ON, true)).toBe(true);
     expect(isAnalyticsEnabled({ POSTHOG_KEY: "phc_test" }, true)).toBe(false);
     expect(isAnalyticsEnabled({ ANALYTICS_ENABLED: "true" }, true)).toBe(false);
