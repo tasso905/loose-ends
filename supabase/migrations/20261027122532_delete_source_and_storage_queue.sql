@@ -15,7 +15,8 @@
 -- swept by deleteAccount() (lib/account/deleteAccount.ts), so the trigger does not queue them.
 
 create table private.storage_deletions (
-  user_id uuid not null,
+  -- Account deletion takes the queue rows with it; deleteAccount() sweeps the whole folder anyway.
+  user_id uuid not null references public.profiles on delete cascade,
   bucket text not null default 'sources',
   path text not null,
   created_at timestamptz not null default now(),

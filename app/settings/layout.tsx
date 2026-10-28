@@ -1,16 +1,12 @@
-import { notFound } from "next/navigation";
 import { requireUser } from "@/lib/auth/session";
-import { isAnalyticsEnabled } from "@/lib/supabase/env";
 
 /**
- * Gate for /settings, outside the segment's loading boundary: a layout renders before
- * loading.tsx starts streaming, so `notFound()` here is a real HTTP 404, not a 200 with the
- * not-found UI. Auth runs first (it reads cookies, so the gate is checked per request, and a
- * signed-out visit still redirects to sign-in). Only the analytics toggle is built, so the whole
- * page stays hidden until SETTINGS_ANALYTICS_TOGGLE_SHIPPED flips (D40).
+ * Auth for /settings, outside the segment's loading boundary (a signed-out visit redirects to
+ * sign-in with `next`). S11 adds the Data section (F13, D14), so the page is no longer a 404 while
+ * analytics is off: only the analytics toggle stays hidden until it can take effect (D40, D57's
+ * reason: never show a toggle with no effect). See page.tsx.
  */
 export default async function SettingsLayout({ children }: { children: React.ReactNode }) {
   await requireUser("/settings");
-  if (!isAnalyticsEnabled()) notFound();
   return children;
 }

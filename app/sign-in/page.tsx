@@ -5,6 +5,7 @@ import { AuthPage } from "@/components/auth/AuthPage";
 import { SignInForm } from "@/components/auth/SignInForm";
 import { AuthNotices } from "@/components/auth/Notices";
 import { ErrorBanner } from "@/components/Notice";
+import { ACCOUNT_DELETED_COOKIE, DATA_COPY } from "@/lib/account/copy";
 import { SIGN_IN_COPY as C, signInErrorMessage } from "@/lib/auth/copy";
 import { safeNext, signInPath } from "@/lib/auth/next";
 import { SIGN_IN_EMAIL_COOKIE } from "@/lib/auth/signIn";
@@ -22,6 +23,8 @@ export default async function SignInPage({ searchParams }: { searchParams: Searc
   const error = signInErrorMessage(one(params.error));
   // The check-your-email state names the address, which only exists after a confirmed send (rule 10).
   const sentTo = one(params.sent) === "1" ? ((await cookies()).get(SIGN_IN_EMAIL_COOKIE)?.value ?? null) : null;
+  // Set only by a successful account deletion (app/settings/data-actions.ts), never by a link.
+  const accountDeleted = (await cookies()).get(ACCOUNT_DELETED_COOKIE)?.value === "1";
 
   return (
     <AuthPage>
@@ -43,6 +46,11 @@ export default async function SignInPage({ searchParams }: { searchParams: Searc
           </div>
         ) : (
           <div className="space-y-5">
+            {accountDeleted ? (
+              <p role="status" className="rounded-card border border-le-border bg-le-surface p-4 text-body text-le-text">
+                {DATA_COPY.accountDeleted}
+              </p>
+            ) : null}
             {error ? <ErrorBanner>{error}</ErrorBanner> : null}
             <SignInForm next={next} googleEnabled={isGoogleSignInEnabled()} />
           </div>

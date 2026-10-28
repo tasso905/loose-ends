@@ -33,6 +33,11 @@ export default defineConfig({
       // Pinned to the shipping configuration (D41) so E2E does not depend on .env.local. Rendering the
       // button needs no Google credentials; the test intercepts the authorize request.
       NEXT_PUBLIC_AUTH_GOOGLE_ENABLED: "true",
+      // Account deletion (S11) uses the service role: the stack under test's key, never one from .env.local.
+      SUPABASE_SERVICE_ROLE_KEY: sb.serviceRoleKey,
+      // Unless the analytics gate is deliberately flipped for tester-settings-s1 (LE_S1_GATE_ON=1), a
+      // local E2E run never sends to a real PostHog project, whatever .env.local says.
+      ...(process.env.LE_S1_GATE_ON === "1" ? {} : { ANALYTICS_ENABLED: "false" }),
     },
   },
 });

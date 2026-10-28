@@ -9,7 +9,7 @@ import { Input, Textarea } from "@/components/ui/input";
 import { apiError, type ApiError } from "@/lib/errors";
 import type { Resolution, ThreadKind, ThreadStatus } from "@/lib/schemas";
 import { RESOLVE_COPY as R, resolutionsFor, type ResolveInput } from "@/lib/threads/resolve";
-import { DECISION_CHOICE_MAX, DECISION_REASON_MAX, isBlankText } from "@/lib/threads/transition";
+import { clampChars, DECISION_CHOICE_MAX, DECISION_REASON_MAX, isBlankText } from "@/lib/threads/transition";
 import { THREADS_COPY as C } from "@/lib/threads/view";
 import { cn } from "@/lib/utils";
 
@@ -230,8 +230,7 @@ export function ResolveSheet({
                 ref={choiceRef}
                 id={choiceId}
                 value={choice}
-                maxLength={DECISION_CHOICE_MAX}
-                onChange={(e) => setChoice(e.target.value)}
+                onChange={(e) => setChoice(clampChars(e.target.value, DECISION_CHOICE_MAX))}
                 aria-invalid={choiceError ? true : undefined}
                 aria-describedby={choiceError ? choiceErrorId : undefined}
                 className="mt-2"
@@ -246,8 +245,7 @@ export function ResolveSheet({
                 ref={reasonRef}
                 id={reasonId}
                 value={reason}
-                maxLength={DECISION_REASON_MAX}
-                onChange={(e) => setReason(e.target.value)}
+                onChange={(e) => setReason(clampChars(e.target.value, DECISION_REASON_MAX))}
                 aria-invalid={reasonError ? true : undefined}
                 aria-describedby={reasonError ? reasonErrorId : undefined}
                 className="mt-2"
