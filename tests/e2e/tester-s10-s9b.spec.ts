@@ -259,7 +259,6 @@ test("Undo of a Decided resolve after a reason was added in the undo window: ref
 });
 
 test("Thread detail: a decision with no reason offers Add a reason now (SITE_CONTRACT §2.7, D58)", async () => {
-  test.fail(true, "DEFECT: DecisionBlock on Thread detail shows no no-reason line and no Add a reason now (§2.7 as amended by D58)");
   const db = admin();
   const { data } = await db.from("threads").insert({ user_id: uid, title: "Pick a paddle", kind: "decision", status: "resolved", resolution: "decided", resolved_at: iso(-1) }).select("id").single();
   await db.from("decisions").insert({ user_id: uid, thread_id: data!.id, choice: "Carbon paddle", reason_user: null, context_facts: [], decided_at: iso(-1) });

@@ -1,12 +1,13 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { PenLine, Quote } from "lucide-react";
+import { Quote } from "lucide-react";
 import { z } from "zod";
 import { AppHeader } from "@/components/AppHeader";
 import { ErrorBanner } from "@/components/Notice";
 import { EXPLAIN_COPY, ExplainBrief, NotSureList, parseBrief } from "@/components/review/ExplainBrief";
 import { ConfidenceLabel } from "@/components/review/ReviewTray";
+import { DecisionReason } from "@/components/threads/DecisionReason";
 import { ThreadActions } from "@/components/threads/ThreadActions";
 import { DueChip, StatusChip } from "@/components/threads/ThreadBits";
 import { WhyLink } from "@/components/threads/WhySheet";
@@ -232,15 +233,7 @@ function DecisionBlock({ decision, title, timezone }: { decision: NonNullable<Th
         {RESOLVE_COPY.youDecided} · {date}
       </p>
       <p className="mt-1 text-body-strong whitespace-pre-wrap text-le-text">{decision.choice}</p>
-      {decision.reason_user !== null ? (
-        <figure className="mt-4 border-l-2 border-le-border-strong pl-4">
-          <figcaption className="flex items-center gap-1 text-label text-le-text-secondary">
-            <PenLine aria-hidden strokeWidth={1.75} className="size-3.5" />
-            {RESOLVE_COPY.youWrote} · {date}
-          </figcaption>
-          <blockquote className="mt-1 text-body whitespace-pre-wrap text-le-text">{decision.reason_user}</blockquote>
-        </figure>
-      ) : null}
+      <DecisionReason decisionId={decision.id} reason={decision.reason_user} date={date} />
       {/* SITE_CONTRACT §3.1: thread detail links a decision to Ask Why, prefilled with the title. */}
       <Link
         href={`/decisions?q=${encodeURIComponent(title)}`}
