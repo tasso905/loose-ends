@@ -60,6 +60,36 @@ describe("stripDatePhrases() / unbackedDateFree()", () => {
   });
 });
 
+describe("T-T1: names and event names are not dates (narrowed stripping)", () => {
+  const tctx = { ...ctx, dueDate: "2026-10-23" }; // written Tue Oct 20; due Fri Oct 23
+  it.each([
+    "Call June about the lease",
+    "Ask April for the spare keys",
+    "Email August Wilson the contract",
+    "Drive Mia to Sunday school",
+    "Prepare the Black Friday sale signs",
+    "Book the cabin for the March trip",
+  ])("'%s' is kept with no date_text, with a cleared one, and with a verified one", (title) => {
+    expect(unbackedDateFree(title, null, () => "FALLBACK")).toBe(title);
+    expect(unbackedDateFree(title, "Friday", () => "FALLBACK", tctx)).toBe(title);
+  });
+
+  it("with a date context, a phrase that names the verified due day is kept even if worded differently", () => {
+    expect(unbackedDateFree("Crew visit Oct 23", "by Friday", () => "FALLBACK", tctx)).toBe("Crew visit Oct 23");
+    expect(unbackedDateFree("Send it Friday", "by Oct 23", () => "FALLBACK", tctx)).toBe("Send it Friday");
+  });
+
+  it("with a date context, a phrase that names a different day is stripped", () => {
+    expect(unbackedDateFree("Send it by Monday", "by Friday", () => "FALLBACK", tctx)).toBe("Send it");
+    expect(unbackedDateFree("Send the link Thursday", "Friday", () => "FALLBACK", tctx)).toBe("Send the link");
+  });
+
+  it("a bare weekday used as a date (not a name) is still stripped when nothing backs it", () => {
+    expect(unbackedDateFree("Send the link Friday", null, () => "FALLBACK")).toBe("Send the link");
+    expect(unbackedDateFree("Pay rent by Friday at 5pm", null, () => "FALLBACK")).toBe("Pay rent");
+  });
+});
+
 describe("processExtraction(): title and action after a date is cleared", () => {
   it("strips the cleared date from title and action, logs it, and keeps the rest", () => {
     const logger = vi.fn();

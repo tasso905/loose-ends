@@ -54,18 +54,19 @@ describe("title/action stripping: no title states an unbacked date (rule 3)", ()
   it.each([
     ["Return the form by Oct 23", "by Friday, October 23", "Return the form"], // reformatted verified date: dropped, shown in the date field
     ["Send the link Thursday", "tomorrow", "Send the link"], // a resolved restatement of a relative date
-    ["Book the cabin for the March trip", null, "Book the cabin for the trip"], // event name read as a month: detail lost, nothing false
+    // T-T1 fix: "March trip" is an event name, not a date claim, so it is kept (was stripped at c3abb77).
+    ["Book the cabin for the March trip", null, "Book the cabin for the March trip"],
   ])("'%s' (date_text %s) → '%s'", (title, dateText, want) => {
     expect(unbackedDateFree(title, dateText, () => "FALLBACK")).toBe(want);
   });
 });
 
-// OPEN DEFECT (proposed T-T1, fix/eval-gate c3abb77): chrono reads a month or weekday used as a
+// T-T1, FIXED on fix/eval-gate (was an open defect at c3abb77; pins flipped to `it`): chrono reads a month or weekday used as a
 // person's name or inside an event name as a date, so it is cut out of the title even when the
 // model claimed no date at all, and the title then names the wrong thing ("Drive Mia to school")
 // or no one ("Call about the lease"). The source quote still shows the original words.
 describe("title stripping keeps names and event names that are not due dates", () => {
-  it.fails.each([
+  it.each([
     ["Call June about the lease"],
     ["Ask April for the spare keys"],
     ["Email August Wilson the contract"],
