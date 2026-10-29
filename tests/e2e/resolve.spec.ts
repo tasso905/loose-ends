@@ -27,7 +27,19 @@ function admin() {
   return createClient(sb.url, sb.serviceRoleKey, { auth: { persistSession: false, autoRefreshToken: false } });
 }
 
+// axe samples colours as rendered: run it only after finite animations (the sheet's fade-in) end,
+// so a half-faded label is not reported as low contrast. Infinite ones (spinners) are skipped.
+const animationsSettled = () =>
+  page.evaluate(() =>
+    Promise.all(
+      document
+        .getAnimations()
+        .filter((a) => a.effect?.getComputedTiming().endTime !== Infinity)
+        .map((a) => a.finished.catch(() => undefined)),
+    ),
+  );
 async function expectNoViolations() {
+  await animationsSettled();
   const results = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"]).analyze();
   expect(results.violations.map((v) => `${v.id}: ${v.nodes.map((n) => n.target.join(" ")).join(", ")}`)).toEqual([]);
 }
@@ -108,7 +120,24 @@ test("rule 10: while Save is in flight the sheet stays open and nothing claims s
     if (isServerAction(route.request().method(), route.request().headers())) await gate;
     await route.continue();
   });
+  // Regression guard (CI run 40501493393): the sheet must open on fresh state, not show the previous
+  // test's Decided + field error for a frame. Record the dialog's contents the moment it opens.
+  await page.evaluate(() => {
+    // The Resolve sheet's own <dialog> (the page can hold others, e.g. the Why panel).
+    const d = [...document.querySelectorAll("dialog")].find((x) => x.querySelector("h3")?.textContent === "How did this end?")!;
+    const w = window as unknown as { __openFrame?: string };
+    delete w.__openFrame;
+    const o = new MutationObserver(() => {
+      if (!d.open || w.__openFrame !== undefined) return;
+      const checked = d.querySelector<HTMLInputElement>("input[type=radio]:checked")?.value ?? "none";
+      w.__openFrame = `${checked}|fields:${d.querySelectorAll("input:not([type=radio]), textarea").length}|invalid:${d.querySelectorAll("[aria-invalid=true]").length}`;
+      o.disconnect();
+    });
+    o.observe(d, { attributes: true, attributeFilter: ["open"] });
+  });
   await page.getByRole("button", { name: "Resolve…" }).click();
+  await expect(sheet()).toBeVisible();
+  expect(await page.evaluate(() => (window as unknown as { __openFrame?: string }).__openFrame)).toBe("done|fields:0|invalid:0");
   await sheet().getByRole("radio", { name: "Decided" }).check();
   await sheet().getByLabel("What did you decide?").fill("Send the corrected proposal Friday");
   await sheet().getByLabel("Want me to remember why?").fill(REASON);

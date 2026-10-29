@@ -9,12 +9,13 @@ import { localSupabase } from "./localSupabase";
 /**
  * Lead-tester, S1 (D40): /settings and the analytics notice.
  *
- * Default (the committed S1 state, gate off): /settings needs auth and is a 404 when signed in; the
- * onboarding notice is hidden. With LE_S1_GATE_ON=1 the server under test must have been started with
- * SETTINGS_ANALYTICS_TOGGLE_SHIPPED flipped locally and ANALYTICS_ENABLED=true + POSTHOG_KEY set; then
- * the toggle's axe, 44 px, keyboard and rule-10 checks run instead. Synthetic users only.
+ * Default (feat/analytics-on, D46: SETTINGS_ANALYTICS_TOGGLE_SHIPPED is true and playwright.config.ts
+ * starts the server with ANALYTICS_ENABLED=true and a placeholder POSTHOG_KEY pointed at an unreachable
+ * local host, so nothing reaches PostHog): the toggle's axe, 44 px, keyboard and rule-10 checks run.
+ * LE_S1_GATE_ON=0 runs the gate-off checks instead, against a server started without those variables.
+ * Synthetic users only. (Lead developer: the default flipped from off to on; the tests are unchanged.)
  */
-const GATE_ON = process.env.LE_S1_GATE_ON === "1";
+const GATE_ON = process.env.LE_S1_GATE_ON !== "0";
 const NOTICE = "Loose Ends counts which features you use. Analytics never include what you paste.";
 const created: string[] = [];
 test.afterAll(async () => deleteUsers(created));
@@ -54,8 +55,8 @@ test("signed out: /settings redirects to sign-in and keeps the destination", asy
   await expect(page).toHaveURL(/\/sign-in\?next=%2Fsettings/);
 });
 
-test.describe("gate off (S1 as committed)", () => {
-  test.skip(GATE_ON, "server was started with the gate flipped");
+test.describe("gate off (LE_S1_GATE_ON=0; analytics not configured on the server)", () => {
+  test.skip(GATE_ON, "the default server has analytics configured");
 
   test("signed in: /settings shows the not-found page and onboarding shows no analytics notice", async ({ page }) => {
     await signIn(page);
@@ -76,8 +77,8 @@ test.describe("gate off (S1 as committed)", () => {
   });
 });
 
-test.describe("gate flipped locally (LE_S1_GATE_ON=1)", () => {
-  test.skip(!GATE_ON, "needs a server with SETTINGS_ANALYTICS_TOGGLE_SHIPPED flipped locally");
+test.describe("gate on (shipped, D46; the default)", () => {
+  test.skip(!GATE_ON, "LE_S1_GATE_ON=0: server started without ANALYTICS_ENABLED / POSTHOG_KEY");
 
   test("notice: onboarding only, links to /settings#profile", async ({ page }) => {
     await page.goto("/sign-in");

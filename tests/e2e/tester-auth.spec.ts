@@ -655,13 +655,24 @@ test.describe("D39 sign-in and onboarding copy", () => {
     await axe(page);
   });
 
-  test("onboarding shows the approved hint exactly, no analytics; axe", async ({ page }) => {
+  // Adapted by the lead developer on feat/analytics-on (D46): the analytics notice now ships, so the
+  // assertion "no analytics" became "only the approved notice and its opt-out link".
+  test("onboarding shows the approved hint exactly and the approved analytics notice; axe", async ({ page }) => {
     const email = await signInFresh(page);
     await expect(page).toHaveURL(/\/onboarding$/);
     // The hint and the always-included line share the field's description (aria-describedby).
     await expect(page.locator("#answer-hint")).toHaveText(`${HINT} Your sign-in email, ${email}, is always included.`);
     await expect(page.getByText(/tell your messages apart/)).toHaveCount(0);
-    await expect(page.getByText(/analytics/i)).toHaveCount(0);
+    const notice = page.getByText("Loose Ends counts which features you use. Analytics never include what you paste.");
+    if (process.env.LE_S1_GATE_ON === "0") {
+      // Lead-tester: a server without ANALYTICS_ENABLED / POSTHOG_KEY shows no notice and no link
+      // (rule 9: no analytics claim where analytics cannot run; the link would 404).
+      await expect(notice).toHaveCount(0);
+      await expect(page.getByRole("link", { name: "Turn off analytics" })).toHaveCount(0);
+    } else {
+      await expect(notice).toBeVisible();
+      await expect(page.getByRole("link", { name: "Turn off analytics" })).toHaveAttribute("href", "/settings#profile");
+    }
     await axe(page);
   });
 });

@@ -48,7 +48,7 @@ describe("S2 analytics events", () => {
     expect(validateEvent("extraction_completed", sent[0]!.props).ok).toBe(true);
   });
 
-  it("stays off until the user approves the notice (ship switch in lib/supabase/env.ts)", () => {
-    expect(SETTINGS_ANALYTICS_TOGGLE_SHIPPED).toBe(false);
+  it("shipped: the user approved the notice and toggle (D46); the ship switch is on", () => {
+    expect(SETTINGS_ANALYTICS_TOGGLE_SHIPPED).toBe(true);
   });
 });
