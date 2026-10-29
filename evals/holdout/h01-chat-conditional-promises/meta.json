@@ -1,0 +1,23 @@
+{
+  "description": "Held-out (not used for prompt tuning). Event-planning chat written Wed Oct 21, 2026, Chicago; the user is Dana. A conditional promise by the other person with a date for the condition and another for the action, the user's own conditional promise, and a plain dated promise to the user (D63 waiting_on).",
+  "covers": [
+    "chat",
+    "conditional_promise_by_other",
+    "conditional_commitment_by_user",
+    "date_inside_condition",
+    "d63_waiting_on",
+    "tomorrow"
+  ],
+  "reference_date": "2026-10-21",
+  "reference_date_source": "user",
+  "timezone": "America/Chicago",
+  "source_kind": "paste",
+  "user": {
+    "display_name": "Dana Whitfield",
+    "aliases": [
+      "dana.whitfield@example.com",
+      "Dana"
+    ]
+  },
+  "ambiguous": true
+}

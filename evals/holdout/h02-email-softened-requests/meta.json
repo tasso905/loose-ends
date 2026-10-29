@@ -1,0 +1,24 @@
+{
+  "description": "Held-out (not used for prompt tuning). Email to the user (Priya) written Mon Oct 19, 2026, New York. Two softened requests ('No rush at all, but if you get a chance', 'It would be lovely if') that are implied, one with a date and one without, and a plain dated request as the control.",
+  "covers": [
+    "email",
+    "softened_request",
+    "no_rush",
+    "would_be_lovely",
+    "request_to_user",
+    "explicit_request_control",
+    "weekday_and_date_consistent"
+  ],
+  "reference_date": "2026-10-19",
+  "reference_date_source": "user",
+  "timezone": "America/New_York",
+  "source_kind": "paste",
+  "user": {
+    "display_name": "Priya Raman",
+    "aliases": [
+      "priya.raman@example.com",
+      "Priya"
+    ]
+  },
+  "ambiguous": true
+}

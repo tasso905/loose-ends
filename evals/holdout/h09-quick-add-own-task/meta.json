@@ -1,0 +1,21 @@
+{
+  "description": "Held-out (not used for prompt tuning). Quick add typed by the user on Wed Oct 28, 2026, Seattle. One task of the user's own whose date sits in a clause about the expiry: the expiry date (Sun Nov 15) is the due date. Month-day with no year after the written-on date.",
+  "covers": [
+    "quick_add",
+    "own_task",
+    "date_in_subordinate_clause",
+    "month_day_no_year"
+  ],
+  "reference_date": "2026-10-28",
+  "reference_date_source": "user",
+  "timezone": "America/Los_Angeles",
+  "source_kind": "quick_add",
+  "user": {
+    "display_name": "Taylor Moss",
+    "aliases": [
+      "taylor.moss@example.com",
+      "Taylor"
+    ]
+  },
+  "ambiguous": false
+}

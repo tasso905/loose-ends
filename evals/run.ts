@@ -25,7 +25,7 @@
  * passes only if both evals pass; quota-only failures in either make it incomplete (exit 3).
  */
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { basename, join, resolve } from "node:path";
 import { parseEnv } from "node:util";
 import { AiConfigError, getModel } from "@/lib/ai/provider";
 import { safeErrorFields } from "@/lib/ai/safeError";
@@ -55,7 +55,9 @@ async function main() {
     console.error("Set AI_PROVIDER and AI_MODEL. A real provider makes live calls and costs money.");
     process.exit(2);
   }
-  const fixturesDir = join(process.cwd(), "evals", "fixtures");
+  // EVAL_FIXTURES_DIR=evals/holdout runs the held-out set (lead-tester; never used for prompt tuning).
+  const customDir = process.env.EVAL_FIXTURES_DIR?.trim();
+  const fixturesDir = customDir ? resolve(process.cwd(), customDir) : join(process.cwd(), "evals", "fixtures");
   const resolved = getModel();
   const rpm = evalRpm(process.env);
   const runAt = getNow().toISOString();
@@ -80,7 +82,7 @@ async function main() {
 
   const dir = process.env.EVAL_RESULTS_DIR?.trim() || join(process.cwd(), "evals", "results");
   mkdirSync(dir, { recursive: true });
-  const stamp = runAt.replace(/[:.]/g, "-");
+  const stamp = `${customDir ? `${basename(fixturesDir)}-` : ""}${runAt.replace(/[:.]/g, "-")}`;
   const out = join(dir, `extract-${stamp}.json`);
   const card = join(dir, `scorecard-${stamp}.md`);
   const askOut = join(dir, `ask-why-${stamp}.json`);
@@ -90,11 +92,15 @@ async function main() {
   writeFileSync(card, markdown);
   const isFake = process.env.AI_PROVIDER.trim() === "fake";
   const publicCard = join(process.cwd(), "evals", "SCORECARD.md");
-  if (!isFake || process.env.EVAL_WRITE_SCORECARD === "1") writeFileSync(publicCard, markdown);
+  // The public scorecard describes the main 40-fixture set only; a custom set never overwrites it.
+  const writePublic = !customDir && (!isFake || process.env.EVAL_WRITE_SCORECARD === "1");
+  if (writePublic) writeFileSync(publicCard, markdown);
   console.log(JSON.stringify({ ...report, perFixture: undefined }, null, 2));
   console.log(JSON.stringify({ ask_why: { ...ask, perQuestion: undefined } }, null, 2));
   console.log(`Full report: ${out}\nAsk-why report: ${askOut}\nScorecard: ${card}`);
-  console.log(isFake && process.env.EVAL_WRITE_SCORECARD !== "1" ? "evals/SCORECARD.md not updated (fake provider)." : `Public scorecard: ${publicCard}`);
+  console.log(
+    writePublic ? `Public scorecard: ${publicCard}` : `evals/SCORECARD.md not updated (${customDir ? `custom fixtures: ${customDir}` : "fake provider"}).`,
+  );
 
   if (report.result === "fail") {
     console.error(`Eval FAIL${report.scores.extraction_failures ? ` (${report.scores.extraction_failures} extraction failure(s))` : ""}.`);
