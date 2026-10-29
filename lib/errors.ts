@@ -17,7 +17,8 @@ export type ErrorCode =
   | "not_found"
   | "unauthenticated"
   | "invalid_input"
-  | "retry_limit";
+  | "retry_limit"
+  | "ask_failed";
 
 export interface ApiError {
   error: { code: ErrorCode; message: string; retryable: boolean };
@@ -38,10 +39,11 @@ type Params = {
   unauthenticated: undefined;
   invalid_input: { field: InputField };
   retry_limit: { n: number };
+  ask_failed: undefined;
 };
 
 /** Fields that can carry an `invalid_input` error on the Add form. */
-export type InputField = "text" | "title" | "written_on";
+export type InputField = "text" | "title" | "written_on" | "question";
 
 const num = (n: number) => n.toLocaleString("en-US");
 /**
@@ -95,6 +97,10 @@ const COPY: { [K in ErrorCode]: { retryable: boolean; status: number; message: (
     status: 429,
     message: (p) => `I couldn't read this after ${num(p.n)} more tries. Your text is saved.`,
   },
+  // D54 (user approved PRD Question #13 option (a), relayed Oct 22; SITE_CONTRACT §2.13 still marks
+  // the row Proposed until the PM updates it). Every Ask-why failure, including the provider's own
+  // quota (429), shows this; `rate_limited` is only the user's own 50 asks a day (same reason as D43).
+  ask_failed: { retryable: true, status: 502, message: () => "I couldn't answer that just now. Try asking again." },
 };
 
 /** APPROVED field copy (S2-4; user, Oct 21). */
@@ -102,6 +108,8 @@ const INVALID_INPUT_COPY: Record<InputField, string> = {
   text: "Paste some text first.",
   title: "Titles can be up to 120 characters.",
   written_on: "Enter a real date between 1900 and 2100.",
+  /** PROPOSED (S9; not in the docs). The Ask button is disabled while the box is empty, so this is a fallback. */
+  question: "Write a question first.",
 };
 
 /** `extraction_slow` is a status, not an error (PRD API Requirements). */

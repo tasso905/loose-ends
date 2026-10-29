@@ -316,6 +316,22 @@ describe.skipIf(!env)("real local Supabase: RLS, rate limit, deletion", () => {
     expect((await admin.from("decisions").select("id").eq("thread_id", g.thread)).data).toEqual([]);
   });
 
+  it("F12 search_decisions over PostgREST: own decisions only (RLS), lexemes OR'd, thread title joined; anon refused", async () => {
+    // Shares only TOKEN and "send" with the stored text; "choose" and "pick" are not in it (OR, not AND).
+    const question = `Why did I choose to pick and send the ${TOKEN}?`;
+    const a = await A.client.rpc("search_decisions", { p_question: question });
+    expect(a.error).toBeNull();
+    const rows = a.data as Array<{ thread_id: string; thread_title: string; choice: string; reason_user: string | null }>;
+    expect(rows.map((r) => r.thread_id)).toEqual([gA.thread]);
+    expect(rows[0]).toMatchObject({ thread_title: `Send ${TOKEN} a`, choice: `Sent ${TOKEN}`, reason_user: `Asked twice ${TOKEN}` });
+    const b = await B.client.rpc("search_decisions", { p_question: question });
+    expect((b.data as Array<{ thread_id: string }>).map((r) => r.thread_id)).toEqual([gB.thread]);
+    expect(await A.client.rpc("search_decisions", { p_question: "Why did I sell the piano?" })).toMatchObject({ data: [], error: null });
+    const denied = await anon.rpc("search_decisions", { p_question: question });
+    expect(denied.data ?? []).toEqual([]);
+    expect(denied.error).not.toBeNull();
+  });
+
   it("storage: a file a sources row owns cannot be deleted by its owner until the row is gone (fix/upload-hardening)", async () => {
     const O = await makeUser("o");
     const g = await seed(O, "o");

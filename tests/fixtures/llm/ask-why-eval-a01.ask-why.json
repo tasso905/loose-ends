@@ -1,0 +1,25 @@
+{
+  "name": "ask-why-eval-a01",
+  "task": "ask_why",
+  "input": "Why did I choose this car insurance?",
+  "responses": [
+    {
+      "answer_found": true,
+      "decision_ids": [
+        "d0000000-0000-4000-8000-000000000001"
+      ],
+      "answer_parts": [
+        {
+          "kind": "user_reason",
+          "text": "The other quotes were higher and this policy covers windshield repair with no deductible.",
+          "ref": "d0000000-0000-4000-8000-000000000001"
+        },
+        {
+          "kind": "source_fact",
+          "text": "Renewal premium $1,284.00 for 12 months",
+          "ref": "e0000000-0000-4000-8000-000000000011"
+        }
+      ]
+    }
+  ]
+}

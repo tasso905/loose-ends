@@ -29,7 +29,7 @@ const WRITERS = [
 ].sort();
 
 /** Read-only public functions `authenticated` may execute (invoker, RLS applies). */
-const READERS = ["extraction_context"];
+const READERS = ["extraction_context", "search_decisions"]; // S9 (F12): invoker, read-only
 
 const TRUST_TABLES = ["extractions", "extraction_items", "evidence", "threads", "thread_events", "suppressions", "decisions"];
 
@@ -52,7 +52,7 @@ beforeAll(async () => {
 });
 
 describe("tester: write-model catalog audit", () => {
-  it("the functions authenticated can execute are exactly the 15 writers plus the read-only extraction_context", () => {
+  it("the functions authenticated can execute are exactly the writers plus the read-only readers (extraction_context, search_decisions)", () => {
     expect(fns.filter((f) => f.auth).map((f) => f.name).sort()).toEqual([...WRITERS, ...READERS].sort());
   });
 
@@ -68,10 +68,18 @@ describe("tester: write-model catalog audit", () => {
     expect(f!.src).toMatch(/auth\.uid\(\)/);
   });
 
-  it("extraction_context stays invoker (RLS) with search_path pinned", () => {
-    const f = fns.find((x) => x.name === "extraction_context")!;
+  it.each(READERS)("%s stays invoker (RLS), read-only, with search_path pinned", (name) => {
+    const f = fns.find((x) => x.name === name)!;
+    expect(f, name).toBeDefined();
     expect(f.definer).toBe(false);
     expect(f.config).toEqual(['search_path=""']);
+    expect(f.src).not.toMatch(/\b(insert|update|delete)\b/i);
+  });
+
+  it("search_decisions filters on auth.uid() as well as RLS, and caps the question at 300 characters", () => {
+    const f = fns.find((x) => x.name === "search_decisions")!;
+    expect(f.src).toMatch(/d\.user_id = auth\.uid\(\)/);
+    expect(f.src).toMatch(/left\(coalesce\(p_question, ''\), 300\)/);
   });
 
   it("every SECURITY DEFINER function in public and private pins search_path", async () => {

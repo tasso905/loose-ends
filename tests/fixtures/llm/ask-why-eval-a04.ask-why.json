@@ -1,0 +1,25 @@
+{
+  "name": "ask-why-eval-a04",
+  "task": "ask_why",
+  "input": "Why did I get a refurbished laptop?",
+  "responses": [
+    {
+      "answer_found": true,
+      "decision_ids": [
+        "d0000000-0000-4000-8000-000000000004"
+      ],
+      "answer_parts": [
+        {
+          "kind": "user_reason",
+          "text": "Same specs for half the price, and it comes with a two-year warranty.",
+          "ref": "d0000000-0000-4000-8000-000000000004"
+        },
+        {
+          "kind": "source_fact",
+          "text": "Refurbished price $640",
+          "ref": "d0000000-0000-4000-8000-000000000004"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,20 @@
+{
+  "name": "ask-why-eval-a05",
+  "task": "ask_why",
+  "input": "Why did I switch dental plans?",
+  "responses": [
+    {
+      "answer_found": true,
+      "decision_ids": [
+        "d0000000-0000-4000-8000-000000000005"
+      ],
+      "answer_parts": [
+        {
+          "kind": "source_fact",
+          "text": "Monthly premium $38.50",
+          "ref": "e0000000-0000-4000-8000-000000000051"
+        }
+      ]
+    }
+  ]
+}

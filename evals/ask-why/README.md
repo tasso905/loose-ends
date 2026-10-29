@@ -1,6 +1,6 @@
 # Ask-why eval set
 
-Synthetic data for the Ask-why eval: 10 answerable and 10 unanswerable questions, gate 0 fabrications (PRD F12, Testing Strategy, eval gate Oct 28). The runner is not wired yet; it is built with F12 in slice S9. This file describes the data so S9 can wire it into `pnpm eval`.
+Synthetic data for the Ask-why eval: 10 answerable and 10 unanswerable questions, gate 0 fabrications (PRD F12, Testing Strategy, eval gate Oct 28). The runner is wired into `pnpm eval` (slice S9): it runs after the extraction fixtures, with the same model and throttle.
 
 ## Files
 
@@ -9,6 +9,8 @@ Synthetic data for the Ask-why eval: 10 answerable and 10 unanswerable questions
 | `decisions.json` | One fictional user's decision memory: 12 decisions. Two have no recorded reason (`reason_user: null`, the Skip path). |
 | `questions.json` | 20 questions: `a01`–`a10` answerable, `u01`–`u10` unanswerable. |
 | `set.ts` | Zod schemas, `loadAskWhySet()` and `judgeAskWhy()`, which scores one answer. No side effects, no env, no model calls. |
+| `retrieve.ts` | The real F12 retrieval: an in-process Postgres (PGlite) with every migration applied, `decisions.json` seeded for one eval user, queried through `public.search_decisions`. No network, no env. |
+| `harness.ts` | `runAskWhyEval()`: retrieve, call `askWhy()`, judge each question; the report holds IDs, counts and enums only (rule 9). |
 
 ### `decisions.json`
 
@@ -55,15 +57,17 @@ The PRD's retrieval runs Postgres full-text search over choice + reason, joined 
 - **Answerable:** each question shares at least one lexeme with its expected decision. With the lexemes OR'd and ordered by `ts_rank`, the expected decision ranks first in every case.
 - **AND semantics** (`plainto_tsquery` over the raw question) find the expected decision for only 5 of the 10 answerable questions, because question words like "choose", "pick", "get" and "go" are not in the stored text. S9 should OR the lexemes, or drop question words before querying. Otherwise the answerable half fails at retrieval, not at the model.
 
-If S9's retrieval differs (for example, it also searches `context_facts`), re-run that test against the real query. An unanswerable question that retrieves rows is a set problem to fix here, not a pass.
+S9 ORs the lexemes (migration `20261022172128_ask_why_search.sql`). `tests/integration/ask-why-search.test.ts` runs the set through the real `search_decisions`: every answerable question ranks its decision first, every unanswerable one returns zero rows. If retrieval changes (for example, it also searches `context_facts`), re-run both tests. An unanswerable question that retrieves rows is a set problem to fix here, not a pass.
 
-## Running it (for S9)
+## Running it
 
-For each question:
+`pnpm eval` runs it after the extraction eval (`evals/run.ts`). For each question:
 
-1. Retrieve with the real F12 query for a user seeded with `decisions.json` (or the same query over an in-memory copy), which gives `retrievedIds`.
-2. Call `askWhy(question, retrievedDecisions)` with the configured model (live, `pnpm eval`) or a recording.
-3. Call `judgeAskWhy(question, decisions, retrievedIds, answer)`, which returns `{ fabrications[], misses[] }` with IDs and enums only (rule 9).
+1. Retrieve with `public.search_decisions` over the seeded PGlite copy (`retrieve.ts`), which gives `retrievedIds`.
+2. Call `askWhy(question, retrievedDecisions)` with the configured model (live) or the recordings (`AI_PROVIDER=fake AI_MODEL=recorded`, `tests/fixtures/llm/ask-why-eval-a*.ask-why.json`). Unanswerable questions retrieve nothing, so they never reach the model and need no recording.
+3. Call `judgeAskWhy(question, decisions, retrievedIds, answer)`, which returns `{ fabrications[], misses[] }`.
+
+Output: `evals/results/ask-why-<timestamp>.json` (per-question report) and an Ask-why row in the scorecard with model, prompt version (`ask-why.v2`), schema version (`ask-why.v1`), fabrications, answerable hit rate and model calls. The fake provider only checks the harness; it says nothing about a live model.
 
 **Fabrications** (gate: 0 across all 20 questions):
 
@@ -81,7 +85,7 @@ For each question:
 - `expected_not_cited`
 - `reason_missing`
 
-Report the answerable hit rate (no misses) next to the fabrication count. Record model, prompt version (`ask-why.v*`) and schema version (`ask-why.v1`) in the scorecard row, which currently reads "not run".
+The scorecard reports the answerable hit rate (no misses) next to the fabrication count, with model, prompt version and schema version. A run passes with 0 fabrications and no failed calls; if every failure is provider quota, it is `incomplete_quota` and not judged (D43).
 
 **Manual check:** `a05` and `a10` have no recorded reason. An `inference` part that presents a reason as if the user gave it (for example "You chose it because it was cheaper") is a fabrication the judge cannot detect from structure alone. Review the inference parts on those two questions in every live run.
 

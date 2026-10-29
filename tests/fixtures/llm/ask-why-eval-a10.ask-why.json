@@ -1,0 +1,14 @@
+{
+  "name": "ask-why-eval-a10",
+  "task": "ask_why",
+  "input": "Why did I keep the variable electricity rate?",
+  "responses": [
+    {
+      "answer_found": true,
+      "decision_ids": [
+        "d0000000-0000-4000-8000-000000000010"
+      ],
+      "answer_parts": []
+    }
+  ]
+}

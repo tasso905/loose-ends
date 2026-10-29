@@ -1,20 +1,21 @@
 import Link from "next/link";
-import { Layers, Plus, Sun } from "lucide-react";
+import { Layers, Plus, Scale, Sun } from "lucide-react";
 import { SignOutButton } from "@/components/auth/SignOutButton";
 import { buttonVariants } from "@/components/ui/button";
 import { Wordmark } from "@/components/Wordmark";
 import { cn } from "@/lib/utils";
 
-export type NavItem = "today" | "threads" | null;
+export type NavItem = "today" | "threads" | "decisions" | null;
 
 const ITEMS = [
   { key: "today", href: "/today", label: "Today", Icon: Sun },
   { key: "threads", href: "/threads", label: "Threads", Icon: Layers },
+  { key: "decisions", href: "/decisions", label: "Decisions", Icon: Scale },
 ] as const;
 
 /**
  * Minimal app shell (SITE_CONTRACT §1.1, D1) so the core loop is reachable by clicking: Today,
- * Threads and the global Add. Decisions, the account menu, the review chip and the mobile bottom
+ * Threads, Decisions (S9) and the global Add. The account menu, the review chip and the mobile bottom
  * navigation arrive with their features; Sign out stays a button until the account menu exists.
  */
 export function AppHeader({ current }: { current: NavItem }) {
@@ -23,7 +24,7 @@ export function AppHeader({ current }: { current: NavItem }) {
       <Link href="/today" className="focus-ring rounded-control" aria-label="Loose Ends, go to Today">
         <Wordmark />
       </Link>
-      <nav aria-label="Primary" className="flex items-center gap-1">
+      <nav aria-label="Primary" className="flex flex-wrap items-center gap-1">
         {ITEMS.map(({ key, href, label, Icon }) => {
           const active = current === key;
           return (
