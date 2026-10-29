@@ -40,12 +40,61 @@ const wordAmounts = (s: string) =>
 
 export type ClaimKind = "date" | "amount";
 
+/** chrono's casual parser does not read a bare day of month ("the 15th"). */
+const DAY_OF_MONTH = /\bthe\s+\d{1,2}(?:st|nd|rd|th)\b/giu;
+
+export interface DatePhrase {
+  index: number;
+  text: string;
+}
+
+/** The date and time phrases `line` states, with their offsets; amounts are not dates. */
+export function datePhrases(line: string): DatePhrase[] {
+  const withoutAmounts = blank(line, [AMOUNT, PERCENT, WORDS_AMOUNT]);
+  const found: DatePhrase[] = chrono
+    .parse(withoutAmounts, SPAN_REFERENCE)
+    .filter((r) => r.text.trim() !== "" && !NOT_A_DATE.test(r.text.trim()))
+    .map((r) => ({ index: r.index, text: r.text }));
+  for (const m of withoutAmounts.matchAll(DAY_OF_MONTH)) {
+    if (!found.some((p) => m.index! < p.index + p.text.length && p.index < m.index! + m[0].length)) found.push({ index: m.index!, text: m[0] });
+  }
+  return found.sort((a, b) => a.index - b.index);
+}
+
 /** True when `line` states any date or time ("Thursday", "Oct 9", "by 5pm"); amounts are not dates. */
 export function statesDate(line: string): boolean {
-  const withoutAmounts = blank(line, [AMOUNT, PERCENT, WORDS_AMOUNT]);
-  // chrono's casual parser does not read a bare day of month ("the 15th").
-  if (/\bthe\s+\d{1,2}(?:st|nd|rd|th)\b/i.test(withoutAmounts)) return true;
-  return chrono.parse(withoutAmounts, SPAN_REFERENCE).some((r) => r.text.trim() !== "" && !NOT_A_DATE.test(r.text.trim()));
+  return datePhrases(line).length > 0;
+}
+
+/** Words that only connect a date to the rest of a line ("by Friday", "due Oct 9"); removed with it. */
+const DATE_CONNECTOR = /(?:\b(?:by|on|before|until|till|due|at|for|from|starting|no later than)\s+)$/iu;
+const DANGLING = /\b(?:by|on|before|until|till|due|at|for|from|to|and|or|the|of|in|starting)$/iu;
+
+/**
+ * `line` with the given date phrases removed, plus any connector word in front of them ("by",
+ * "due"), and the leftover punctuation tidied. Returns null when what is left is not a usable
+ * line: fewer than two words, or a sentence that ends on a connector ("Send the forms by").
+ */
+export function stripDatePhrases(line: string, phrases: DatePhrase[]): string | null {
+  let out = line;
+  for (const p of [...phrases].sort((a, b) => b.index - a.index)) {
+    // A date used as a modifier ("Friday's review", "the Oct 9 meeting") cannot be cut out cleanly.
+    if (/^(?:['’]s\b|\s+(?:meeting|review|call|deadline|appointment|session)\b)/iu.test(out.slice(p.index + p.text.length))) return null;
+    let start = p.index;
+    const before = DATE_CONNECTOR.exec(out.slice(0, start));
+    if (before) start -= before[0].length;
+    out = out.slice(0, start) + out.slice(p.index + p.text.length);
+  }
+  out = out
+    .replace(/\(\s*[,;:-]?\s*\)/g, "")
+    .replace(/\s+([,.;:!?)])/g, "$1")
+    .replace(/([,;:-])(?=\s*[,.;:!?)]|\s*$)/g, "")
+    .replace(/\s{2,}/g, " ")
+    .trim()
+    .replace(/[\s,;:-]+$/u, "");
+  const words = out.match(/\p{L}+/gu) ?? [];
+  if (words.length < 2 || DANGLING.test(out.replace(/[.!?]+$/u, "").trim())) return null;
+  return out;
 }
 
 /** The kinds of claim in `line` that the source does not support (empty when the line is fine). */

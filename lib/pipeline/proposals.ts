@@ -1,10 +1,35 @@
 import type { Extraction, Item } from "@/lib/ai/schema";
-import type { Logger } from "@/lib/log";
+import { log as defaultLog, type Logger } from "@/lib/log";
 import type { Band } from "@/lib/schemas";
-import { statesDate } from "./briefClaims";
+import { datePhrases, statesDate, stripDatePhrases } from "./briefClaims";
 import { resolveDate, type DateContext, type ResolvedDate } from "./resolveDates";
 import { confidenceLabel, scoreItem, type Signal } from "./score";
-import { suppressionHash, verifyBrief, verifyQuotes, type VerifiedBrief, type VerifiedEvidence } from "./verifyQuotes";
+import { containsWholePhrase, suppressionHash, verifyBrief, verifyQuotes, type VerifiedBrief, type VerifiedEvidence } from "./verifyQuotes";
+
+const TITLE_MAX = 80;
+
+/**
+ * Rule 3 for title and action: every date phrase they state must be inside the item's verified
+ * date_text (which verifyFields already required to be inside the item's own quote). Unbacked
+ * phrases are stripped with their connector ("by Thursday"); if that leaves no usable line, the
+ * fallback is used. Returns `text` itself when nothing changed.
+ */
+export function unbackedDateFree<F extends string | null>(text: string, dateText: string | null, fallback: () => F): string | F {
+  // chrono may include a leading connector ("on Thursday"); the date words are what must be backed.
+  const core = (s: string) => s.trim().replace(/^(?:on|by|before|until|at|due)\s+/iu, "");
+  const unbacked = datePhrases(text).filter((p) => dateText === null || !containsWholePhrase(dateText, core(p.text), "text"));
+  if (unbacked.length === 0) return text;
+  return stripDatePhrases(text, unbacked) ?? fallback();
+}
+
+/** A title made from the item's first verified quote (source words only), cut at a word under 80 characters. */
+export function quoteTitle(quote: string): string {
+  const q = quote.replace(/\s+/g, " ").trim();
+  if (q.length <= TITLE_MAX) return q;
+  const cut = q.slice(0, TITLE_MAX - 1);
+  const atWord = cut.lastIndexOf(" ");
+  return `${(atWord > 20 ? cut.slice(0, atWord) : cut).replace(/[\s,;:-]+$/u, "")}…`;
+}
 
 /**
  * Deterministic post-processing of one validated model output (PRD pipeline steps 5–7):
@@ -60,10 +85,11 @@ export function processExtraction(output: Extraction, opts: ProcessOptions): Pro
     // due date. Its "Not sure about" notes must not claim one either: a note stating a date is
     // about the cleared date and is dropped (rule 3).
     const date = resolveDate(v.item, opts);
+    const logger = opts.logger ?? defaultLog;
     const dateCleared = output.items[v.index]?.date_text != null && v.item.date_text === null;
     const notes = dateCleared ? v.item.uncertainty_notes.filter((n) => !statesDate(n)) : v.item.uncertainty_notes;
     if (notes.length < v.item.uncertainty_notes.length) {
-      opts.logger?.("field_unverified", {
+      logger("field_unverified", {
         extraction_id: opts.extractionId ?? null,
         item_index: v.index,
         field: "uncertainty_notes",
@@ -71,6 +97,29 @@ export function processExtraction(output: Extraction, opts: ProcessOptions): Pro
         dropped: v.item.uncertainty_notes.length - notes.length,
       });
     }
+    // Title and action are model words shown as the item's name: a date they state must be the
+    // verified in-quote date_text, or it is stripped (title falls back to the quote, action to null
+    // when stripping leaves no usable line).
+    const firstQuote = (v.evidence[0] as VerifiedEvidence).quote;
+    const title = unbackedDateFree(v.item.title, v.item.date_text, () => quoteTitle(firstQuote));
+    const action = v.item.action === null ? null : unbackedDateFree(v.item.action, v.item.date_text, () => null);
+    for (const [field, before, after] of [
+      ["title", v.item.title, title],
+      ["action", v.item.action, action],
+    ] as const) {
+      if (before !== after) {
+        logger("field_unverified", {
+          extraction_id: opts.extractionId ?? null,
+          item_index: v.index,
+          field,
+          reason: after === null ? "date_unbacked_cleared" : "date_unbacked_stripped",
+        });
+      }
+    }
+    const item: Item =
+      notes === v.item.uncertainty_notes && title === v.item.title && action === v.item.action
+        ? v.item
+        : { ...v.item, uncertainty_notes: notes, title, action };
     const s = scoreItem({
       type: v.item.type,
       owner: v.item.owner,
@@ -84,10 +133,9 @@ export function processExtraction(output: Extraction, opts: ProcessOptions): Pro
       droppedTypeIndexes.push(v.index);
       continue;
     }
-    const firstQuote = (v.evidence[0] as VerifiedEvidence).quote;
     proposals.push({
       index: v.index,
-      item: notes === v.item.uncertainty_notes ? v.item : { ...v.item, uncertainty_notes: notes },
+      item,
       evidence: v.evidence,
       date,
       score: s.score,
