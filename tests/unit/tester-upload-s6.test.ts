@@ -164,17 +164,54 @@ describe("tester: limits and their copy (SITE_CONTRACT §2.13)", () => {
     }
   });
 
-  // NON-BLOCKING (new in fix/upload-hardening): a UTF-8 file with ONE stray non-UTF-8 byte (a mixed-
-  // encoding export, or a file cut mid-character) now fails strict UTF-8 and is decoded wholesale as
-  // Windows-1252, so every correct accented letter, dash and curly quote becomes mojibake
-  // ("CafÃ©", "itâ€™s"). Extraction then runs and quotes verify against the garbled text, which the
-  // user sees in the Explain card and Why panel. Before the fix the file was refused. Safe: valid
-  // UTF-8 multi-byte sequences are decoded as UTF-8 (e.g. prefer UTF-8 when the bytes contain any
-  // valid multi-byte sequence, or decode with replacement), never re-read as Windows-1252.
-  it.fails("a UTF-8 file with one stray Latin-1 byte keeps its UTF-8 letters (no mojibake)", async () => {
+  // REGRESSION GUARD (fixed in fix/upload-followups): a UTF-8 file with one stray non-UTF-8 byte used
+  // to be decoded wholesale as Windows-1252 ("CafÃ©", "itâ€™s"). It is now UTF-8 with U+FFFD.
+  it("a UTF-8 file with one stray Latin-1 byte keeps its UTF-8 letters (no mojibake)", async () => {
     const b = Uint8Array.from([...utf8("Café – it’s due Friday. "), 0xe9, ...utf8(" end")]);
     const r = await readDocument(b, "note.txt");
     expect(r.ok && r.text.startsWith("Café – it’s due Friday.")).toBe(true);
+  });
+
+  /** Windows-1252 bytes for test strings (the few punctuation marks outside Latin-1 mapped by hand). */
+  const cp1252 = (s: string) =>
+    Uint8Array.from([...s].map((c) => ({ "’": 0x92, "–": 0x96, "—": 0x97, "€": 0x80, "“": 0x93, "”": 0x94 })[c] ?? c.charCodeAt(0)));
+
+  it("random 64-byte buffers are never taken as text (10,000 samples)", () => {
+    let accepted = 0;
+    for (let i = 0; i < 10_000; i++) {
+      const b = new Uint8Array(64);
+      for (let j = 0; j < 64; j++) b[j] = Math.floor(Math.random() * 256);
+      if (sniffType(b) !== "unknown") accepted++;
+    }
+    expect(accepted).toBe(0);
+  });
+
+  // NON-BLOCKING (round 2 trade-off, recorded): a short or accent-dense UTF-8 file with 2+ stray
+  // bytes is now refused as "can read PDF, TXT and MD files" (untrue: it is a TXT file). Refusal is
+  // the safe side; no garbled text reaches extraction.
+  it("short or accent-dense UTF-8 with a couple of stray bytes is refused, not garbled", async () => {
+    const short = Uint8Array.from([...utf8("Café "), 0xe9]);
+    const dense = Uint8Array.from([...utf8("Café – it’s due Friday. Naïve résumé. ".repeat(3)), 0xe9, 0x20, 0xe8]);
+    for (const b of [short, dense]) expect(await readDocument(b, "x.txt")).toEqual({ ok: false, reason: "unsupported_type" });
+  });
+
+  it("pure Windows-1252 prose with no accidental UTF-8 pair is still decoded as Windows-1252", async () => {
+    for (const s of ["GRÜßE – bis Freitag. Straße, Größe.", "Café at 9 – Ana’s note", "Señor Núñez paga 20 € mañana."]) {
+      expect(await readDocument(cp1252(s), "x.txt"), s).toMatchObject({ ok: true, text: s });
+    }
+  });
+
+  // REGRESSION GUARD (fixed in fix/upload-followups round 2, mostlyUtf8): one accidental well-formed
+  // UTF-8 pair (an accented capital 0xC2–0xDF followed by NBSP, a curly quote, a dash, «», ©, °)
+  // used to switch a whole Windows-1252 file to UTF-8, turning every other accent into U+FFFD.
+  // UTF-8 is now chosen only when valid sequences are at least 2x the stray bytes and strays are
+  // at most max(1, 1%) of the file.
+  it.each([
+    "RÉSUMÉ : rendez-vous à 9h, réunion déplacée.",
+    "CAFÉ’S menu: crème brûlée, déjà vu.",
+    "Dijo “ALLÍ” y se fue. Mañana será otro día.",
+  ])("Windows-1252 '%s' is decoded as written", async (s) => {
+    expect(await readDocument(cp1252(s), "x.txt")).toMatchObject({ ok: true, text: s });
   });
 });
 
@@ -225,23 +262,102 @@ describe("tester: rule 3 brief-claim filter edges (S7)", () => {
     expect(unsupportedClaims("Three hundred dollars is due.", src)).toEqual(["amount"]);
   });
 
-  // NON-BLOCKING (rule 3 gaps remaining after fix/upload-hardening; lines show under an Interpretation
-  // label). A word amount that is the TAIL of a longer source amount passes, because the phrase
-  // check treats "-" and spaces as word boundaries: "five dollars" is found inside "twenty-five
-  // dollars", "fifty euros" inside "two hundred and fifty euros". A digit-and-scale amount
-  // ("1.5 million dollars") is reduced to "million dollars" by the words pattern, so any figure in
-  // front of a source's "million dollars" passes. A percentage in words is not checked at all.
+  // REGRESSION GUARDS (fixed in fix/upload-followups): a word amount that was the tail of a longer
+  // source amount used to pass ("five dollars" in "twenty-five dollars", "fifty euros" in "two
+  // hundred and fifty euros"); "1.5 million dollars" was reduced to "million dollars"; percentages in
+  // words were not checked. Word amounts are now compared whole.
   const WORDS_SRC = "The fee is twenty-five dollars. A refund of two hundred and fifty euros. Budget 2.5 million dollars.";
-  it.fails("a smaller word amount that is the tail of the source's amount is caught ('five dollars' vs 'twenty-five dollars')", () => {
+  it("a smaller word amount that is the tail of the source's amount is caught ('five dollars' vs 'twenty-five dollars')", () => {
     expect(unsupportedClaims("The fee is about five dollars.", WORDS_SRC)).toEqual(["amount"]);
   });
-  it.fails("'fifty euros' is caught when the source says 'two hundred and fifty euros'", () => {
+  it("'fifty euros' is caught when the source says 'two hundred and fifty euros'", () => {
     expect(unsupportedClaims("A refund of fifty euros.", WORDS_SRC)).toEqual(["amount"]);
   });
-  it.fails("'1.5 million dollars' is caught when the source says '2.5 million dollars'", () => {
+  it("'1.5 million dollars' is caught when the source says '2.5 million dollars'", () => {
     expect(unsupportedClaims("A budget of 1.5 million dollars.", WORDS_SRC)).toEqual(["amount"]);
   });
-  it.fails("an invented percentage in words ('twenty percent') is caught", () => {
+  it("an invented percentage in words ('twenty percent') is caught", () => {
     expect(unsupportedClaims("A twenty percent rise.", WORDS_SRC)).toEqual(["amount"]);
+  });
+
+  it("whole-amount matching keeps the source's own word amounts in any case, spacing, hyphenation or 'and'", () => {
+    const keep: Array<[string, string]> = [
+      ["Fifteen hundred dollars.", "Fifteen Hundred Dollars."],
+      ["twenty percent.", "TWENTY PERCENT"],
+      ["Two hundred and fifty euros.", "two hundred fifty euros"],
+      ["Twenty-five dollars.", "twenty five dollars"],
+      ["Ten dollars.", "Ten\ndollars."],
+      ["Ten dollars and fifty cents.", "ten dollars and fifty cents"],
+      ["2.5 million dollars.", "2.5 million dollars"],
+      ["3 thousand dollars.", "3 thousand dollars"],
+      ["Item 4: forty dollars.", "Item 4: forty dollars."],
+    ];
+    for (const [line, src] of keep) expect(unsupportedClaims(line, src), `${line} | ${src}`).toEqual([]);
+  });
+
+  it("other spellings of the same amount are dropped (safe over-drop, recorded for awareness)", () => {
+    const drop: Array<[string, string]> = [
+      ["A one hundred dollars deposit.", "A hundred dollars deposit."],
+      ["Five dollars.", "A five-dollar fee."],
+      ["Twenty percent.", "Twenty-percent."],
+      ["three thousand dollars", "3 thousand dollars"],
+      ["2.5 million dollars.", "$2.5 million"],
+    ];
+    for (const [line, src] of drop) expect(unsupportedClaims(line, src), `${line} | ${src}`).toEqual(["amount"]);
+  });
+
+  // REGRESSION GUARDS (fixed in fix/upload-followups round 2, edd1282): with the lookbehind
+  // `(?<!\p{N}[.,\s]*)` a word amount after a number and "," / "." was never checked, and the
+  // source's own word amount after "Oct 5," was not collected.
+  it.each([
+    "By 2027, fifty dollars more.",
+    "Page 3. Twenty dollars is due.",
+    "The fee rose 5, twenty dollars total.",
+    "On the 5th fifty dollars.",
+  ])("an invented word amount after a number and punctuation is caught: '%s'", (line) => {
+    expect(unsupportedClaims(line, "The fee is ten dollars.")).toEqual(["amount"]);
+  });
+  it("a word amount the source states after a date and comma is supported", () => {
+    expect(unsupportedClaims("Pay two hundred dollars.", "On Oct 5, two hundred dollars was paid.")).toEqual([]);
+  });
+
+  // REGRESSION GUARDS (rule 3; fixed in 7c4c3fa): with a `(?<!\p{N}\s?)` lookbehind a word amount
+  // right after a digit and a space was never checked, and "3 hundred dollars" was checked by
+  // neither pattern. AMOUNT now has a "hundred" scale and its matches are blanked before word
+  // amounts are matched, with no lookbehind.
+  it.each([
+    "In 2027 fifty dollars more.",
+    "Room 12 twenty dollars.",
+    "Gate 7 fifty euros.",
+    "Up 5 twenty percent.",
+    "3 hundred dollars.",
+    "15 hundred dollars is due.",
+  ])("an invented amount right after a digit and a space is caught: '%s'", (line) => {
+    expect(unsupportedClaims(line, "The fee is ten dollars.")).toEqual(["amount"]);
+  });
+  // Same gap on the source side (over-drop): the source's word amount after "Oct 5 " is not collected.
+  it("a word amount the source states right after a date (no comma) is supported", () => {
+    expect(unsupportedClaims("Pay two hundred dollars.", "On Oct 5 two hundred dollars was paid.")).toEqual([]);
+  });
+
+  it("figure amounts with a scale word are compared whole, and a figure before a word amount is checked on its own", () => {
+    const keep: Array<[string, string]> = [
+      ["3 hundred dollars.", "3 hundred dollars."],
+      ["2.5 million dollars.", "2.5 million dollars"],
+      ["2 thousand pounds", "2 thousand pounds"],
+      ["Room 4 fifty dollars", "Room 4 fifty dollars"],
+      ["twenty percent", "15% twenty percent"],
+    ];
+    for (const [line, src] of keep) expect(unsupportedClaims(line, src), `${line} | ${src}`).toEqual([]);
+    const drop: Array<[string, string]> = [
+      ["3 hundred dollars.", "4 hundred dollars."],
+      ["1.5 million dollars.", "2.5 million dollars"],
+      ["$1.5 million.", "$2.5 million"],
+      ["2 hundred thousand dollars", "2 hundred dollars"],
+      ["$5 fifty dollars", "fifty dollars"],
+      ["15% twenty percent.", "15%"],
+      ["1 hundred bucks", "ten dollars"],
+    ];
+    for (const [line, src] of drop) expect(unsupportedClaims(line, src), `${line} | ${src}`).toEqual(["amount"]);
   });
 });

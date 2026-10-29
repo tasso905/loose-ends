@@ -115,6 +115,8 @@ const EXPLICIT_AMPM = /\d\s*(a\.?m\.?|p\.?m\.?)(?![\p{L}])/iu;
 const NIGHT = /\b(tonight|night)\b/i;
 /** A 24-hour clock time past noon ("13:00", "23:45"): it states the half of the day. */
 const H24_TIME = /\b(1[3-9]|2[0-3]):\d{2}\b/;
+/** "noon" stated in the phrase. */
+const NOON = /\bnoon\b/i;
 /** A zero-padded hour ("01:00", "06:30"): a 24-hour time before noon, so it states AM. */
 const ZERO_PADDED_TIME = /\b0\d:\d{2}\b/;
 /** Past window for a month-day with no year (user decision, Oct 18): up to 30 days back. */
@@ -230,20 +232,37 @@ function chronoResolve(text: string, ctx: DateContext): ChronoReading {
   const meridiemGuessed = timeKnown && !STATED_MERIDIEM.test(text) && !ZERO_PADDED_TIME.test(text) && rawHour >= 1 && rawHour <= 12;
   // User decision, Oct 21: a guessed hour from 1 to 6 is PM ("tomorrow at 5" → 5 PM), still inferred.
   const pmHour = meridiemGuessed && rawHour <= 6 ? rawHour + 12 : rawHour;
-  // T-D2 after "night"/"tonight": a 24-hour time ("13:00") says the half of the day and is kept as
-  // written. An explicit am hour ("1am") is the next morning, as stated (no AM/PM line). Otherwise
-  // a 12:00–16:59 reading is the next day's small hours; the AM/PM line is added unless the hour was
-  // written zero-padded ("01:00"), which states AM.
+  // T-D2 after "night"/"tonight"/"last night", where chrono's day is the night's day:
+  //  - a 24-hour time ("13:00") says the half of the day and is kept as written;
+  //  - an explicit am ("1am") or a zero-padded hour ("01:00", "05:00", which states AM) is the next
+  //    morning at the hour written, with no AM/PM line;
+  //  - otherwise the written hour 5–11 is the evening (chrono reads "last night at 11" as 11 AM),
+  //    and 12 or 1–4 is the next day's small hours, with the AM/PM line because it is a guess.
+  //    "tonight at 5" stays 5 PM with no line (D50 guard).
   const night = timeKnown && NIGHT.test(text) && !H24_TIME.test(text);
   let hour = pmHour;
   let smallHours = false;
   let nightGuessed = false;
   if (night && EXPLICIT_AMPM.test(text)) {
     smallHours = hour < 12;
-  } else if (night && pmHour >= 12 && pmHour <= 16) {
-    hour = pmHour - 12;
+  } else if (night && NOON.test(text)) {
+    // "tonight at noon": the clock time is stated, and noon is never the small hours.
+    hour = 12;
+  } else if (night && ZERO_PADDED_TIME.test(text)) {
+    hour = rawHour % 12;
     smallHours = true;
-    nightGuessed = !ZERO_PADDED_TIME.test(text);
+    // 00:00-04:59 is the night's small hours. 05:00-11:59 fits "tonight" badly, so the morning
+    // reading is kept but marked a guess with the AM/PM line (tester recommendation).
+    nightGuessed = hour >= 5;
+  } else if (night) {
+    const written = rawHour % 12;
+    if (written <= 4) {
+      hour = written;
+      smallHours = true;
+      nightGuessed = true;
+    } else {
+      hour = written + 12;
+    }
   }
   const time = timeKnown ? `${pad(hour)}:${pad(clock.get("minute") ?? 0)}` : null;
   // The small hours belong to the next calendar day.

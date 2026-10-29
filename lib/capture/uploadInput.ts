@@ -7,17 +7,16 @@ import { parsePasteForm, TITLE_MAX_CHARS } from "./pasteInput";
  * F3 upload form fields and the copy for every way a file can be refused (SITE_CONTRACT §2.2,
  * §2.13). Client-safe: no unpdf here.
  *
- * unsupported_type uses the approved D52 copy from lib/errors.ts ("Loose Ends can read PDF, TXT and
- * MD files.").
+ * All refusal copy and the drop-zone hint are approved (D52; SITE_CONTRACT §2.2 and §2.13):
+ *   - wrong type: "Loose Ends can read PDF, TXT and MD files." (the default in lib/errors.ts)
+ *   - a Word file, until DOCX ships (D17): "I can't read Word files yet. Save it as a PDF, or paste the text instead."
+ *   - a damaged or locked PDF: "I couldn't open this PDF. It may be damaged or locked with a password."
+ *   - an empty file: "This file has no text in it."
+ *   - over 30,000 characters: "This document has {n} characters of text. The limit is 30,000."
+ *   - hint: "PDF, TXT or MD · up to 10 MB and 30 pages"; the chosen-file row's button: "Remove"
  *
- * Copy marked PROPOSED is not in SITE_CONTRACT or CONTENT_MODEL and needs the user's approval:
- *   - a DOCX file: "I can't read Word files yet. Save it as a PDF, or paste the text instead."
- *   - a damaged or password-protected PDF: "I couldn't open this PDF. It may be damaged or locked with a password."
- *   - a text file with nothing in it: "This file has no text in it."
- *   - extracted text over 30,000 characters: "This document has {n} characters of text. The limit is 30,000."
- *   - drop zone hint without DOCX: "PDF, TXT or MD · up to 10 MB and 30 pages"
- *   - the chosen-file row's remove button: "Remove" (DESIGN_STANDARD names the button, not its label)
- *   - Add mode tabs show `Paste` and `Upload` only until Quick add (F4) ships
+ * Not copy, and not covered by D52: the Add mode tabs show `Paste` and `Upload` only until Quick
+ * add (F4) ships (SITE_CONTRACT §2.2 lists all three).
  */
 
 export { SOURCES_BUCKET } from "@/lib/account/deleteAccount";
@@ -34,7 +33,7 @@ export const UPLOAD_ACCEPT = ".pdf,.txt,.md,.markdown,application/pdf,text/plain
 
 const num = (n: number) => n.toLocaleString("en-US");
 
-/** PROPOSED copy (see above); the codes are the documented ones. */
+/** Approved upload copy (D52, see above); the codes are the documented ones. */
 export const UPLOAD_COPY = {
   unsupportedType: apiError("unsupported_type").error.message,
   docx: "I can't read Word files yet. Save it as a PDF, or paste the text instead.",

@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Quote } from "lucide-react";
+import { PenLine, Quote } from "lucide-react";
 import { z } from "zod";
 import { AppHeader } from "@/components/AppHeader";
 import { ErrorBanner } from "@/components/Notice";
@@ -13,10 +13,12 @@ import { buttonVariants } from "@/components/ui/button";
 import { requireUser } from "@/lib/auth/session";
 import { createClient } from "@/lib/supabase/server";
 import { getThreadDetail, userTimezone, type ThreadDetail } from "@/lib/threads/read";
-import { formatHistoryTime, historyLine, KIND_LABEL, sourceCaption, THREADS_COPY as C } from "@/lib/threads/view";
+import { RESOLVE_COPY } from "@/lib/threads/resolve";
+import { formatDecisionDate, formatHistoryTime, historyLine, KIND_LABEL, sourceCaption, THREADS_COPY as C } from "@/lib/threads/view";
 import { getNow, parseInstant } from "@/lib/time";
 
 type Params = Promise<{ id: string }>;
+type SearchParams = Promise<Record<string, string | string[] | undefined>>;
 
 const isUuid = (s: string) => z.uuid().safeParse(s).success;
 
@@ -30,13 +32,15 @@ export async function generateMetadata({ params }: { params: Params }): Promise<
 }
 
 /**
- * /threads/[id] (SITE_CONTRACT §2.7, CONTENT_MODEL §6): header, Explain card (F7), evidence,
- * append-only history and Done (Resolve… disabled on decision threads until F11). The Why panel,
- * Source viewer link and the other actions arrive with F8, F9's remaining actions and F11.
+ * /threads/[id] (SITE_CONTRACT §2.7, CONTENT_MODEL §6): header, Done and Resolve… (F11; `?sheet=resolve`
+ * opens the sheet), the decision when resolved as Decided, Explain card (F7), evidence and
+ * append-only history. The Why panel, Source viewer link and the other actions arrive with F8 and
+ * F9's remaining actions.
  * Unknown and other users' ids render the not-found page (RLS; never reveals existence).
  */
-export default async function ThreadPage({ params }: { params: Params }) {
+export default async function ThreadPage({ params, searchParams }: { params: Params; searchParams: SearchParams }) {
   const { id } = await params;
+  const openResolve = (await searchParams).sheet === "resolve";
   const user = await requireUser(`/threads/${encodeURIComponent(id)}`);
   if (!isUuid(id)) notFound();
 
@@ -49,7 +53,7 @@ export default async function ThreadPage({ params }: { params: Params }) {
       <AppHeader current={null} />
       <main className="mx-auto w-full max-w-column px-4 pt-6 pb-24 sm:px-6 lg:px-8">
         {res.ok ? (
-          <Thread detail={res.detail} timezone={timezone} />
+          <Thread detail={res.detail} timezone={timezone} openResolve={openResolve} />
         ) : (
           <ErrorBanner
             action={
@@ -66,8 +70,8 @@ export default async function ThreadPage({ params }: { params: Params }) {
   );
 }
 
-function Thread({ detail, timezone }: { detail: ThreadDetail; timezone: string }) {
-  const { thread: t, evidence, events, origin, sources, brief, notSure } = detail;
+function Thread({ detail, timezone, openResolve }: { detail: ThreadDetail; timezone: string; openResolve: boolean }) {
+  const { thread: t, evidence, events, origin, sources, brief, notSure, decision } = detail;
   const now = getNow();
 
   return (
@@ -102,8 +106,10 @@ function Thread({ detail, timezone }: { detail: ThreadDetail; timezone: string }
       ) : null}
 
       <div className="mt-6">
-        <ThreadActions threadId={t.id} title={t.title} status={t.status} kind={t.kind} />
+        <ThreadActions threadId={t.id} title={t.title} status={t.status} kind={t.kind} openResolve={openResolve} />
       </div>
+
+      {decision ? <DecisionBlock decision={decision} timezone={timezone} /> : null}
 
       {brief && parseBrief(brief.brief) ? (
         <ExplainBrief brief={brief.brief} source={sources[brief.sourceId] ?? null} notSure={notSure} className="mt-10" />
@@ -201,3 +207,32 @@ function CompactExplain({
 
 /** PROPOSED. */
 const EXPLAIN_COMPACT_TITLE = "About this";
+
+/**
+ * F11 / CONTENT_MODEL §6 "Decision": the choice and the reason exactly as the user typed them, in
+ * the You wrote voice (DESIGN_STANDARD Three voices), with the date. No reason (Skip) shows no
+ * reason line and no prompt to add one: Skip never asks again.
+ */
+function DecisionBlock({ decision, timezone }: { decision: NonNullable<ThreadDetail["decision"]>; timezone: string }) {
+  const date = formatDecisionDate(decision.decided_at, timezone);
+  return (
+    <section aria-labelledby="decision" className="mt-10">
+      <h2 id="decision" className="text-h3 text-le-text">
+        {RESOLVE_COPY.decisionHeading}
+      </h2>
+      <p className="mt-3 text-label text-le-text-secondary">
+        {RESOLVE_COPY.youDecided} · {date}
+      </p>
+      <p className="mt-1 text-body-strong whitespace-pre-wrap text-le-text">{decision.choice}</p>
+      {decision.reason_user !== null ? (
+        <figure className="mt-4 border-l-2 border-le-border-strong pl-4">
+          <figcaption className="flex items-center gap-1 text-label text-le-text-secondary">
+            <PenLine aria-hidden strokeWidth={1.75} className="size-3.5" />
+            {RESOLVE_COPY.youWrote} · {date}
+          </figcaption>
+          <blockquote className="mt-1 text-body whitespace-pre-wrap text-le-text">{decision.reason_user}</blockquote>
+        </figure>
+      ) : null}
+    </section>
+  );
+}

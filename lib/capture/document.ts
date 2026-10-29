@@ -65,8 +65,44 @@ export function sniffType(bytes: Uint8Array): SniffedType {
     new TextDecoder("utf-8", { fatal: true }).decode(bytes);
     return "text";
   } catch {
+    // Mostly UTF-8 with a stray byte (a mixed-encoding export, a file cut mid-character): the valid
+    // multi-byte letters stay as written and the stray byte becomes U+FFFD, never mojibake.
+    if (!hasStrayControlBytes(bytes) && mostlyUtf8(bytes)) return "text";
     return isWindows1252Text(bytes) ? "text1252" : "unknown";
   }
+}
+
+/** Control bytes other than tab, line breaks and form feed (text files have none; binaries do). */
+const hasStrayControlBytes = (bytes: Uint8Array) =>
+  bytes.some((b) => (b < 0x20 && b !== 0x09 && b !== 0x0a && b !== 0x0c && b !== 0x0d) || b === 0x7f);
+
+/** At most this share of a mostly-UTF-8 file may be stray (invalid) bytes. */
+const UTF8_MAX_STRAY_SHARE = 0.01;
+
+/**
+ * UTF-8 with a few stray bytes: well-formed multi-byte sequences at least twice the stray high
+ * bytes, and the stray bytes at most 1% of the file (a random buffer has far more). A Windows-1252
+ * file has the reverse, an accidental valid pair ("É" + NBSP in "RÉSUMÉ :") among many stray
+ * accented letters, so it is read as Windows-1252.
+ */
+function mostlyUtf8(bytes: Uint8Array): boolean {
+  const cont = (b: number | undefined) => b !== undefined && b >= 0x80 && b <= 0xbf;
+  let valid = 0;
+  let stray = 0;
+  for (let i = 0; i < bytes.length; i++) {
+    const b = bytes[i]!;
+    if (b < 0x80) continue;
+    const n = b >= 0xc2 && b <= 0xdf ? 1 : b >= 0xe0 && b <= 0xef ? 2 : b >= 0xf0 && b <= 0xf4 ? 3 : 0;
+    let ok = n > 0;
+    for (let k = 1; ok && k <= n; k++) if (!cont(bytes[i + k])) ok = false;
+    if (ok) {
+      valid++;
+      i += n;
+    } else {
+      stray++;
+    }
+  }
+  return valid > 0 && valid >= 2 * stray && stray <= Math.max(1, bytes.length * UTF8_MAX_STRAY_SHARE);
 }
 
 /** Bytes Windows-1252 leaves undefined. */
@@ -80,10 +116,10 @@ const CP1252_MAX_HIGH_SHARE = 0.3;
  * mostly ASCII. Binary formats almost always fail the control-byte check.
  */
 function isWindows1252Text(bytes: Uint8Array): boolean {
+  if (hasStrayControlBytes(bytes)) return false;
   let high = 0;
   for (const b of bytes) {
-    if (b < 0x20 && b !== 0x09 && b !== 0x0a && b !== 0x0c && b !== 0x0d) return false;
-    if (b === 0x7f || CP1252_UNDEFINED.has(b)) return false;
+    if (CP1252_UNDEFINED.has(b)) return false;
     if (b >= 0x80) high++;
   }
   return bytes.length > 0 && high / bytes.length <= CP1252_MAX_HIGH_SHARE;

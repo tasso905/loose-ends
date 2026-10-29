@@ -289,6 +289,33 @@ describe.skipIf(!env)("real local Supabase: RLS, rate limit, deletion", () => {
     expect(list.data ?? []).toEqual([]);
   });
 
+  it("F11 Resolve as Decided over PostgREST: verbatim reason, evidence snapshot, event link; no direct decision writes; Undo removes it", async () => {
+    const R = await makeUser("r");
+    const g = await seed(R, "r");
+    // The seed's own decision is admin-written; this test counts only the one Resolve writes.
+    await admin.from("decisions").delete().eq("thread_id", g.thread);
+    const reason = `  Cheaper ${TOKEN},\nand it covers the windshield.  `;
+    const now = () => new Date().toISOString();
+    const res = await R.client.rpc("thread_resolve", {
+      p_thread_id: g.thread, p_from_status: "open", p_resolution: "decided", p_choice: `Renewed ${TOKEN}`, p_reason: reason, p_now: now(),
+    });
+    expect(res.error).toBeNull();
+    expect(res.data).toMatchObject({ ok: true, resolution: "decided", to_status: "resolved" });
+    const { data: d } = await R.client.from("decisions").select("choice, reason_user, context_facts, resolution_event_id").eq("thread_id", g.thread).single();
+    expect(d).toMatchObject({ choice: `Renewed ${TOKEN}`, reason_user: reason, resolution_event_id: (res.data as { event_id: number }).event_id });
+    expect((d!.context_facts as Array<{ text: string }>).map((f) => f.text)).toEqual([`I'll send the ${TOKEN} proposal r Friday`]);
+
+    const direct = await R.client.from("decisions").insert({ user_id: R.id, thread_id: g.thread, choice: "forged" }).select();
+    expect(direct.error?.code).toBe("42501");
+    const rewrite = await R.client.from("decisions").update({ reason_user: "rewritten" }).eq("thread_id", g.thread).select();
+    expect(rewrite.data ?? []).toEqual([]);
+    expect((await R.client.from("decisions").select("reason_user").eq("thread_id", g.thread).single()).data?.reason_user).toBe(reason);
+
+    const undo = await R.client.rpc("thread_undo", { p_thread_id: g.thread, p_event_id: (res.data as { event_id: number }).event_id, p_now: now() });
+    expect(undo.data).toMatchObject({ ok: true, to_status: "open" });
+    expect((await admin.from("decisions").select("id").eq("thread_id", g.thread)).data).toEqual([]);
+  });
+
   it("storage: a file a sources row owns cannot be deleted by its owner until the row is gone (fix/upload-hardening)", async () => {
     const O = await makeUser("o");
     const g = await seed(O, "o");

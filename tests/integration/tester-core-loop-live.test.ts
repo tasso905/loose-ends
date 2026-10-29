@@ -183,13 +183,11 @@ describe.skipIf(!live)("tester core loop on real local Supabase", () => {
       expect(await count("decisions", a.id)).toBe(0);
     });
 
-    // FLAGGED RISK (decisions still FOR ALL; Resolve is not built yet). The owner can write
-    // decisions directly through PostgREST: no thread_events row, any decided_at, a
-    // reason_ai_summary the UI would label as Interpretation although the user typed it, and
-    // reason_user can be rewritten later. Rule 5 ("decision reasons are stored and shown
-    // verbatim") and "history is never rewritten" depend on decisions being written only by a
-    // Resolve function. Safe behaviour: no direct INSERT/UPDATE/DELETE on decisions.
-    it.fails("RISK: the owner cannot write or rewrite a decision directly (decisions must go through Resolve)", async () => {
+    // REGRESSION GUARD (fixed in S8, migration 20261022130327): decisions used to be FOR ALL, so the
+    // owner could write a decision through PostgREST with no thread_events row, any decided_at, a
+    // forged reason_ai_summary, and rewrite reason_user later (rule 5). Now SELECT-only; decisions
+    // are written by thread_resolve only. More attacks: tester-s8-resolve-live.test.ts.
+    it("the owner cannot write or rewrite a decision directly (decisions go through Resolve)", async () => {
       const a = await makeUser("dxo");
       const t = await acceptedThread(a.client);
       const ins = await a.client

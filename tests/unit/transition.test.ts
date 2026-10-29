@@ -199,15 +199,76 @@ describe("transition(): row rules", () => {
   it("Done is not available on decision threads (D6); Resolve… is", () => {
     const t = thread("open", { kind: "decision" });
     expect(transition(t, { type: "done" }, { now: NOW }).ok).toBe(false);
-    const r = transition(t, { type: "resolve", resolution: "decided" }, { now: NOW });
+    const r = transition(t, { type: "resolve", resolution: "decided", decision: { choice: "Renew", reason: null } }, { now: NOW });
     expect(r.ok && r.thread?.resolution).toBe("decided");
   });
 
   it("Resolve accepts done, decided and not_needed", () => {
     for (const resolution of ["done", "decided", "not_needed"] as const) {
-      const r = transition(thread("open"), { type: "resolve", resolution }, { now: NOW });
+      const decision = resolution === "decided" ? { choice: "Renew", reason: null } : undefined;
+      const r = transition(thread("open"), { type: "resolve", resolution, decision }, { now: NOW });
       expect(r.ok && r.thread?.resolution).toBe(resolution);
     }
+  });
+
+  it("Decided without a decision, or a decision with Done / Not needed, is refused (as thread_resolve() refuses it)", () => {
+    expect(transition(thread("open"), { type: "resolve", resolution: "decided" }, { now: NOW })).toMatchObject({ ok: false, error: { code: "invalid_transition" } });
+    expect(transition(thread("open"), { type: "resolve", resolution: "done", decision: { choice: "x", reason: null } }, { now: NOW }).ok).toBe(false);
+  });
+
+  it("a decision of only zero-width or no-break spaces is blank, as private.is_blank() sees it", () => {
+    for (const choice of ["\u200b\u200b", "\u00a0 \ufeff", "\u3000"]) {
+      expect(transition(thread("open"), { type: "resolve", resolution: "decided", decision: { choice, reason: null } }, { now: NOW }).ok).toBe(false);
+    }
+    const r = transition(thread("open"), { type: "resolve", resolution: "decided", decision: { choice: "Renew", reason: "\u200b " } }, { now: NOW });
+    expect(r.ok && r.effects).toContainEqual({ type: "write_decision", choice: "Renew", reason: null });
+  });
+
+  it("F11: Decided with a decision writes it as typed; Skip (no reason) and a blank reason write none", () => {
+    const reason = "  Cheaper, and it covers the windshield.\n";
+    const r = transition(thread("open"), { type: "resolve", resolution: "decided", decision: { choice: "Renewed with Provider A", reason } }, { now: NOW });
+    expect(r.ok && r.effects).toEqual([{ type: "write_decision", choice: "Renewed with Provider A", reason }]);
+    const skip = transition(thread("open"), { type: "resolve", resolution: "decided", decision: { choice: "Renew", reason: null } }, { now: NOW });
+    expect(skip.ok && skip.effects).toEqual([{ type: "write_decision", choice: "Renew", reason: null }]);
+    const blank = transition(thread("open"), { type: "resolve", resolution: "decided", decision: { choice: "Renew", reason: " \n " } }, { now: NOW });
+    expect(blank.ok && blank.effects).toEqual([{ type: "write_decision", choice: "Renew", reason: null }]);
+  });
+
+  it("F11: refuses a blank or over-long choice, an over-long reason, and a decision on Done or Not needed", () => {
+    const resolve = (resolution: "done" | "decided" | "not_needed", choice: string, reason: string | null = null) =>
+      transition(thread("open"), { type: "resolve", resolution, decision: { choice, reason } }, { now: NOW }).ok;
+    expect(resolve("decided", "  ")).toBe(false);
+    expect(resolve("decided", "x".repeat(300))).toBe(true);
+    expect(resolve("decided", "x".repeat(301))).toBe(false);
+    expect(resolve("decided", "Renew", "y".repeat(2000))).toBe(true);
+    expect(resolve("decided", "Renew", "y".repeat(2001))).toBe(false);
+    expect(resolve("decided", "Renew", "😀".repeat(2000))).toBe(true); // counted as Postgres counts characters
+    expect(resolve("done", "Renew")).toBe(false);
+    expect(resolve("not_needed", "Renew")).toBe(false);
+  });
+
+  it("F11/D6: a decision thread resolves as Decided or Not needed, never Done", () => {
+    const t = thread("open", { kind: "decision" });
+    expect(transition(t, { type: "resolve", resolution: "done" }, { now: NOW }).ok).toBe(false);
+    expect(transition(t, { type: "resolve", resolution: "not_needed" }, { now: NOW }).ok).toBe(true);
+  });
+
+  it("D44: undoing a resolution as Decided deletes its decision; undoing Done deletes nothing", () => {
+    const target = (resolution: string) => ({
+      id: 7,
+      type: "resolved" as const,
+      actor: "user" as const,
+      before: { status: "open", resolution: null, resolved_at: null },
+      after: { status: "resolved", resolution, resolved_at: NOW.toISOString() },
+      created_at: NOW.toISOString(),
+      latest: true,
+    });
+    const decided = thread("resolved", { resolution: "decided", resolved_at: NOW.toISOString() });
+    const u = transition(decided, { type: "undo", target: target("decided") }, { now: NOW });
+    expect(u.ok && u.effects).toEqual([{ type: "delete_decision", resolutionEventId: 7 }]);
+    const done = thread("resolved", { resolution: "done", resolved_at: NOW.toISOString() });
+    const v = transition(done, { type: "undo", target: target("done") }, { now: NOW });
+    expect(v.ok && v.effects).toEqual([]);
   });
 
   it("Dismiss writes a suppression record; reopening a dismissed thread deletes it", () => {

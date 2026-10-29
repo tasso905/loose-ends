@@ -144,3 +144,27 @@ test("text-layer PDF → review (quote with its page) → accept → thread with
   await expect(page.getByRole("region", { name: "Evidence" }).getByText("Renewal notice · p. 2")).toBeVisible();
   await expectNoViolations();
 });
+
+test("a lost response after the server saved the source goes to review: no 'didn't save', no second source", async () => {
+  const ids = async () => ((await admin().from("sources").select("id").eq("user_id", uid)).data ?? []).map((r) => r.id as string);
+  const before = await ids();
+  await page.goto("/add?mode=upload");
+  await page.locator("#file").setInputFiles(pdfFile("Renewal notice.pdf", renewalPdf()));
+  // The server action runs to completion, then the response is dropped before the page sees it.
+  await page.route("**/add**", async (route) => {
+    const req = route.request();
+    if (req.method() === "POST" && "next-action" in req.headers()) {
+      await route.fetch();
+      await route.abort("connectionreset");
+    } else {
+      await route.continue();
+    }
+  });
+  await page.getByRole("button", { name: "Review source" }).click();
+  await expect(page).toHaveURL(/\/review\//, { timeout: 20_000 });
+  await page.unroute("**/add**");
+  await expect(page.getByText("That didn't save. Try again.")).toHaveCount(0);
+  const added = (await ids()).filter((id) => !before.includes(id));
+  expect(added).toHaveLength(1);
+  expect(await storedFiles()).toContain(added[0]);
+});

@@ -14,7 +14,7 @@
     "test:watch": "vitest",
     "test:e2e": "playwright test",
     "eval": "tsx evals/run.ts",
-    "test:supabase": "LE_SUPABASE_LIVE=1 vitest run tests/integration/supabase-live.test.ts tests/integration/extraction-live.test.ts tests/integration/tester-s2-live.test.ts tests/integration/tester-core-loop-live.test.ts tests/integration/tester-upload-live.test.ts"
+    "test:supabase": "LE_SUPABASE_LIVE=1 vitest run tests/integration/supabase-live.test.ts tests/integration/extraction-live.test.ts tests/integration/tester-s2-live.test.ts tests/integration/tester-core-loop-live.test.ts tests/integration/tester-upload-live.test.ts tests/integration/tester-s8-resolve-live.test.ts"
   },
   "dependencies": {
     "@ai-sdk/google": "4.0.99",
