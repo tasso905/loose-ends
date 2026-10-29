@@ -27,7 +27,6 @@ export function DeleteAccount() {
 
   function cancel() {
     setOpen(false);
-    triggerRef.current?.focus();
   }
 
   function confirm() {
@@ -74,6 +73,7 @@ export function DeleteAccount() {
         confirmDisabled={!matches}
         onCancel={cancel}
         onConfirm={confirm}
+        onClosed={() => triggerRef.current?.focus()}
       >
         <p className="text-body text-le-text-secondary">{C.accountBackups}</p>
         <label htmlFor={`${ids}-word`} className="mt-4 block text-label text-le-text">

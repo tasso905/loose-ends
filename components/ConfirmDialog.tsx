@@ -26,6 +26,7 @@ export function ConfirmDialog({
   confirmDisabled,
   onCancel,
   onConfirm,
+  onClosed,
   children,
 }: {
   open: boolean;
@@ -38,11 +39,18 @@ export function ConfirmDialog({
   confirmDisabled?: boolean;
   onCancel: () => void;
   onConfirm: () => void;
+  /** Runs after the dialog has closed: move focus here (a still-present trigger, or a heading). */
+  onClosed?: () => void;
   children?: React.ReactNode;
 }) {
   const ref = useRef<HTMLDialogElement>(null);
   const cancelRef = useRef<HTMLButtonElement>(null);
   const ids = useId();
+
+  const onClosedRef = useRef(onClosed);
+  useEffect(() => {
+    onClosedRef.current = onClosed;
+  });
 
   useEffect(() => {
     const d = ref.current;
@@ -50,7 +58,12 @@ export function ConfirmDialog({
     if (open && !d.open) {
       d.showModal();
       cancelRef.current?.focus();
-    } else if (!open && d.open) d.close();
+    } else if (!open && d.open) {
+      d.close();
+      // Closing a modal <dialog> returns focus to whatever had it before it opened, which may be gone
+      // (a deleted row's button, a closed menu's item). The caller places focus after that.
+      onClosedRef.current?.();
+    }
   }, [open]);
 
   const cancel = () => {

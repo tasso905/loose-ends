@@ -40,9 +40,18 @@ export function SourcesList({ sources, headingId }: { sources: SourceRow[]; head
     setTarget({ source, everything });
   }
 
+  // Where focus goes once the dialog has closed: the trigger after Cancel, the list heading after a
+  // deletion (the row and its button are gone).
+  const focusAfter = useRef<"trigger" | "heading">("trigger");
+
   function cancel() {
+    focusAfter.current = "trigger";
     setTarget(null);
-    trigger.current?.focus();
+  }
+
+  function closed() {
+    if (focusAfter.current === "heading") document.getElementById(headingId)?.focus();
+    else trigger.current?.focus();
   }
 
   function confirm() {
@@ -56,10 +65,10 @@ export function SourcesList({ sources, headingId }: { sources: SourceRow[]; head
           setError(res.error.message);
           return;
         }
+        focusAfter.current = "heading";
         setGone((g) => new Set(g).add(source.id));
         setTarget(null);
         setStatus(everything ? C.everythingDeleted(res.threadsForgotten) : C.sourceDeleted);
-        document.getElementById(headingId)?.focus();
         router.refresh();
       } catch {
         setError(apiError(typeof navigator !== "undefined" && !navigator.onLine ? "offline" : "save_failed").error.message);
@@ -122,6 +131,7 @@ export function SourcesList({ sources, headingId }: { sources: SourceRow[]; head
         error={error}
         onCancel={cancel}
         onConfirm={confirm}
+        onClosed={closed}
       >
         {target ? <p className="text-body-strong text-le-text">{target.source.name}</p> : null}
       </ConfirmDialog>

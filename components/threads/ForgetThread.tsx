@@ -52,7 +52,6 @@ export function ForgetThread({ threadId, hasSource }: { threadId: string; hasSou
 
   function cancel() {
     setDialogOpen(false);
-    triggerRef.current?.focus();
   }
 
   function confirm() {
@@ -126,6 +125,7 @@ export function ForgetThread({ threadId, hasSource }: { threadId: string; hasSou
         error={error}
         onCancel={cancel}
         onConfirm={confirm}
+        onClosed={() => triggerRef.current?.focus()}
       >
         {hasSource ? (
           <label className="flex min-h-11 cursor-pointer items-start gap-3 text-body text-le-text">
