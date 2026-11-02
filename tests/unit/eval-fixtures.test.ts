@@ -93,15 +93,21 @@ const Expected = z.object({ notes: z.string().optional(), items: z.array(Expecte
 
 type Fixture = { name: string; text: string; meta: z.infer<typeof Meta>; expected: z.infer<typeof Expected> };
 
-const names = existsSync(root)
-  ? readdirSync(root, { withFileTypes: true })
-      .filter((d) => d.isDirectory())
-      .map((d) => d.name)
-      .sort()
-  : [];
+// Held-out fixtures (evals/holdout): written by the lead-tester after the prompt was tuned, never
+// used for tuning; run with EVAL_FIXTURES_DIR=evals/holdout. Same per-fixture checks as the main set.
+const holdoutRoot = join(process.cwd(), "evals", "holdout");
+const dirsIn = (dir: string) =>
+  existsSync(dir)
+    ? readdirSync(dir, { withFileTypes: true })
+        .filter((d) => d.isDirectory())
+        .map((d) => d.name)
+        .sort()
+    : [];
+const names = dirsIn(root);
+const holdoutNames = dirsIn(holdoutRoot).map((n) => `holdout/${n}`);
 
 function load(name: string): Fixture {
-  const dir = join(root, name);
+  const dir = name.startsWith("holdout/") ? join(holdoutRoot, name.slice("holdout/".length)) : join(root, name);
   return {
     name,
     text: readFileSync(join(dir, "input.txt"), "utf8"),
@@ -144,7 +150,17 @@ describe("eval fixtures", () => {
     }
   });
 
-  describe.each(names)("%s", (name) => {
+  it("the held-out set has 10 fixtures, at least 5 of them ambiguous, and one with no items", () => {
+    const all = holdoutNames.map(load);
+    expect(all).toHaveLength(10);
+    expect(all.filter((f) => f.meta.ambiguous).length).toBeGreaterThanOrEqual(5);
+    expect(all.some((f) => f.expected.items.length === 0)).toBe(true);
+    // No held-out input repeats a main-set input.
+    const main = new Set(names.map((n) => norm(load(n).text)));
+    for (const f of all) expect(main.has(norm(f.text)), f.name).toBe(false);
+  });
+
+  describe.each([...names, ...holdoutNames])("%s", (name) => {
     const f = load(name);
 
     it("golden quotes are verbatim, non-overlapping, and phrases appear in the source", () => {
@@ -211,7 +227,7 @@ describe("eval fixtures", () => {
 
     it("perfect-model replay through the fake provider and pipeline reproduces every golden value", async () => {
       const response = perfectOutput(f);
-      const recording: Recording = { name: `golden-${name}`, task: "extract", input: f.text, responses: [response] };
+      const recording: Recording = { name: `golden-${name.replace("/", "-")}`, task: "extract", input: f.text, responses: [response] };
       const ctx = {
         referenceDate: f.meta.reference_date,
         referenceDateSource: f.meta.reference_date_source,
@@ -260,7 +276,7 @@ describe("eval fixtures", () => {
       const outDir = process.env.EVAL_RECORDINGS_OUT;
       if (outDir) {
         mkdirSync(outDir, { recursive: true });
-        writeFileSync(join(outDir, `golden-${name}.json`), JSON.stringify(recording, null, 2));
+        writeFileSync(join(outDir, `golden-${name.replace("/", "-")}.json`), JSON.stringify(recording, null, 2));
       }
     });
   });

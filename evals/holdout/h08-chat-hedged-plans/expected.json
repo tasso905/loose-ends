@@ -1,0 +1,46 @@
+{
+  "items": [
+    {
+      "type": "intention",
+      "title": "Coffee with Rosa",
+      "owner": "user",
+      "quote": "we should probably get coffee sometime next month",
+      "date_text": null,
+      "due_date": null,
+      "due_certainty": "none",
+      "certainty": "speculative",
+      "counterparty": "Rosa",
+      "amount_text": null,
+      "band": "low",
+      "note": "Hedged shared plan; 'we' includes the user (as in fixture 01). 'next month' names no day: no date. Intention: no hedge penalty. 0.30 + 0.05 = 0.35, Also noticed."
+    },
+    {
+      "type": "commitment",
+      "title": "Fix Rosa's bike light",
+      "owner": "user",
+      "quote": "maybe I'll finally fix your bike light this weekend",
+      "date_text": "this weekend",
+      "due_date": "2026-10-24",
+      "due_certainty": "inferred",
+      "certainty": "speculative",
+      "counterparty": "Rosa",
+      "amount_text": null,
+      "band": "low",
+      "note": "Hedged offer by the user: 0.30 + 0.05 + 0.05 + 0.05 modal - 0.15 hedge = 0.30, Also noticed (typed intention it is 0.40, still Low). 'this weekend' names a period: from Thu Oct 22 it is Sat Oct 24, inferred."
+    },
+    {
+      "type": "commitment",
+      "title": "Text Rosa the recipe",
+      "owner": "user",
+      "quote": "I'll text you the recipe tonight",
+      "date_text": "tonight",
+      "due_date": "2026-10-22",
+      "due_certainty": "explicit",
+      "certainty": "explicit",
+      "counterparty": "Rosa",
+      "amount_text": null,
+      "band": "high",
+      "note": "Control: 0.80 + 0.05 + 0.05 + 0.05 modal = 0.95, Likely."
+    }
+  ]
+}

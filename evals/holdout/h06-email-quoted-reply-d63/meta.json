@@ -1,0 +1,24 @@
+{
+  "description": "Held-out (not used for prompt tuning). Reply written by the user (Ines) on Fri Oct 23, 2026, London, with the other person's quoted message below. The user's own promise is a commitment; the quoted promises by Callum and his accountant are waiting_on (D63). The UK clocks change on Sun Oct 25; all dates are date-only.",
+  "covers": [
+    "email",
+    "quoted_reply",
+    "commitment_by_user",
+    "d63_waiting_on",
+    "third_party_promise_to_user",
+    "day_month_order",
+    "timezone_europe_london"
+  ],
+  "reference_date": "2026-10-23",
+  "reference_date_source": "user",
+  "timezone": "Europe/London",
+  "source_kind": "paste",
+  "user": {
+    "display_name": "Ines Duarte",
+    "aliases": [
+      "ines.duarte@example.org",
+      "Ines"
+    ]
+  },
+  "ambiguous": false
+}

@@ -1,0 +1,45 @@
+{
+  "items": [
+    {
+      "type": "commitment",
+      "title": "Set up the cashier table",
+      "owner": "unknown",
+      "quote": "I'll set up the cashier table on Thursday.",
+      "date_text": "on Thursday",
+      "due_date": "2026-10-22",
+      "due_certainty": "explicit",
+      "certainty": "explicit",
+      "counterparty": null,
+      "amount_text": null,
+      "band": "medium",
+      "note": "Unknown writer: 0.80 + 0.05 - 0.25 + 0.05 + 0.05 modal = 0.70, Maybe. Owner 'user' is an owner error."
+    },
+    {
+      "type": "request",
+      "title": "Call the publisher about the late box",
+      "owner": "unknown",
+      "quote": "Could you call the publisher about the late box?",
+      "date_text": null,
+      "due_date": null,
+      "due_certainty": "none",
+      "certainty": "explicit",
+      "counterparty": null,
+      "amount_text": null,
+      "band": "medium",
+      "note": "Nobody named as asked: 0.80 + 0.05 - 0.25 = 0.60, Maybe."
+    },
+    {
+      "type": "request",
+      "title": "Sign in at the front desk",
+      "owner": "unknown",
+      "quote": "Volunteers must sign in at the front desk.",
+      "date_text": null,
+      "due_date": null,
+      "due_certainty": "none",
+      "counterparty": null,
+      "amount_text": null,
+      "band": "ignore",
+      "note": "Standing rule, not a loop. Pass if left out or scored Ignore."
+    }
+  ]
+}

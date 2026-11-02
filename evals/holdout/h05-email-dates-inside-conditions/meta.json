@@ -1,0 +1,23 @@
+{
+  "description": "Held-out (not used for prompt tuning). Landlord email to the user (Jordan) written Mon Nov 2, 2026, New York. A weekday inside an if-clause dates the condition, not the promise; a 'once' promise with no date; a plain dated promise as the control. All three are promises to the user (D63 waiting_on).",
+  "covers": [
+    "email",
+    "date_inside_condition",
+    "conditional_promise_by_other",
+    "once_clause",
+    "d63_waiting_on",
+    "explicit_dated_control"
+  ],
+  "reference_date": "2026-11-02",
+  "reference_date_source": "user",
+  "timezone": "America/New_York",
+  "source_kind": "paste",
+  "user": {
+    "display_name": "Jordan Lee",
+    "aliases": [
+      "jordan.lee@example.com",
+      "Jordan"
+    ]
+  },
+  "ambiguous": true
+}
