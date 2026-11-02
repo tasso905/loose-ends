@@ -75,9 +75,19 @@ export function canMarkDone(t: { status: ThreadStatus; kind: ThreadKind }): bool
   return FILTER_STATUSES.active.includes(t.status) && t.kind !== "decision";
 }
 
+/** Whether Resolve… is offered (F11, D6: every Active thread, including decision threads). */
+export function canResolve(t: { status: ThreadStatus }): boolean {
+  return FILTER_STATUSES.active.includes(t.status);
+}
+
 /** History timestamp: "Oct 18, 9:42 AM" in the user's timezone (DESIGN_STANDARD "Dates and numbers"). */
 export function formatHistoryTime(iso: string, timezone: string): string {
   return formatInTimeZone(parseInstant(iso), timezone, "MMM d, h:mm a");
+}
+
+/** "Oct 18, 2026": the date a decision was recorded, in the user's timezone (DESIGN_STANDARD Ask Why answer card). */
+export function formatDecisionDate(iso: string, timezone: string): string {
+  return formatInTimeZone(parseInstant(iso), timezone, "MMM d, yyyy");
 }
 
 /** "Until Fri Oct 9" for snoozed rows: a date, never a time (snooze presets are all 9:00). */
@@ -136,8 +146,6 @@ export const THREADS_COPY = {
   tryAgain: "Try again",
   /** Approved (Oct 21): the Done undo toast message. */
   doneToast: (title: string) => `Marked done: "${title}"`,
-  /** Approved (Oct 21): why Resolve… is disabled until F11 ships. */
-  resolveUnavailable: "Resolving with a decision isn't available yet.",
   /** Approved (Oct 21): page banner when a list or thread fails to load. */
   loadFailed: "I couldn't load your threads.",
   evidence: "Evidence",

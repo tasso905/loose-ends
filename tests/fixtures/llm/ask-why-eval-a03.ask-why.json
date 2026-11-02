@@ -1,0 +1,20 @@
+{
+  "name": "ask-why-eval-a03",
+  "task": "ask_why",
+  "input": "Why did I pick Little Acorns for Mia?",
+  "responses": [
+    {
+      "answer_found": true,
+      "decision_ids": [
+        "d0000000-0000-4000-8000-000000000003"
+      ],
+      "answer_parts": [
+        {
+          "kind": "user_reason",
+          "text": "It is on the way to the train and they have a spot in January.",
+          "ref": "d0000000-0000-4000-8000-000000000003"
+        }
+      ]
+    }
+  ]
+}

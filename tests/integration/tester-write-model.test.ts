@@ -23,14 +23,15 @@ const WRITERS = [
   "start_source_extraction",
   "start_upload_extraction", // S6: writes sources + extractions; checks the caller's own storage folder
   "thread_done",
+  "thread_resolve", // S8 (F11): writes threads, thread_events and decisions
   "thread_undo",
   "undo_reject_proposals",
 ].sort();
 
 /** Read-only public functions `authenticated` may execute (invoker, RLS applies). */
-const READERS = ["extraction_context"];
+const READERS = ["extraction_context", "search_decisions"]; // S9 (F12): invoker, read-only
 
-const TRUST_TABLES = ["extractions", "extraction_items", "evidence", "threads", "thread_events", "suppressions"];
+const TRUST_TABLES = ["extractions", "extraction_items", "evidence", "threads", "thread_events", "suppressions", "decisions"];
 
 let db: PGlite;
 type Fn = { name: string; definer: boolean; config: string[] | null; auth: boolean; anon: boolean; pub: boolean; src: string };
@@ -51,7 +52,7 @@ beforeAll(async () => {
 });
 
 describe("tester: write-model catalog audit", () => {
-  it("the functions authenticated can execute are exactly the 14 writers plus the read-only extraction_context", () => {
+  it("the functions authenticated can execute are exactly the writers plus the read-only readers (extraction_context, search_decisions)", () => {
     expect(fns.filter((f) => f.auth).map((f) => f.name).sort()).toEqual([...WRITERS, ...READERS].sort());
   });
 
@@ -67,10 +68,18 @@ describe("tester: write-model catalog audit", () => {
     expect(f!.src).toMatch(/auth\.uid\(\)/);
   });
 
-  it("extraction_context stays invoker (RLS) with search_path pinned", () => {
-    const f = fns.find((x) => x.name === "extraction_context")!;
+  it.each(READERS)("%s stays invoker (RLS), read-only, with search_path pinned", (name) => {
+    const f = fns.find((x) => x.name === name)!;
+    expect(f, name).toBeDefined();
     expect(f.definer).toBe(false);
     expect(f.config).toEqual(['search_path=""']);
+    expect(f.src).not.toMatch(/\b(insert|update|delete)\b/i);
+  });
+
+  it("search_decisions filters on auth.uid() as well as RLS, and caps the question at 300 characters", () => {
+    const f = fns.find((x) => x.name === "search_decisions")!;
+    expect(f.src).toMatch(/d\.user_id = auth\.uid\(\)/);
+    expect(f.src).toMatch(/left\(coalesce\(p_question, ''\), 300\)/);
   });
 
   it("every SECURITY DEFINER function in public and private pins search_path", async () => {
@@ -91,8 +100,18 @@ describe("tester: write-model catalog audit", () => {
     }
   });
 
-  it("decisions is still directly writable by authenticated (FLAGGED: Resolve not built; see the live RISK pin)", async () => {
-    const { rows } = await db.query<{ ok: boolean }>(`select has_table_privilege('authenticated', 'public.decisions', 'UPDATE') as ok`);
-    expect(rows[0]!.ok).toBe(true);
+  // REGRESSION GUARD (S8, migration 20261022130327): decisions joined the write model. It used to be
+  // FOR ALL (the owner could insert, rewrite or delete a decision). Now: one SELECT-only own-row
+  // policy, and the only writer is thread_resolve (plus thread_undo's delete through its private body).
+  it("decisions: one SELECT-only own-row policy; thread_resolve is the only public function that inserts it", async () => {
+    const { rows } = await db.query<{ polname: string; cmd: string; roles: string[]; qual: string }>(
+      `select polname, polcmd::text as cmd, array(select rolname from pg_roles r where r.oid = any(polroles))::text[] as roles,
+              pg_get_expr(polqual, polrelid) as qual
+       from pg_policy where polrelid = 'public.decisions'::regclass`,
+    );
+    expect(rows.map((r) => [r.polname, r.cmd, r.roles])).toEqual([["decisions_select_own", "r", ["authenticated"]]]);
+    expect(rows[0]!.qual).toMatch(/user_id = \( SELECT auth\.uid\(\)/);
+    const inserters = fns.filter((f) => f.auth && /insert\s+into\s+public\.decisions/i.test(f.src)).map((f) => f.name);
+    expect(inserters).toEqual(["thread_resolve"]);
   });
 });

@@ -78,6 +78,9 @@ const Item = z.object({
 
 const Extraction = z.object({ brief: z.unknown().nullable(), source_id: z.uuid() });
 
+/** F11: the decision a resolution as Decided wrote (verbatim choice and reason, rule 5). */
+const Decision = z.object({ id: z.uuid(), choice: z.string(), reason_user: z.string().nullable(), decided_at: z.string() });
+
 const Source = z.object({ id: z.uuid(), title: z.string().nullable(), kind: z.string(), reference_date: z.string() });
 
 export interface ThreadDetail {
@@ -92,6 +95,8 @@ export interface ThreadDetail {
   brief: { brief: unknown; sourceId: string } | null;
   /** F7 "Not sure about" lines for this thread, from the stored proposal (lib/threads/explain.ts). */
   notSure: string[];
+  /** F11: the latest decision, shown while the thread is resolved as Decided (null: none). */
+  decision: z.infer<typeof Decision> | null;
 }
 
 export type DetailResult = { ok: true; detail: ThreadDetail } | { ok: false; reason: "not_found" | "failed" };
@@ -107,12 +112,15 @@ export async function getThreadDetail(client: SupabaseClient, id: string): Promi
   const thread = Detail.safeParse(t.data);
   if (!thread.success) return fail("thread_parse");
 
-  const [ev, events, items] = await Promise.all([
+  const [ev, events, items, dec] = await Promise.all([
     client.from("evidence").select("id, quote, page, source_id, extraction_item_id").eq("thread_id", id).order("id"),
     client.from("thread_events").select("id, type, actor, before, after, created_at").eq("thread_id", id).order("id"),
     client.from("extraction_items").select("band, extraction_id, payload").eq("thread_id", id).limit(1),
+    client.from("decisions").select("id, choice, reason_user, decided_at").eq("thread_id", id).order("decided_at", { ascending: false }).limit(1),
   ]);
-  if (ev.error || events.error || items.error) return fail("related");
+  if (ev.error || events.error || items.error || dec.error) return fail("related");
+  const decision = z.array(Decision).safeParse(dec.data);
+  if (!decision.success) return fail("related_parse");
   const evidence = z.array(Evidence).safeParse(ev.data);
   const history = z.array(Event).safeParse(events.data);
   if (!evidence.success || !history.success) return fail("related_parse");
@@ -149,6 +157,7 @@ export async function getThreadDetail(client: SupabaseClient, id: string): Promi
       sources,
       brief,
       notSure: threadNotSure(origin?.success ? origin.data : null, thread.data),
+      decision: thread.data.resolution === "decided" ? (decision.data[0] ?? null) : null,
     },
   };
 }
