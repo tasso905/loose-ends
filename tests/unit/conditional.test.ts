@@ -113,6 +113,22 @@ describe("scoreItem(): the cap", () => {
     expect(r.band).toBe("high");
   });
 
+  // Tester's must-not-cap cases (Nov 2): non-promise types whose quotes carry trigger words. The
+  // guard is restricted to commitment, waiting_on and intention, so these keep their band.
+  // h02 quotes are written from the coordinator's excerpts, not from the holdout goldens.
+  it.each([
+    ["13 g1", "request", "Can you restart the backup job Sunday at 2:30am once the upgrade finishes?"],
+    ["15 g1", "decision", "If you would like Leo to have his photo retaken, please return the order form by Oct 30."],
+    ["22 g0", "deadline", "If you wish to renew, please sign and return the enclosed renewal agreement no later than December 1, 2026."],
+    ["39 g1", "decision", "If you want to keep your FSA, you must re-enroll by Friday, November 13."],
+    ["h02 g0", "request", "if you get a chance could you send me the slides by Thursday?"],
+    ["h02 g1", "request", "It would be lovely if you could bring the folding table on Saturday."],
+  ] as const)("%s (%s) is never capped", (_id, type, quote) => {
+    const r = score(quote, { type });
+    expect(r.signals).not.toContain("conditional");
+    expect(r.band).toBe("high");
+  });
+
   it("a request with a trailing step stays High (golden 13 g1)", () => {
     const r = score("Can you restart the backup job Sunday at 2:30am once the upgrade finishes?", { type: "request" });
     expect(r.band).toBe("high");

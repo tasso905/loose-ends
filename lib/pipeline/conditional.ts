@@ -15,9 +15,9 @@
  *  - idioms: "as soon as possible", "once a week", "once again", "at once", "even if", "as if".
  *  - a trailing "once" / "as soon as" step on a promise that has its own date ("I'll send the files
  *    by Tuesday, once I've cleaned them up"): the date is the commitment and the clause only orders
- *    the work. Goldens 10 g0 and 12 g1 are explicit, dated, High; capping them would breach the
- *    zero-tolerance "explicit dated commitment scored Low" gate. A leading "once" or any "if" still
- *    caps.
+ *    the work: a self-controlled step on a firm, dated promise is not a condition on something that
+ *    may not happen (confirmed by the coordinator, Nov 2; goldens 10 g0 and 12 g1 are explicit,
+ *    dated, High). A leading "once" or any "if" still caps.
  *
  * Content-free: returns only which kind of clause was found, never text.
  */
