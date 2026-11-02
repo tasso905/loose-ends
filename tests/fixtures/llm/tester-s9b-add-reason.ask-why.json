@@ -1,0 +1,12 @@
+{
+  "name": "tester-s9b-add-reason",
+  "task": "ask_why",
+  "input": "Why did I sell the old canoe?",
+  "responses": [
+    {
+      "answer_found": true,
+      "decision_ids": ["7e57a9a0-0000-4000-8000-000000000010"],
+      "answer_parts": []
+    }
+  ]
+}

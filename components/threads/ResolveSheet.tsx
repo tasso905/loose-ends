@@ -36,6 +36,7 @@ export function ResolveSheet({
   open,
   onClose,
   onResolved,
+  surface = "detail",
 }: {
   threadId: string;
   status: ThreadStatus;
@@ -43,6 +44,8 @@ export function ResolveSheet({
   open: boolean;
   onClose: () => void;
   onResolved: (r: Resolved) => void;
+  /** Analytics only: where the sheet was opened. */
+  surface?: "today" | "detail";
 }) {
   const router = useRouter();
   const ids = useId();
@@ -71,18 +74,22 @@ export function ResolveSheet({
     const d = dialogRef.current;
     if (!d) return;
     if (open && !d.open) {
-      setResolution(initial);
-      setChoice("");
-      setReason("");
-      setChoiceError(null);
-      setReasonError(null);
-      setError(null);
+      // The form was reset when the sheet last closed, so it opens on fresh state with no stale frame.
       d.showModal();
       // The selected card, or the decision field when Decided is preselected (decision threads).
       if (initial === "decided") choiceRef.current?.focus();
       else d.querySelector<HTMLInputElement>("input[type=radio]:checked")?.focus();
     } else if (!open && d.open) {
       d.close();
+      // Reset on close, not on the next open: resetting on open rendered one frame of the previous
+      // state (e.g. Decided with a field error) in the open dialog, and a click on a radio that was
+      // already checked in that frame fired no change, so the sheet fell back to the initial choice.
+      setResolution(initial);
+      setChoice("");
+      setReason("");
+      setChoiceError(null);
+      setReasonError(null);
+      setError(null);
     }
     // `initial` depends only on the thread kind, which does not change while the page is open.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -115,7 +122,7 @@ export function ResolveSheet({
     const actionAt = performance.now();
     startTransition(async () => {
       try {
-        const res = await resolveAction(input);
+        const res = await resolveAction(input, surface);
         if (!res.ok) {
           if (res.field === "choice") {
             setChoiceError(res.error.message);

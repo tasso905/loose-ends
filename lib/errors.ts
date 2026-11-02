@@ -108,7 +108,7 @@ const INVALID_INPUT_COPY: Record<InputField, string> = {
   text: "Paste some text first.",
   title: "Titles can be up to 120 characters.",
   written_on: "Enter a real date between 1900 and 2100.",
-  /** PROPOSED (S9; not in the docs). The Ask button is disabled while the box is empty, so this is a fallback. */
+  /** APPROVED (S9; user, Oct 22; D57; not in the docs yet). The Ask button is disabled while the box is empty, so this is a fallback. */
   question: "Write a question first.",
 };
 
