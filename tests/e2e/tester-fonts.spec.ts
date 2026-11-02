@@ -179,3 +179,124 @@ test("Thread detail: evidence quote in Plex Serif, rest in Plex Sans", async () 
   const m = await check("thread");
   expect(m.serifTags).toEqual(["BLOCKQUOTE:I'll send you the revised proposal Friday"]);
 });
+
+// ---- Glyph coverage, preload and CSP (tester regression on the latin-only first cut) -------------
+
+const GLYPHS = {
+  latin1: "Renée, café, Zoë — “quoted” … 5–6",
+  latinExt: "Łukasz Dvořák, Şükrü, Ștefan, Ő",
+  vietnamese: "Nguyễn Thị Hương",
+  cyrillic: "Привет, Дмитрий",
+  greek: "Γειά σου Νίκο",
+} as const;
+
+/** Platform fonts Chromium used for each sample, per CSS stack and weight (CDP CSS.getPlatformFontsForNode). */
+async function renderedFonts(p: Page) {
+  await p.evaluate((g) => {
+    const box = document.createElement("div");
+    box.id = "tester-glyphs";
+    for (const [voice, stack, weight] of [
+      ["sans400", "var(--le-font-sans)", "400"],
+      ["sans600", "var(--le-font-sans)", "600"],
+      ["serif400", "var(--le-font-serif)", "400"],
+    ]) {
+      for (const [k, s] of Object.entries(g)) {
+        const el = document.createElement("p");
+        el.id = `g-${voice}-${k}`;
+        el.style.fontFamily = stack!;
+        el.style.fontWeight = weight!;
+        el.textContent = s;
+        box.appendChild(el);
+      }
+    }
+    document.body.appendChild(box);
+  }, GLYPHS);
+  await p.evaluate(async () => {
+    await document.fonts.ready;
+    // Subset files load on first use; wait for every face the samples triggered.
+    await Promise.all([...document.fonts].filter((f) => f.status === "loading").map((f) => f.loaded.catch(() => null)));
+  });
+  const cdp = await p.context().newCDPSession(p);
+  await cdp.send("DOM.enable");
+  await cdp.send("CSS.enable");
+  const { root } = await cdp.send("DOM.getDocument");
+  const out: Record<string, string[]> = {};
+  for (const voice of ["sans400", "sans600", "serif400"]) {
+    for (const k of Object.keys(GLYPHS)) {
+      const { nodeId } = await cdp.send("DOM.querySelector", { nodeId: root.nodeId, selector: `#g-${voice}-${k}` });
+      const { fonts } = await cdp.send("CSS.getPlatformFontsForNode", { nodeId });
+      out[`${voice}:${k}`] = fonts.map((f) => `${f.familyName}${f.isCustomFont ? "(web)" : ""}:${f.glyphCount}`);
+    }
+  }
+  await cdp.detach();
+  return out;
+}
+
+test("glyph coverage: latin-ext, Vietnamese, Cyrillic and Greek render in Plex Sans (400 and 600) and Plex Serif (no Greek in Serif)", async ({ browser }) => {
+  const ctx = await browser.newContext();
+  const p = await ctx.newPage();
+  await p.goto("/sign-in");
+  const fonts = await renderedFonts(p);
+  if (OUT) writeFileSync(join(OUT, "glyphs.json"), JSON.stringify(fonts, null, 2));
+  for (const [key, list] of Object.entries(fonts)) {
+    const [voice, sample] = key.split(":");
+    // Static files report their weight in the platform name ("IBM Plex Sans SemiBold").
+    const face = voice!.startsWith("serif") ? /^IBM Plex Serif( (Medium|SemiBold))?\(web\)/ : /^IBM Plex Sans( (Medium|SemiBold))?\(web\)/;
+    if (voice === "serif400" && sample === "greek") {
+      // IBM Plex Serif has no Greek (as with next/font/google): Greek letters fall back; spaces stay Plex.
+      expect(list.some((f) => !face.test(f)), key).toBe(true);
+      continue;
+    }
+    expect(list.filter((f) => !face.test(f)), `${key}: ${list.join(", ")}`).toEqual([]);
+  }
+  await ctx.close();
+});
+
+test("preload: only latin Plex Sans files are preloaded; non-latin subsets download only when a page uses them", async ({ browser }) => {
+  const ctx = await browser.newContext();
+  const p = await ctx.newPage();
+  const woff: string[] = [];
+  p.on("request", (r) => {
+    if (r.url().endsWith(".woff2")) woff.push(r.url());
+  });
+  const res = await p.goto("/sign-in");
+  const link = (await res!.allHeaders())["link"] ?? "";
+  const preloads = [...link.matchAll(/<([^>]+\.woff2)>;\s*rel=preload/g)].map((m) => m[1]!);
+  const htmlPreloads = await p.locator('link[rel="preload"][as="font"]').evaluateAll((ls) => ls.map((l) => (l as HTMLLinkElement).href));
+  const all = [...new Set([...preloads, ...htmlPreloads].map((u) => new URL(u, p.url()).pathname))];
+  if (OUT) writeFileSync(join(OUT, "preloads.json"), JSON.stringify({ all, woff }, null, 2));
+  expect(all.length).toBeGreaterThan(0);
+  expect(all.filter((u) => /latin-ext|cyrillic|greek|vietnamese|serif/i.test(u))).toEqual([]);
+  await p.evaluate(() => document.fonts.ready);
+  // A latin-only page fetches no non-latin subset.
+  expect(woff.filter((u) => /latin-ext|cyrillic|greek|vietnamese/i.test(u))).toEqual([]);
+  // Typing Cyrillic on the page pulls in the Cyrillic file on demand.
+  await p.evaluate(() => {
+    const el = document.createElement("p");
+    el.style.fontFamily = "var(--le-font-sans)";
+    el.textContent = "Привет";
+    document.body.appendChild(el);
+  });
+  await expect.poll(() => woff.some((u) => /cyrillic/i.test(u) && !/cyrillic-ext/i.test(u))).toBe(true);
+  await ctx.close();
+});
+
+test("CSP: under a strict style-src (no inline styles) latin text still renders in Plex Sans; the page works", async ({ browser }) => {
+  const ctx = await browser.newContext();
+  const p = await ctx.newPage();
+  const violations: string[] = [];
+  p.on("console", (m) => {
+    if (/Content Security Policy/i.test(m.text())) violations.push(m.text());
+  });
+  await p.route("**/sign-in", async (route) => {
+    const r = await route.fetch();
+    await route.fulfill({ response: r, headers: { ...r.headers(), "content-security-policy": "style-src 'self'" } });
+  });
+  await p.goto("/sign-in");
+  await expect(p.getByRole("button", { name: "Email me a sign-in link" })).toBeVisible();
+  const fonts = await renderedFonts(p);
+  if (OUT) writeFileSync(join(OUT, "csp.json"), JSON.stringify({ violations, fonts }, null, 2));
+  expect(fonts["sans400:latin1"]!.every((f) => /^IBM Plex Sans\(web\)/.test(f))).toBe(true);
+  expect(fonts["serif400:latin1"]!.every((f) => /^IBM Plex Serif\(web\)/.test(f))).toBe(true);
+  await ctx.close();
+});
