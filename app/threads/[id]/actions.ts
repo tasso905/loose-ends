@@ -8,6 +8,9 @@ import { createClient } from "@/lib/supabase/server";
 import { RESOLVE_COPY, ResolveInput as ResolveInputSchema, type ResolveInput } from "@/lib/threads/resolve";
 import { markDone, resolveThread, undoEvent } from "@/lib/threads/service";
 import { isBlankText } from "@/lib/threads/transition";
+import { userTimezone } from "@/lib/threads/read";
+import type { WhyView } from "@/lib/threads/why";
+import { loadWhy } from "@/lib/threads/whyRead";
 import { getNow } from "@/lib/time";
 
 /**
@@ -23,6 +26,9 @@ export type UndoActionResult = { ok: true } | { ok: false; error: ApiError["erro
 
 const DoneInput = z.object({ threadId: z.uuid(), fromStatus: ThreadStatus });
 const UndoInput = z.object({ threadId: z.uuid(), eventId: z.number().int().positive() });
+/** Where an action was taken (analytics only): Today rows or Thread detail. */
+const Surface = z.enum(["today", "detail"]).catch("detail");
+type Surface = "today" | "detail";
 
 async function context() {
   const supabase = await createClient();
@@ -30,7 +36,7 @@ async function context() {
   return data.user ? { userId: data.user.id, db: rpcDb(supabase) } : null;
 }
 
-export async function markDoneAction(threadId: string, fromStatus: string): Promise<DoneActionResult> {
+export async function markDoneAction(threadId: string, fromStatus: string, surface: Surface = "detail"): Promise<DoneActionResult> {
   const input = DoneInput.safeParse({ threadId, fromStatus });
   if (!input.success) return { ok: false, error: apiError("not_found").error };
   const ctx = await context();
@@ -42,7 +48,7 @@ export async function markDoneAction(threadId: string, fromStatus: string): Prom
     action: "done",
     from_status: res.from_status,
     to_status: res.to_status,
-    surface: "detail",
+    surface: Surface.parse(surface),
   });
   return { ok: true, eventId: res.event_id };
 }
@@ -68,7 +74,7 @@ export type ResolveActionResult =
  * The decision and reason are passed exactly as typed (rule 5); a reason left empty is Skip. Undo
  * goes through undoAction above (D44; the toast closes at 11 s, the server window is 12 s, D51).
  */
-export async function resolveAction(input: ResolveInput): Promise<ResolveActionResult> {
+export async function resolveAction(input: ResolveInput, surface: Surface = "detail"): Promise<ResolveActionResult> {
   const parsed = ResolveInputSchema.safeParse(input);
   if (!parsed.success) {
     // Field errors are never retryable: resending the same text can't succeed.
@@ -89,8 +95,27 @@ export async function resolveAction(input: ResolveInput): Promise<ResolveActionR
     action: "resolve",
     from_status: res.from_status,
     to_status: res.to_status,
-    surface: "detail",
+    surface: Surface.parse(surface),
   });
   track(ctx.userId, "resolve_saved", { resolution: res.resolution, reason_given: decision !== null && decision.reason !== null });
   return { ok: true, eventId: res.event_id, resolution: res.resolution };
+}
+
+export type WhyActionResult = { ok: true; view: WhyView } | { ok: false; error: ApiError["error"] };
+
+/**
+ * F8 Why panel (SITE_CONTRACT §2.8): reads stored fields and fills fixed templates (lib/threads/why.ts).
+ * No model is called (rule 6). Another user's thread reads as not found (RLS).
+ */
+export async function whyAction(threadId: string, surface: Surface = "detail"): Promise<WhyActionResult> {
+  const id = z.uuid().safeParse(threadId);
+  if (!id.success) return { ok: false, error: apiError("not_found").error };
+  const supabase = await createClient();
+  const { data } = await supabase.auth.getUser();
+  if (!data.user) return { ok: false, error: apiError("unauthenticated").error };
+  const timezone = await userTimezone(supabase, data.user.id);
+  const res = await loadWhy(supabase, id.data, timezone, getNow());
+  if (!res.ok) return { ok: false, error: apiError(res.reason === "not_found" ? "not_found" : "save_failed").error };
+  track(data.user.id, "why_opened", { thread_id: id.data, surface: Surface.parse(surface) });
+  return { ok: true, view: res.view };
 }

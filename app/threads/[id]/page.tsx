@@ -1,14 +1,16 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { PenLine, Quote } from "lucide-react";
+import { Quote } from "lucide-react";
 import { z } from "zod";
 import { AppHeader } from "@/components/AppHeader";
 import { ErrorBanner } from "@/components/Notice";
 import { EXPLAIN_COPY, ExplainBrief, NotSureList, parseBrief } from "@/components/review/ExplainBrief";
 import { ConfidenceLabel } from "@/components/review/ReviewTray";
+import { DecisionReason } from "@/components/threads/DecisionReason";
 import { ThreadActions } from "@/components/threads/ThreadActions";
 import { DueChip, StatusChip } from "@/components/threads/ThreadBits";
+import { WhyLink } from "@/components/threads/WhySheet";
 import { buttonVariants } from "@/components/ui/button";
 import { requireUser } from "@/lib/auth/session";
 import { DECISIONS_COPY } from "@/lib/decisions/copy";
@@ -35,13 +37,16 @@ export async function generateMetadata({ params }: { params: Params }): Promise<
 /**
  * /threads/[id] (SITE_CONTRACT §2.7, CONTENT_MODEL §6): header, Done and Resolve… (F11; `?sheet=resolve`
  * opens the sheet), the decision when resolved as Decided, Explain card (F7), evidence and
- * append-only history. The Why panel, Source viewer link and the other actions arrive with F8 and
- * F9's remaining actions.
+ * append-only history, and the F8 `Why?` link (`?panel=why` opens the Why panel). The Source viewer
+ * link and F9's remaining actions arrive later.
  * Unknown and other users' ids render the not-found page (RLS; never reveals existence).
  */
 export default async function ThreadPage({ params, searchParams }: { params: Params; searchParams: SearchParams }) {
   const { id } = await params;
-  const openResolve = (await searchParams).sheet === "resolve";
+  const sp = await searchParams;
+  const openResolve = sp.sheet === "resolve";
+  // `?panel=why` opens the Why panel (SITE_CONTRACT §1.2); Resolve wins if both are set.
+  const openWhy = sp.panel === "why" && !openResolve;
   const user = await requireUser(`/threads/${encodeURIComponent(id)}`);
   if (!isUuid(id)) notFound();
 
@@ -54,7 +59,7 @@ export default async function ThreadPage({ params, searchParams }: { params: Par
       <AppHeader current={null} />
       <main className="mx-auto w-full max-w-column px-4 pt-6 pb-24 sm:px-6 lg:px-8">
         {res.ok ? (
-          <Thread detail={res.detail} timezone={timezone} openResolve={openResolve} />
+          <Thread detail={res.detail} timezone={timezone} openResolve={openResolve} openWhy={openWhy} />
         ) : (
           <ErrorBanner
             action={
@@ -71,7 +76,7 @@ export default async function ThreadPage({ params, searchParams }: { params: Par
   );
 }
 
-function Thread({ detail, timezone, openResolve }: { detail: ThreadDetail; timezone: string; openResolve: boolean }) {
+function Thread({ detail, timezone, openResolve, openWhy }: { detail: ThreadDetail; timezone: string; openResolve: boolean; openWhy: boolean }) {
   const { thread: t, evidence, events, origin, sources, brief, notSure, decision } = detail;
   const now = getNow();
 
@@ -96,6 +101,9 @@ function Thread({ detail, timezone, openResolve }: { detail: ThreadDetail; timez
           <ConfidenceLabel band={origin.band} label={origin.label} />
         </div>
       ) : null}
+      <div className="mt-2">
+        <WhyLink threadId={t.id} surface="detail" autoOpen={openWhy} />
+      </div>
 
       {t.next_action ? (
         <section aria-labelledby="next-action" className="mt-6">
@@ -225,15 +233,7 @@ function DecisionBlock({ decision, title, timezone }: { decision: NonNullable<Th
         {RESOLVE_COPY.youDecided} · {date}
       </p>
       <p className="mt-1 text-body-strong whitespace-pre-wrap text-le-text">{decision.choice}</p>
-      {decision.reason_user !== null ? (
-        <figure className="mt-4 border-l-2 border-le-border-strong pl-4">
-          <figcaption className="flex items-center gap-1 text-label text-le-text-secondary">
-            <PenLine aria-hidden strokeWidth={1.75} className="size-3.5" />
-            {RESOLVE_COPY.youWrote} · {date}
-          </figcaption>
-          <blockquote className="mt-1 text-body whitespace-pre-wrap text-le-text">{decision.reason_user}</blockquote>
-        </figure>
-      ) : null}
+      <DecisionReason decisionId={decision.id} reason={decision.reason_user} date={date} />
       {/* SITE_CONTRACT §3.1: thread detail links a decision to Ask Why, prefilled with the title. */}
       <Link
         href={`/decisions?q=${encodeURIComponent(title)}`}

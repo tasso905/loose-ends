@@ -71,9 +71,9 @@ test("paste → accept → View in Today lists the thread and links to its detai
   await page.getByRole("link", { name: "View in Today" }).click();
   await expect(page).toHaveURL(/\/today$/);
   await expect(page.getByRole("navigation", { name: "Primary" }).getByRole("link", { name: "Today" })).toHaveAttribute("aria-current", "page");
-  // Interim Today: a plain list, no ranking or count claims.
-  await expect(page.getByText(/worth your attention/i)).toHaveCount(0);
-  const link = page.getByRole("list", { name: "Active threads" }).getByRole("link", { name: new RegExp(TITLE) });
+  // F10 Today: "Friday" (Oct 9) is overdue by the real clock, so the thread is worth attention.
+  await expect(page.getByTestId("count-line")).toHaveText("1 thing is worth your attention");
+  const link = page.getByTestId("attention-row").getByRole("link", { name: TITLE, exact: true });
   await expect(link).toBeVisible();
   await expectNoViolations();
 

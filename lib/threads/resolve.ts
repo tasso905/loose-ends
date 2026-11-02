@@ -17,7 +17,7 @@ import { charCount, DECISION_CHOICE_MAX, DECISION_REASON_MAX, isBlankText } from
  *   - Save with Decided and an empty decision: `Write what you decided, or choose another option.`
  *   - limits: a decision up to 300 characters, a reason up to 2,000 (enforced by maxLength)
  *
- * PROPOSED copy (not in the docs; needs the user's approval). Shown only to a request that gets
+ * APPROVED copy (user, Oct 22; D57; not in the docs yet). Shown only to a request that gets
  * past maxLength (a forged one), so a normal user never sees them:
  *   - `Decisions can be up to 300 characters.`
  *   - `Reasons can be up to 2,000 characters.`
@@ -34,9 +34,9 @@ export const RESOLVE_COPY = {
   cancel: "Cancel",
   /** APPROVED (D56). */
   choiceRequired: "Write what you decided, or choose another option.",
-  /** PROPOSED. */
+  /** APPROVED (D57). */
   choiceTooLong: "Decisions can be up to 300 characters.",
-  /** PROPOSED. */
+  /** APPROVED (D57). */
   reasonTooLong: "Reasons can be up to 2,000 characters.",
   /** APPROVED (D56). */
   resolvedToast: (title: string) => `Resolved: "${title}"`,
