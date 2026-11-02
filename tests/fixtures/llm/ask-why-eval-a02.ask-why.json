@@ -1,0 +1,25 @@
+{
+  "name": "ask-why-eval-a02",
+  "task": "ask_why",
+  "input": "Why did we renew the apartment lease?",
+  "responses": [
+    {
+      "answer_found": true,
+      "decision_ids": [
+        "d0000000-0000-4000-8000-000000000002"
+      ],
+      "answer_parts": [
+        {
+          "kind": "user_reason",
+          "text": "Moving would cost more than the $75 rent increase, and the commute is short.",
+          "ref": "d0000000-0000-4000-8000-000000000002"
+        },
+        {
+          "kind": "source_fact",
+          "text": "New monthly rent $1,875 from February 1, 2027",
+          "ref": "e0000000-0000-4000-8000-000000000021"
+        }
+      ]
+    }
+  ]
+}
