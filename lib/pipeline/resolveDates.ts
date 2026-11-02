@@ -203,7 +203,29 @@ function wholePhrase(text: string, results: chrono.ParsedResult[]): { day: chron
 /** chrono's reading, null when there is none, or a refusal with its own "Not sure about" line. */
 type ChronoReading = Wall | { refused: string } | null;
 
-function chronoResolve(text: string, ctx: DateContext): ChronoReading {
+/** A day word that can own a possessive: "Saturday's", "tomorrow's", "next week's", "Oct's". */
+const POSSESSIVE_DATE = new RegExp(
+  `\\b((?:mon|tues|wednes|thurs|fri|satur|sun)day|today|tonight|tomorrow|yesterday|week|weekend|month|year|` +
+    `jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|june?|july?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)['’]s\\b`,
+  "iu",
+);
+/** Words that may lead a possessive date phrase ("to Saturday's party", "for tomorrow's call"). */
+const POSSESSIVE_LEAD = /^\s*(?:(?:to|for|at|on|by|before|until|till|in|from|during|after)\s+)+/iu;
+
+/**
+ * "Saturday's movie night", "to tomorrow's call", "next week's review": the date is the possessive's
+ * owner and what follows names the event on that day. Returns the date part ("Saturday", "next
+ * week"), or null when the phrase has no possessive date. A possessive day is the same claim as
+ * the day itself, so it resolves the same way (eval gate holdout, Nov 2).
+ */
+export function possessiveDatePhrase(text: string): string | null {
+  const m = POSSESSIVE_DATE.exec(text);
+  if (!m) return null;
+  return text.slice(0, m.index + m[1]!.length).replace(POSSESSIVE_LEAD, "").trim();
+}
+
+function chronoResolve(fullText: string, ctx: DateContext, possessive = false): ChronoReading {
+  const text = possessive ? (possessiveDatePhrase(fullText) ?? fullText) : fullText;
   const refInstant = fromZonedTime(`${ctx.referenceDate}T12:00:00`, ctx.timezone);
   const offsetMin = getTimezoneOffset(ctx.timezone, refInstant) / 60_000;
   const ref = { instant: refInstant, timezone: offsetMin };
@@ -295,7 +317,7 @@ function chronoResolve(text: string, ctx: DateContext): ChronoReading {
     if (actual !== weekday) {
       const refYear = Number(ctx.referenceDate.slice(0, 4));
       const day = formatDay(date, refYear).replace(/^\w+ /, "");
-      return { refused: `"${text}" says ${WEEKDAY_NAMES[weekday]}, but ${day} is a ${WEEKDAY_NAMES[actual]}, so I didn't set a date.` };
+      return { refused: `"${fullText}" says ${WEEKDAY_NAMES[weekday]}, but ${day} is a ${WEEKDAY_NAMES[actual]}, so I didn't set a date.` };
     }
   }
   return { date: nightDay(date), time, meridiemGuessed: guessed };
@@ -400,7 +422,9 @@ export function resolveDate(input: DateInput, ctx: DateContext): ResolvedDate {
     return { ...NONE, agreement: input.date_iso ? "unanchored" : "none", not_sure: [] };
   }
 
-  const reading = chronoResolve(text, ctx);
+  // A possessive date ("Saturday's movie night") is read only when the phrase as written is not a
+  // date, so no phrase that resolves today changes.
+  const reading = chronoResolve(text, ctx) ?? (possessiveDatePhrase(text) ? chronoResolve(text, ctx, true) : null);
   const fromModel = input.date_iso ? modelWall(input.date_iso, ctx.timezone) : null;
 
   if (!reading || "refused" in reading) {
