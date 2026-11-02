@@ -274,7 +274,7 @@ describe("eval fixtures", () => {
     // F19 zero-tolerance gates hold for the goldens themselves.
     const items = all.flatMap((f) => f.expected.items);
     expect(items.filter((e) => e.certainty === "speculative" && e.band === "high")).toEqual([]);
-    expect(items.filter((e) => e.type === "commitment" && e.certainty === "explicit" && e.due_date !== null && (e.band === "low" || e.band === "ignore"))).toEqual([]);
+    expect(items.filter((e) => (e.type === "commitment" || e.type === "waiting_on") && e.certainty === "explicit" && e.due_date !== null && (e.band === "low" || e.band === "ignore"))).toEqual([]);
     // PRD fixture mix and the gap list (quick add, uploads with page breaks).
     expect(all.some((f) => f.meta.source_kind === "quick_add")).toBe(true);
     expect(all.filter((f) => f.meta.page_offsets && f.meta.page_offsets.length > 1).length).toBeGreaterThanOrEqual(1);

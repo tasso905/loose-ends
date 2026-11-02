@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { APICallError } from "ai";
 import { MockLanguageModelV4 } from "ai/test";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { EvalRpmError, evalRpm, failedGates, MIN_QUOTE_COVERAGE, quoteHash, quoteMatch, renderScorecard, runEval, type EvalReport } from "@/evals/harness";
+import { EvalRpmError, evalRpm, explicitDatedScoredLow, failedGates, MIN_QUOTE_COVERAGE, quoteHash, quoteMatch, renderScorecard, runEval, type EvalReport } from "@/evals/harness";
 import { askWhy, type RetrievedDecision } from "@/lib/ai/askWhy";
 import { classifyAiError, safeErrorName } from "@/lib/ai/errors";
 import { extract } from "@/lib/ai/extract";
@@ -210,6 +210,46 @@ describe("runner gaps", () => {
     const r = await run(recorded({ [TEXT]: [item(Q.invoice, { date_text: "on Friday", date_iso: "2026-10-09", certainty: "speculative" }), item(Q.gate, { owner: "other" })] }));
     expect(r.scores.explicit_dated_scored_low).toBe(1);
     expect(failedGates(r.fixtures, r.scores)).toContain("explicit_dated_scored_low");
+  });
+
+  it("F19 (user decision Nov 2): an explicit dated waiting_on scored Low also counts; an undated one does not", async () => {
+    const T = `Synthetic ${MARK}. Ravi will fix the gate on Friday. Ravi will oil the hinge.`;
+    const dated: Golden = { type: "waiting_on", owner: "other", quote: "Ravi will fix the gate on Friday.", due_date: "2026-10-09", band: "high", due_certainty: "explicit", certainty: "explicit" };
+    const undated: Golden = { type: "waiting_on", owner: "other", quote: "Ravi will oil the hinge.", due_date: null, band: "high", due_certainty: "none", certainty: "explicit" };
+    fixture("a", [dated, undated], { text: T, ambiguous: false });
+    const low = { type: "waiting_on" as const, owner: "other" as const, certainty: "speculative" as const };
+    const r = await run(recorded({ [T]: [item(dated.quote, { ...low, date_text: "on Friday", date_iso: "2026-10-09" }), item(undated.quote, low)] }));
+    expect(r.scores.explicit_dated_scored_low).toBe(1);
+    expect(failedGates(r.fixtures, r.scores)).toContain("explicit_dated_scored_low");
+  });
+
+  describe("D64(a)+(c): the gate judges the pipeline's final certainty, not the model's label", () => {
+    const g = { type: "waiting_on", certainty: "explicit" as const, due_date: "2026-10-26" };
+    it("an explicit, dated promise capped by the conditional guard (signal 'conditional') and scored Low does not trip the gate", () => {
+      expect(explicitDatedScoredLow(g, { band: "low", signals: ["exact_quote", "date_agrees", "conditional"] as never })).toBe(false);
+    });
+    it("the same promise scored Low without the guard's cap does trip it (the model labelled a plain promise speculative)", () => {
+      expect(explicitDatedScoredLow(g, { band: "low", signals: ["exact_quote", "date_agrees"] })).toBe(true);
+      expect(explicitDatedScoredLow(g, { band: "ignore", signals: [] })).toBe(true);
+    });
+    it("Medium or High, undated, speculative goldens and other types never trip it", () => {
+      expect(explicitDatedScoredLow(g, { band: "medium", signals: [] })).toBe(false);
+      expect(explicitDatedScoredLow({ ...g, due_date: null }, { band: "low", signals: [] })).toBe(false);
+      expect(explicitDatedScoredLow({ ...g, certainty: "speculative" }, { band: "low", signals: [] })).toBe(false);
+      expect(explicitDatedScoredLow({ ...g, type: "request" }, { band: "low", signals: [] })).toBe(false);
+      expect(explicitDatedScoredLow(g, undefined)).toBe(false);
+    });
+
+    // End to end through the real pipeline. Before the guard lands, the model's 'explicit' gives High
+    // (no trip); with the guard, the quote is capped to Low with signal 'conditional' (still no trip).
+    it("the held-out venue example labelled explicit by golden and model never trips the gate", async () => {
+      const T = `Synthetic ${MARK}. if the venue confirms by Friday, I'll send out the invites on Monday`;
+      const quote = "if the venue confirms by Friday, I'll send out the invites on Monday";
+      const golden: Golden = { type: "waiting_on", owner: "other", quote, due_date: "2026-10-12", band: "low", due_certainty: "explicit", certainty: "explicit" };
+      fixture("a", [golden], { text: T, ambiguous: true });
+      const r = await run(recorded({ [T]: [item(quote, { type: "waiting_on", owner: "other", date_text: "on Monday", date_iso: "2026-10-12" })] }));
+      expect(r.scores.explicit_dated_scored_low).toBe(0);
+    });
   });
 
   it("F19: gated band accuracy covers ambiguous fixtures only; band_all covers every fixture", async () => {
