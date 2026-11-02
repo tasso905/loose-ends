@@ -18,17 +18,30 @@ import { TitleField, WrittenOnField } from "./SourceFields";
 type Failure = ApiError["error"];
 
 /**
- * Best effort: removes this attempt's file after a failed submit, but only when no source row owns
- * it (the storage delete policy refuses an owned file too). Any error leaves the file in place.
+ * Best effort, after a failed submit. If a source row owns this attempt's file, the server did save
+ * it (the response was lost): returns that source's latest extraction id so the page can go to
+ * review instead of claiming nothing saved. Otherwise removes the file (the storage delete policy
+ * refuses an owned file too) and returns null. Any error leaves the file in place.
  */
-async function removeOwnUpload(supabase: ReturnType<typeof createClient>, userId: string, sourceId: string) {
+async function settleFailedUpload(supabase: ReturnType<typeof createClient>, userId: string, sourceId: string): Promise<string | null> {
   try {
     const { data, error } = await supabase.from("sources").select("id").eq("id", sourceId).maybeSingle();
-    if (error || data) return;
+    if (error) return null;
+    if (data) {
+      const { data: ex } = await supabase
+        .from("extractions")
+        .select("id")
+        .eq("source_id", sourceId)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      return (ex?.id as string | undefined) ?? null;
+    }
     await supabase.storage.from(SOURCES_BUCKET).remove([`${userId}/${sourceId}`]);
   } catch {
     // Offline or the request failed: nothing more to do here.
   }
+  return null;
 }
 
 /**
@@ -141,11 +154,17 @@ export function UploadForm({ today, userId }: { today: string; userId: string })
           router.push(`/sign-in?next=${encodeURIComponent("/add?mode=upload")}`);
           return;
         }
-        await removeOwnUpload(supabase, userId, sourceId);
+        await settleFailedUpload(supabase, userId, sourceId);
         setFailure(result.error);
         setFailedField(result.field ?? null);
       } catch {
-        if (uploaded) await removeOwnUpload(supabase, userId, sourceId);
+        // The response may be lost after the server saved the source: go to its review rather than
+        // say nothing saved (a retry would add a second source and a second usage count).
+        const saved = uploaded ? await settleFailedUpload(supabase, userId, sourceId) : null;
+        if (saved) {
+          router.push(`/review/${saved}`);
+          return;
+        }
         setFailure(apiError(navigator.onLine ? "save_failed" : "offline").error);
       }
     });

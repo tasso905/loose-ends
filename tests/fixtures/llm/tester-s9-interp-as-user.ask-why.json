@@ -1,0 +1,15 @@
+{
+  "name": "tester-s9-interp-as-user",
+  "task": "ask_why",
+  "input": "Why did I cancel the gym membership?",
+  "responses": [
+    {
+      "answer_found": true,
+      "decision_ids": ["7e57a9a0-0000-4000-8000-000000000002"],
+      "answer_parts": [
+        { "kind": "user_reason", "text": "It cost too much.", "ref": "7e57a9a0-0000-4000-8000-000000000002" },
+        { "kind": "inference", "text": "You wrote: \"It cost too much.\"", "ref": "7e57a9a0-0000-4000-8000-000000000002" }
+      ]
+    }
+  ]
+}

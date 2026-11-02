@@ -66,7 +66,7 @@ export type ThreadAction =
   | { type: "mark_waiting"; waitingOn: string; expectedBy?: string | null }
   | { type: "snooze"; until: string }
   | { type: "done" }
-  | { type: "resolve"; resolution: Resolution }
+  | { type: "resolve"; resolution: Resolution; decision?: DecisionInput }
   | { type: "dismiss" }
   | { type: "back_to_me" }
   | { type: "wake" }
@@ -74,6 +74,22 @@ export type ThreadAction =
   | { type: "edit"; fields: EditableFields }
   | { type: "forget"; alsoDeleteSource?: boolean }
   | { type: "undo"; target: UndoTarget };
+
+/**
+ * F11: what the user decided and, optionally, why, both exactly as typed (rule 5). Only with
+ * resolution `decided`; `reason: null` is Skip. The caller writes the decision row (effect
+ * `write_decision`), linked to the resolution event.
+ */
+export interface DecisionInput {
+  choice: string;
+  reason: string | null;
+}
+
+/** F11 limits (PROPOSED: not in the docs). Mirrored by public.thread_resolve(). */
+export const DECISION_CHOICE_MAX = 300;
+export const DECISION_REASON_MAX = 2000;
+/** Characters as Postgres char_length counts them (code points, not UTF-16 units). */
+export const charCount = (s: string) => [...s].length;
 
 /**
  * The event an Undo reverses (D44 option a, approved Oct 21). The caller reads it
@@ -136,7 +152,11 @@ export interface TransitionContext {
 export type TransitionEffect =
   | { type: "write_suppression" }
   | { type: "delete_suppression" }
-  | { type: "delete_thread"; alsoDeleteSource: boolean };
+  | { type: "delete_thread"; alsoDeleteSource: boolean }
+  /** F11: write the decision row, linked to this transition's `resolved` event. */
+  | { type: "write_decision"; choice: string; reason: string | null }
+  /** D44: undoing a resolution as Decided deletes the decision that resolution wrote. */
+  | { type: "delete_decision"; resolutionEventId: number };
 
 export interface EventDraft {
   type: ThreadEventType;
@@ -190,6 +210,14 @@ export const ALLOWED_ACTORS: Record<ThreadActionType, ReadonlyArray<Actor>> = {
 const invalid = (): TransitionResult => ({ ok: false, ...apiError("invalid_transition") });
 
 const nonEmpty = (s: string | null | undefined): s is string => typeof s === "string" && s.trim().length > 0;
+
+/**
+ * Blank as the database's private.is_blank() sees it: whitespace plus the no-break, zero-width and
+ * byte-order-mark characters JS trim() keeps (U+200B, U+FEFF…). Used for the decision fields so the
+ * app and thread_resolve() agree on what "empty" means.
+ */
+const BLANK = /^[\s\u00a0\u1680\u2000-\u200b\u2028\u2029\u202f\u205f\u3000\ufeff]*$/u;
+export const isBlankText = (s: string | null | undefined): boolean => typeof s !== "string" || BLANK.test(s);
 
 const validInstant = (s: string | null | undefined): s is string =>
   typeof s === "string" && !Number.isNaN(new Date(s).getTime());
@@ -288,10 +316,23 @@ export function transition(thread: ThreadState | null, action: ThreadAction, ctx
       return changed(t, closeAs(t, "resolved", "done", nowIso), "resolved", actor);
     }
 
-    case "resolve":
+    case "resolve": {
       // Runtime check: callers may pass unvalidated input.
       if (!ResolutionSchema.safeParse(action.resolution).success) return invalid();
-      return changed(t, closeAs(t, "resolved", action.resolution, nowIso), "resolved", actor);
+      // D6: a decision thread's outcome is recorded, so its sheet offers Decided and Not needed.
+      if (t.kind === "decision" && action.resolution === "done") return invalid();
+      const effects: TransitionEffect[] = [];
+      // Decided always records a decision and only Decided does (as thread_resolve() requires).
+      if ((action.resolution === "decided") !== (action.decision !== undefined)) return invalid();
+      if (action.decision !== undefined) {
+        // The choice is required, the reason optional (Skip).
+        const { choice, reason } = action.decision;
+        if (typeof choice !== "string" || isBlankText(choice) || charCount(choice) > DECISION_CHOICE_MAX) return invalid();
+        if (reason !== null && charCount(reason) > DECISION_REASON_MAX) return invalid();
+        effects.push({ type: "write_decision", choice, reason: isBlankText(reason) ? null : reason });
+      }
+      return changed(t, closeAs(t, "resolved", action.resolution, nowIso), "resolved", actor, effects);
+    }
 
     case "dismiss":
       return changed(t, closeAs(t, "dismissed", null, nowIso), "status_changed", actor, [{ type: "write_suppression" }]);
@@ -356,11 +397,13 @@ function undo(t: ThreadState, target: UndoTarget, actor: Actor, now: Date): Tran
 
   const restored: ThreadState = { ...t, ...(before as Partial<ThreadState>) };
   const d = diff(t, restored);
+  const effects: TransitionEffect[] =
+    target.type === "resolved" && after.resolution === "decided" ? [{ type: "delete_decision", resolutionEventId: target.id }] : [];
   return {
     ok: true,
     thread: restored,
     event: { type: "undone", actor, before: d.before, after: { ...d.after, undone_event_id: target.id } },
-    effects: [],
+    effects,
   };
 }
 

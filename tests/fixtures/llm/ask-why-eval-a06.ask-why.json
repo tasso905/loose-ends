@@ -1,0 +1,20 @@
+{
+  "name": "ask-why-eval-a06",
+  "task": "ask_why",
+  "input": "Why did I cancel the gym?",
+  "responses": [
+    {
+      "answer_found": true,
+      "decision_ids": [
+        "d0000000-0000-4000-8000-000000000006"
+      ],
+      "answer_parts": [
+        {
+          "kind": "user_reason",
+          "text": "I only went twice since June.",
+          "ref": "d0000000-0000-4000-8000-000000000006"
+        }
+      ]
+    }
+  ]
+}

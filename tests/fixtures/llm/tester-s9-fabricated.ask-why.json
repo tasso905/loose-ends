@@ -1,0 +1,18 @@
+{
+  "name": "tester-s9-fabricated",
+  "task": "ask_why",
+  "input": "Why did I hire Quillfeather for the kitchen?",
+  "responses": [
+    {
+      "answer_found": true,
+      "decision_ids": ["7e57a9a0-0000-4000-8000-000000000001", "7e57a9a0-0000-4000-8000-0000000000ff"],
+      "answer_parts": [
+        { "kind": "user_reason", "text": "Their quote included permits", "ref": "7e57a9a0-0000-4000-8000-000000000001" },
+        { "kind": "source_fact", "text": "The quote was 3,000 dollars", "ref": "7e57a9a0-0000-4000-8000-0000000000e9" },
+        { "kind": "source_fact", "text": "Quote about 4k", "ref": "7e57a9a0-0000-4000-8000-0000000000e1" },
+        { "kind": "user_reason", "text": "I owed them a favour.", "ref": "7e57a9a0-0000-4000-8000-0000000000ff" },
+        { "kind": "inference", "text": "Permits seem to have decided it.", "ref": "7e57a9a0-0000-4000-8000-000000000001" }
+      ]
+    }
+  ]
+}

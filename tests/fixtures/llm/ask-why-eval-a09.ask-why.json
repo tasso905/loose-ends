@@ -1,0 +1,25 @@
+{
+  "name": "ask-why-eval-a09",
+  "task": "ask_why",
+  "input": "Why is Leo going to Pine Hollow?",
+  "responses": [
+    {
+      "answer_found": true,
+      "decision_ids": [
+        "d0000000-0000-4000-8000-000000000009"
+      ],
+      "answer_parts": [
+        {
+          "kind": "user_reason",
+          "text": "His friend Theo is going and the session ends before the family trip.",
+          "ref": "d0000000-0000-4000-8000-000000000009"
+        },
+        {
+          "kind": "source_fact",
+          "text": "Session runs July 6 to July 17",
+          "ref": "e0000000-0000-4000-8000-000000000091"
+        }
+      ]
+    }
+  ]
+}

@@ -51,6 +51,7 @@ import { EXTRACTION_SCHEMA_VERSION } from "@/lib/ai/schema";
 import { normalizeText } from "@/lib/pipeline/normalize";
 import { processExtraction, type Proposal } from "@/lib/pipeline/proposals";
 import type { Band, DueCertainty } from "@/lib/schemas";
+import type { AskWhyEvalReport } from "./ask-why/harness";
 
 export const THRESHOLDS = { recall: 0.8, precision: 0.75, date: 0.95, owner: 0.9, band: 0.85 };
 
@@ -538,7 +539,7 @@ const RESULT_LINE: Record<EvalResult, string> = {
  * prompt version, schema version and run date (PRD Trust Scorecard). Content-free: fixture names,
  * counts, enums and percentages only.
  */
-export function renderScorecard(r: EvalReport): string {
+export function renderScorecard(r: EvalReport, ask: AskWhyEvalReport | null = null): string {
   const s = r.scores;
   const th = r.thresholds;
   const lines = [
@@ -564,7 +565,9 @@ export function renderScorecard(r: EvalReport): string {
     `| Uncertainty band accuracy | ${pct(s.band)} | ≥ ${pct(th.band)} | Golden items in ambiguous fixtures landing in their expected band |`,
     `| Speculative items scored High | ${s.speculative_scored_high} | 0 | Golden speculative or Ignore items shown as Likely |`,
     `| Explicit dated commitments scored Low | ${s.explicit_dated_scored_low} | 0 | Golden explicit, dated commitments scored Also noticed or Ignore |`,
-    `| Ask-why fabrications | not run | 0 | The Ask-why eval is not wired yet |`,
+    ask
+      ? `| Ask-why fabrications | ${ask.fabrications} | 0 | Questions (of ${ask.questions}: ${ask.answerable} answerable, ${ask.questions - ask.answerable} with no recorded decision) whose answer cites, quotes or claims anything not in the retrieved, stored decisions, or calls the model with nothing retrieved |`
+      : `| Ask-why fabrications | not run | 0 | The Ask-why eval was not run |`,
     `| Extraction failures | ${s.extraction_failures} | 0 | Fixtures whose extraction call failed |`,
     `| Evaluation cases | ${r.fixtures} | 40 | Synthetic fixtures in \`evals/fixtures/\` |`,
     "",
@@ -575,6 +578,15 @@ export function renderScorecard(r: EvalReport): string {
     `- Item type accuracy: ${pct(s.type)}`,
     `- Evidence page accuracy (uploads with page offsets): ${pct(s.page)}`,
   ];
+  if (ask) {
+    lines.push(
+      `- Ask-why: ${RESULT_LINE[ask.result].replace(/^Result: /, "")}; model ${ask.model}, prompt ${ask.prompt_version}, schema ${ask.schema_version}; answerable hit rate ${pct(ask.answerable_hit_rate)}; model calls ${ask.llm_calls}; failed calls ${ask.failures}`,
+    );
+    const fab = Object.entries(ask.fabrications_by_kind);
+    if (fab.length) lines.push(`- Ask-why fabrications by kind: ${fab.map(([k, n]) => `${k} ${n}`).join(", ")}`);
+    const miss = Object.entries(ask.misses_by_kind);
+    if (miss.length) lines.push(`- Ask-why misses by kind: ${miss.map(([k, n]) => `${k} ${n}`).join(", ")}`);
+  }
   const failures = Object.entries(r.failures_by_kind);
   if (failures.length) lines.push(`- Failures by kind: ${failures.map(([k, n]) => `${k} ${n}`).join(", ")}`);
   if (r.result === "fail") lines.push(`- Gates missed: ${failedGates(r.fixtures, s).join(", ")}`);
