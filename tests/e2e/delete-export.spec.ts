@@ -173,6 +173,35 @@ test("a failed delete keeps the dialog open with the error inside it; nothing cl
   expect(await fileExists(s.path)).toBe(false);
 });
 
+test("rule 10: Escape twice while a delete is in flight keeps the dialog open; the failure shows in it", async () => {
+  await seedUpload("Escape notes");
+  await page.goto("/settings");
+  let release!: () => void;
+  const gate = new Promise<void>((r) => (release = r));
+  await page.route("**/settings", async (route) => {
+    if (route.request().method() !== "POST") return route.continue();
+    await gate;
+    return route.fulfill({ status: 500, body: "" });
+  });
+  await page.getByRole("button", { name: "Delete source only: Escape notes" }).click();
+  const d = dialog("Delete source only?");
+  await d.getByRole("button", { name: "Delete source only" }).click();
+  await expect(d.getByRole("button", { name: "Cancel" })).toBeDisabled();
+  await page.keyboard.press("Escape");
+  await page.keyboard.press("Escape");
+  await page.waitForTimeout(300);
+  await expect(d).toBeVisible();
+  release();
+  await expect(d.getByText("That didn't save. Try again.")).toBeVisible();
+  await page.unrouteAll();
+  await d.getByRole("button", { name: "Cancel" }).click();
+  await expect(d).toBeHidden();
+  // The dialog opens again from the same row.
+  await page.getByRole("button", { name: "Delete source only: Escape notes" }).click();
+  await expect(dialog("Delete source only?")).toBeVisible();
+  await dialog("Delete source only?").getByRole("button", { name: "Cancel" }).click();
+});
+
 test("Export data (JSON): the file arrives first, then the status says so; it holds the user's rows", async () => {
   await page.goto("/settings");
   const download = page.waitForEvent("download");

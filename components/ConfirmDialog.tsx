@@ -75,9 +75,25 @@ export function ConfirmDialog({
       ref={ref}
       aria-labelledby={`${ids}-title`}
       aria-describedby={`${ids}-body`}
+      // While the action is in flight nothing closes the dialog before the server answers (rule 10).
+      // Chrome lets a page cancel only one Escape without user activation, so preventDefault alone is
+      // not enough: `closedby="none"` stops close requests natively while pending.
+      closedby={pending ? "none" : "closerequest"}
       onCancel={(e) => {
         e.preventDefault();
         cancel();
+      }}
+      onClose={() => {
+        // A close the dialog did not ask for (the caller still has it open). Browsers without
+        // `closedby` can still close it natively: while pending it opens again so the answer, or
+        // the error, shows in it; otherwise the caller is told it was cancelled.
+        if (!open) return;
+        if (pending) {
+          ref.current?.showModal();
+        } else {
+          onCancel();
+          onClosedRef.current?.();
+        }
       }}
       onClick={(e) => {
         if (e.target === e.currentTarget) cancel();
