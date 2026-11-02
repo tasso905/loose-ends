@@ -4,14 +4,16 @@
 **Basis:** PRD v1.1, content model v1.1 and the Loose Ends Visual Design Standard  
 **Purpose:** Define the site's pages, routes, content, states and interaction behaviour. Decision IDs (D1 onward) refer to the PRD Decisions Log. All visual values (colours, type, spacing, timing) come from the Visual Design Standard; this contract no longer proposes its own.
 
+**Oct 28 (D62):** no public demo. `Try the demo`, the demo banner and clock control, the demo error codes (`demo_unavailable`, `demo_captcha_failed`, `demo_rate_limited`, `demo_start_failed`) and the sign-in CAPTCHA message were removed from §1, §2.0, §2.1, §2.13 and §2.14.
+
 **v1.1 changes:** navigation reconciled with the PRD (Decisions added); new pages for sign-in/onboarding, Why panel, Source viewer and Decisions; route map; error copy table; per-screen state matrix; quick-add routing exception; undo-vs-confirm rule; Active/Closed thread filter; account deletion.
 
 ## 1. Page Structure
 
 | Order | Page / section | Purpose |
 |---:|---|---|
-| 0 | Sign in and onboarding | Also the first screen judges and new users see; there is no public landing page (D38). Pitch headline (the page's h1) and subline above the form; magic link or Google identity sign-in (Google only if switched on, D41); `Try the demo` (D55); one aliases question; sensitive-data and analytics notices. |
-| 1 | App shell and navigation | Today · Threads · Decisions, global Add, account menu, review chip, demo-date banner. |
+| 0 | Sign in and onboarding | Also the first screen new users see; there is no public landing page (D38). Pitch headline (the page's h1) and subline above the form; magic link or Google identity sign-in (Google only if switched on, D41); one aliases question; sensitive-data and analytics notices. *`Try the demo` removed (D62).* |
+| 1 | App shell and navigation | Today · Threads · Decisions, global Add, account menu, review chip. |
 | 2 | Add / Capture | Paste, upload or quick-add source material. |
 | 3 | Extraction progress | Real pipeline steps; success, failure, slow and unsupported states. |
 | 4 | Review Tray | Inspect, correct, clarify, accept or reject proposals before they become threads. |
@@ -30,14 +32,14 @@
 - **Global action:** Add, on every authenticated page.
 - **Account menu:** Settings, Export data, Sign out. Export data starts the export directly and reports completion only after the download is ready.
 - **Review chip:** `N to review` on Today when pending proposals exist; links to the most recent pending Review Tray.
-- **Demo-date banner:** for a demo (anonymous) account with a demo date, a full-width banner above the shell (D12, D55). It holds the demo clock control (D59). Never shown for a real account; demo-ness is decided on the server from the auth claim, never from client input.
+- **Demo-date banner:** *removed (D62; was D12, D55, D59).*
 - **Page title:** `{Page} · Loose Ends` in the browser tab; thread detail uses the thread title.
 
 ### 1.2 Route map (v1.1)
 
 | Route | Page | Auth | Notes |
 |---|---|---|---|
-| `/sign-in` | Sign in | Public | First screen for signed-out visitors; no public landing page (D38). `?sent=1` shows the check-your-email state. `?next={path}` is kept through the check-your-email state and the magic link. `Try the demo` (D55) signs in anonymously without `/auth/callback`, skips onboarding (the seed sets aliases) and lands on `/today` |
+| `/sign-in` | Sign in | Public | First screen for signed-out visitors; no public landing page (D38). `?sent=1` shows the check-your-email state. `?next={path}` is kept through the check-your-email state and the magic link. |
 | `/auth/callback` | Auth handoff | Public | Redirects to `/onboarding` on first sign-in, else to the `next` param or `/today` |
 | `/onboarding` | Aliases question | Signed in | Shown once; skippable |
 | `/` | — | Any | Signed in: redirects to `/today`. Signed out: redirects to `/sign-in`, with no `next` because `/` lands on Today anyway (D38) |
@@ -64,12 +66,10 @@ Field-level content, constraints and copy are defined in the content model v1.1;
 |---|---|
 | Pitch headline (D38) | `Tie up your loose ends.` The page's only h1. Below the `Loose Ends` wordmark and above the subline. Exact text |
 | Pitch subline (D38) | `Paste in the mess. Get back what's still open, each with the sentence it came from.` Directly below the headline and above the sign-in form. Exact text; no added marketing copy, and no privacy or speed claims (rule 9) |
-| Email + `Email me a sign-in link` | Field label `Email`. Button disabled while sending. Protected by Cloudflare Turnstile, because Supabase CAPTCHA protection covers every auth endpoint (D59). Field errors per §2.13 "Sign in and onboarding" |
+| Email + `Email me a sign-in link` | Field label `Email`. Button disabled while sending. No CAPTCHA (D62; was Turnstile, D59). Field errors per §2.13 "Sign in and onboarding" |
 | Check-your-email state (D39) | Shown only after Supabase confirms the link was sent (rule 10). Heading `Check your email`. Body `I sent a sign-in link to {email}. Open it in this browser to sign in.` then `The link works for 1 hour.` Offers `Use a different email`. The lifetime line is tied to Supabase `otp_expiry = 3600`; the copy and the setting (local config and the production project) change together |
 | Divider | `or`, between the email form and `Continue with Google` (D39). Rendered only when Google sign-in is switched on (D41) |
 | `Continue with Google` | Identity scopes only (`openid email profile`). Conditional (D41): rendered whenever `NEXT_PUBLIC_AUTH_GOOGLE_ENABLED=true`; set that flag only where the Supabase Google provider is enabled (the release checklist enables both). Switched on (D61, Oct 27): it goes live in production once the D41 release checklist is done and a manual production check passes; until then the flag keeps it hidden in production |
-| `Try the demo` (D55) | Below the sign-in methods, a secondary button labelled `Try the demo`, with the line `Explore with made-up data. No email needed. Demo accounts are deleted within 2 days.` (approved Oct 22, D59). Protected by a Cloudflare Turnstile CAPTCHA. Pressing it creates a fresh anonymous demo account seeded with the "Sam" data on the demo date Mon Oct 5, 2026, then opens Today; it shows a pending state while the account is created and never claims the demo started before the server confirms (rule 10). Hidden when JavaScript is off |
-| Demo unavailable (D55) | When `DEMO_ENABLED` is off or the day's demo AI budget is spent, the button is disabled and the reason is shown under it (copy in §2.13, approved D59). The email sign-in stays available |
 | No JavaScript | `Signing in needs JavaScript. Turn it on in your browser, then reload this page.` (D39) |
 | Aliases question | `What name and emails do people use for you?` Field label `Names and emails`. Hint `Separate them with commas. I use these to tell which tasks are yours.` Below it, `Your sign-in email, {email}, is always included.` Actions `Save` and `Skip`. Skippable; signed-in email always saved as alias. At most 20 names and emails, each up to 100 characters (D40). Field errors per §2.13 (D39) |
 | Notices | "Don't paste passwords or full account numbers.", shown on the sign-in page and in onboarding. Analytics notice with opt-out link, shown in onboarding. It ships with the first PostHog event and stays hidden until then (D40, rule 9). Approved wording (D46, Oct 21): `Loose Ends counts which features you use. Analytics never include what you paste.` with the opt-out link `Turn off analytics` |
@@ -82,8 +82,6 @@ Field-level content, constraints and copy are defined in the content model v1.1;
 | Nav labels | `Today`, `Threads`, `Decisions`; Add button labelled `Add` |
 | Account menu | `Settings`, `Export data`, `Sign out` |
 | Review chip | Real pending count only |
-| Demo banner | `Demo account with made-up data · Demo date: {Weekday Mon D, YYYY}` (approved Oct 22, D59; *was:* `Demo date: {Weekday Mon D, YYYY}`); demo (anonymous) accounts only (D55) |
-| Demo clock control (D59) | Inside the demo banner, demo accounts only: `+3 days`, `+3 months` and `Reset` (back to Mon Oct 5, 2026). Labels approved Oct 27 (D60); the control's accessible name and its failure message are *Proposed* in the demo PR (PRD Question #15). The server checks the `is_anonymous` claim and refuses the change for a real account; the new date shows only after the server confirms it (rule 10) |
 
 ### 2.2 Add / Capture
 
@@ -253,12 +251,6 @@ Field-level content, constraints and copy are defined in the content model v1.1;
 | Sign-in `send_failed` | `I couldn't send the link. Try again.` | Inline under the email field; `Email me a sign-in link` stays available | Yes |
 | `?error=link_expired` | `That sign-in link has expired or was already used. Enter your email to get a new one.` | Email field | No; request a new link |
 | `?error=link_other_browser` | `That link was opened in a different browser. Enter your email to get a new one, and open it in this browser.` | Email field | No; request a new link |
-| `demo_unavailable`, budget spent (D55, approved D59) | `The demo is full for today. It opens again after midnight (UTC). You can still sign in with your email.` | `Try the demo` disabled; email field | Later |
-| `demo_unavailable`, switched off (D55, approved D59) | `The demo isn't available right now. You can still sign in with your email.` | `Try the demo` disabled; email field | No |
-| `demo_captcha_failed` (D55, approved D59) | `I couldn't check that you're a person. Try again.` | Under `Try the demo` | Yes |
-| Sign-in CAPTCHA failed on the email form (D59; approved Oct 27, D60) | `I couldn't check that you're a person. Try again.` | Inline under the email field | Yes |
-| `demo_rate_limited` (D55, approved D59; Supabase's per-IP anonymous sign-in limit) | `Too many demos were started from this network. Try again later, or sign in with your email.` | Under `Try the demo` | Later |
-| `demo_start_failed` (D55, approved D59) | `I couldn't start the demo. Try again.` | Under `Try the demo` | Yes |
 | `?error=oauth_failed` | `Google sign-in didn't finish. Try again, or use your email.` | `Continue with Google` or the email field. Applies only while Google sign-in is switched on (D41) | Yes |
 | Onboarding `too_many` | `That's more than 20 names and emails. Keep the ones people use most.` | Inline under the field | No |
 | Onboarding `too_long` | `Each name or email can be up to 100 characters.` | Inline under the field | No |
@@ -278,7 +270,7 @@ Errors appear next to the control that caused them (forms) or as an error banner
 | Why panel | Inline spinner | — | `Couldn't load this explanation.` + retry | Source deleted |
 | Source viewer | Skeleton text | — | Not-found page | Deleted state |
 | Decisions | Skeleton list | Decision list empty state | Page banner `I couldn't load your decisions.` + `Try again` (D57); `Write a question first.` under the Ask box (D57); a failed ask shows `ask_failed` inline under the Ask box, question kept, no partial answer (D54, §2.13) | No match; no reason with `Add a reason now` (D58); `?q=` prefilled, not asked (D57) |
-| Sign in (D39) | Send button disabled while sending; `Try the demo` pending while the demo account is created (D55) | — | Field errors and `?error=` messages per §2.13; demo errors under `Try the demo`; offline banner | Check-your-email state (§2.0); demo-unavailable state (D55); no-JavaScript message |
+| Sign in (D39) | Send button disabled while sending | — | Field errors and `?error=` messages per §2.13; offline banner | Check-your-email state (§2.0); no-JavaScript message |
 | Onboarding (D39) | — | — | Field errors per §2.13; save-failure and offline banners | Skip |
 | Settings | Skeleton form | No sources: `You haven't added anything yet.` | Field / banner errors; load failure `Settings didn't load. Try again.` (D46) | Export in progress; deletion in progress |
 
@@ -343,6 +335,6 @@ All durations, easing and product-moment animations are defined in the Visual De
 - **Conflicting dates without F14:** a proposal that would change an existing thread's date shows both values and both quotes as an update proposal; never overwrite silently.
 - **Scanned PDFs:** out of MVP scope; `unsupported_scan` copy applies.
 - **SHOULD features** (dedupe, digest, forwarding, toggles, redaction) appear in the UI only if built after the day-14 checkpoint.
-- **Trust Scorecard:** README and demo materials only.
+- **Trust Scorecard:** README only (D62: no demo).
 - **Magic-link lifetime (release follow-up, D39):** the check-your-email copy says `The link works for 1 hour.` Before release, set the production Supabase project's email OTP expiry to 3600 seconds to match `supabase/config.toml`. The unit test checks only the local config.
 - **Accessibility:** automated axe checks run in the Playwright suite on Today, Review Tray, Thread detail, Why panel and Settings; VoiceOver pass on the Review Tray weekly.

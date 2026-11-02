@@ -1,7 +1,7 @@
 # Loose Ends — Content Model
 
 **Version:** v1.1 — Oct 18, 2026 (reconciled with PRD v1.1, site contract v1.1 and the visual design standard; decision IDs D1 onward refer to the PRD Decisions Log)  
-**Scope:** Minimal content model for the Must-Have MVP features.  
+**Scope:** Minimal content model for the Must-Have MVP features. *Oct 28 (D62): no public demo; the `Try the demo`, demo-unavailable, demo-date banner and demo clock control rows were removed from §0 and §1.*  
 **Product principle:** AI proposes; the user reviews and decides. No evidence → no automatic reminder.  
 **Core definition:** An *Open Loop* is a real-world situation with an unresolved action, dependency, decision, or consequence.
 
@@ -21,8 +21,6 @@
 | Check-your-email state | Confirms the link was sent | Heading `Check your email`. Body `I sent a sign-in link to {email}. Open it in this browser to sign in.` then `The link works for 1 hour.` (D39; tied to Supabase `otp_expiry = 3600`, so the setting and this line change together). Offers `Use a different email`; never claims sign-in succeeded |
 | No-JavaScript message | Explains why sign-in can't work | `Signing in needs JavaScript. Turn it on in your browser, then reload this page.` (D39) |
 | Aliases question | Helps tell "you" from others in pasted threads | "What name and emails do people use for you?"; field label `Names and emails`; hint `Separate them with commas. I use these to tell which tasks are yours.`; below it `Your sign-in email, {email}, is always included.`; actions `Save` and `Skip`. Up to 20 names and emails, each up to 100 characters (limits decided, D40), with the errors in SITE_CONTRACT §2.13 (D39). Skippable; signed-in email always saved as an alias |
-| Try the demo (D55) | Lets judges and visitors try it without email | Button `Try the demo`, below the sign-in methods, behind a Turnstile CAPTCHA. Creates a fresh anonymous account seeded with the "Sam" data on the demo date Mon Oct 5, 2026; skips onboarding. The line `Explore with made-up data. No email needed. Demo accounts are deleted within 2 days.` (approved Oct 22, D59) |
-| Demo unavailable (D55) | Explains why the demo button is off | Button disabled with the reason under it. Approved Oct 22 (D59): budget spent `The demo is full for today. It opens again after midnight (UTC). You can still sign in with your email.`; switched off `The demo isn't available right now. You can still sign in with your email.` Other demo errors in SITE_CONTRACT §2.13 |
 | Sensitive-data note | Sets expectations before first paste | "Don't paste passwords or full account numbers."; shown on the sign-in page and in onboarding |
 | Analytics notice | Explains event-only analytics | Plain statement + opt-out link; no content is ever sent. Ships with the first PostHog event and stays hidden until then (D40, rule 9). Approved wording (D46, Oct 21): `Loose Ends counts which features you use. Analytics never include what you paste.` Opt-out link: `Turn off analytics` |
 
@@ -35,8 +33,6 @@
 | Global Add | Capture from anywhere | Button labelled `Add`; opens the Add page/sheet |
 | Account menu | Account and data controls | `Settings`, `Export data`, `Sign out` |
 | Review chip | Pending proposals | `N to review`; shown only when N ≥ 1; count is real pending proposals |
-| Demo-date banner | Simulated clock indicator | Only for a demo (anonymous) account with a demo date, never for a real account: `Demo account with made-up data · Demo date: Thu Oct 8, 2026` (D12, D55; approved Oct 22, D59; *was:* `Demo date: Thu Oct 8, 2026`) |
-| Demo clock control (D59) | Moves the demo date for the 2-minute demo | Inside the demo banner, demo accounts only, server-checked: `+3 days`, `+3 months`, `Reset` (back to Mon Oct 5, 2026). Labels approved Oct 27 (D60); the accessible name is *Proposed* in the demo PR (PRD Question #15) |
 
 ### 2. Add / Capture
 
@@ -59,7 +55,7 @@
 | Tray heading and count | Explains that suggestions need review | `I found N things in this`; count only actual proposals |
 | Groups | Proposals by confidence | `Likely` (High, pre-checked), `Maybe` (Medium, unchecked), `Also noticed` (Low, collapsed, unchecked); Ignore never shown (D3) |
 | Proposal title | Short label for a candidate open loop | Prefer source wording; aim for 3–10 words; max 80 characters |
-| Loop type | Candidate category | `Commitment`, `Request`, `Waiting on`, `Admin`, or `Decision`; set by the type → kind mapping (D5); user can change |
+| Loop type | Candidate category | `Commitment`, `Request`, `Waiting on`, `Admin`, or `Decision`; set by the type → kind mapping (D5); user can change. `Commitment` is only something the user promised; something another person promised the user ("Mike said he'll send the contract") is `Waiting on` (D63) |
 | Suggested next action | What the user may need to do | Specific, actionable, concise; labelled `Suggested` |
 | Counterparty | Person or organization involved | Optional; use only when supported by source; flag ambiguous identity |
 | Due date | Candidate date or deadline | Explicit dates plain; inferred dates carry an `Assumed` chip with the resolution explained; never invent a precise date. A month-day with no year is in the past only if it falls within 30 days before the written-on date, otherwise the next occurrence (D28) |
@@ -201,7 +197,7 @@
 
 - **Duplicate/conflicting proposals (F14):** deferred unless the day-14 checkpoint was green. Even without F14, a proposal that would change an existing thread's date must show both values and both quotes; never silently overwrite.
 - **Daily digest / forwarding / type toggles / redaction:** SHOULD features; their settings fields appear only if built.
-- **Trust scorecard:** README and demo materials only, not a user-facing page.
+- **Trust scorecard:** README only, not a user-facing page (D62: no demo).
 
 ## MVP flow
 
