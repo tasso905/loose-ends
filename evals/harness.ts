@@ -50,7 +50,7 @@ import { join } from "node:path";
 import { wrapLanguageModel, type LanguageModel } from "ai";
 import type { AiFailureKind } from "@/lib/ai/errors";
 import { extract } from "@/lib/ai/extract";
-import { EXTRACT_PROMPT_VERSION } from "@/lib/ai/prompts";
+import { EXTRACT_PROMPT_VERSION, promptSha } from "@/lib/ai/prompts";
 import { safeErrorFields } from "@/lib/ai/safeError";
 import { EXTRACTION_SCHEMA_VERSION } from "@/lib/ai/schema";
 import { normalizeText } from "@/lib/pipeline/normalize";
@@ -207,6 +207,8 @@ export type EvalResult = "pass" | "fail" | "incomplete_quota";
 export interface EvalReport {
   model: string;
   prompt_version: string;
+  /** First 12 hex of sha256 over the prompt file (lib/ai/prompts.ts promptSha). */
+  prompt_sha256: string;
   schema_version: string;
   run_at: string;
   rpm: number | null;
@@ -496,6 +498,7 @@ export async function runEval(opts: RunEvalOptions): Promise<EvalReport> {
   return {
     model: opts.modelLabel,
     prompt_version: EXTRACT_PROMPT_VERSION,
+    prompt_sha256: promptSha(EXTRACT_PROMPT_VERSION),
     schema_version: EXTRACTION_SCHEMA_VERSION,
     run_at: opts.runAt,
     rpm: throttle.rpm,
@@ -554,7 +557,7 @@ export function renderScorecard(r: EvalReport, ask: AskWhyEvalReport | null = nu
     "# Trust Scorecard",
     "",
     `- Model: ${r.model}`,
-    `- Prompt version: ${r.prompt_version}`,
+    `- Prompt version: ${r.prompt_version} (sha256 ${r.prompt_sha256})`,
     `- Schema version: ${r.schema_version}`,
     `- Run date: ${r.run_at}`,
     `- Fixtures: ${r.fixtures} (${r.ambiguous_fixtures} ambiguous)`,
@@ -588,7 +591,7 @@ export function renderScorecard(r: EvalReport, ask: AskWhyEvalReport | null = nu
   ];
   if (ask) {
     lines.push(
-      `- Ask-why: ${RESULT_LINE[ask.result].replace(/^Result: /, "")}; model ${ask.model}, prompt ${ask.prompt_version}, schema ${ask.schema_version}; answerable hit rate ${pct(ask.answerable_hit_rate)}; model calls ${ask.llm_calls}; failed calls ${ask.failures}`,
+      `- Ask-why: ${RESULT_LINE[ask.result].replace(/^Result: /, "")}; model ${ask.model}, prompt ${ask.prompt_version} (sha256 ${ask.prompt_sha256}), schema ${ask.schema_version}; answerable hit rate ${pct(ask.answerable_hit_rate)}; model calls ${ask.llm_calls}; failed calls ${ask.failures}`,
     );
     const fab = Object.entries(ask.fabrications_by_kind);
     if (fab.length) lines.push(`- Ask-why fabrications by kind: ${fab.map(([k, n]) => `${k} ${n}`).join(", ")}`);
