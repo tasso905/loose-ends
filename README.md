@@ -1,4 +1,4 @@
-<!-- Temporary README (Oct 20). The full submission README is due by the Submission gate, Sat Oct 31 (PRD); README work is scheduled for Oct 29. -->
+<!-- Temporary README (Oct 20). Loose Ends is no longer being submitted to Build Fest; it continues as a learning project with no deadline (PRD D62). The full README is normal project work. -->
 
 # Loose Ends
 
@@ -6,7 +6,7 @@
 
 Loose Ends turns messages and documents you paste in into a short list of open loops, each backed by the exact sentence it came from, and remembers why you closed them.
 
-**Status:** Build Fest MVP (Oct 2 – Oct 31, 2026), in active development.
+**Status:** started for Build Fest (Oct 2026) and not submitted; now a learning project in active development, with no deadline.
 
 - **Works today:** email-link sign-in, Google sign-in (optional, off by default locally) and onboarding.
 - **Not built yet:** paste → review → threads, the core loop. Nothing is extracted from your text yet.
