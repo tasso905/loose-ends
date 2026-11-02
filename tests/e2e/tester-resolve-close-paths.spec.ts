@@ -104,12 +104,12 @@ for (const how of ["Cancel", "Escape", "scrim"] as const) {
   });
 }
 
-// OPEN DEFECT (rule 10; pre-existing, also on 2058103 before the PR): while Save is in flight the
+// FIXED (was OPEN DEFECT; rule 10; pre-existing, also on 2058103 before the PR): while Save is in flight the
 // sheet ignores Escape (onCancel → preventDefault, close() is a no-op while pending). Chrome only
 // lets a page cancel one Escape without user activation in between: a second Escape closes the
 // <dialog> natively, without a cancel event. The sheet vanishes before the server answers, and the
-// parent's `open` stays true.
-test.fail("rule 10: a second Escape while Save is in flight does not close the sheet before the server confirms", async () => {
+// parent's `open` stays true. Fix: closedby="none" while pending, and a native close re-opens it.
+test("rule 10: a second Escape while Save is in flight does not close the sheet before the server confirms", async () => {
   await reopen();
   await page.goto(threadUrl);
   const release = await holdSave(false);
@@ -125,10 +125,11 @@ test.fail("rule 10: a second Escape while Save is in flight does not close the s
   expect(during).toBe("open|decided|fields:2|invalid:0");
 });
 
-// OPEN DEFECT (rule 10; pre-existing): same native close, and then the save fails. The failure is
+// FIXED (was OPEN DEFECT; rule 10; pre-existing): same native close, and then the save fails. The failure is
 // never shown (the sheet that would show it is closed), and Resolve… no longer opens the sheet,
-// because `open` never went false, until the page is reloaded.
-test.fail("rule 10: after a native close during a failing save, the error is shown and Resolve… opens the sheet again", async () => {
+// because `open` never went false, until the page is reloaded. Now the sheet stays open, so the
+// error shows in it; it closes with Cancel and Resolve… opens it again (adapted by lead-developer).
+test("rule 10: after a native close during a failing save, the error is shown and Resolve… opens the sheet again", async () => {
   await reopen();
   await page.goto(threadUrl);
   const release = await holdSave(true);
@@ -142,6 +143,9 @@ test.fail("rule 10: after a native close during a failing save, the error is sho
   release();
   await page.waitForTimeout(2_000);
   await page.unrouteAll({ behavior: "ignoreErrors" });
+  await expect(sheet().getByText("That didn't save. Try again.")).toBeVisible();
+  await sheet().getByRole("button", { name: "Cancel" }).click();
+  await expect(sheet()).toBeHidden();
   await page.getByRole("button", { name: "Resolve…" }).click();
   await expect(sheet()).toBeVisible({ timeout: 3_000 });
 });
