@@ -43,9 +43,13 @@ describe("prompts", () => {
     expect(loadPrompt("ask-why.v2")).toMatch(/^You answer a user's question/);
   });
 
-  it("extract.v3 sends the model exactly the instructions extract.v2 sent (only the header differs)", () => {
-    expect(loadPrompt("extract.v3")).toBe(loadPrompt("extract.v2"));
-    expect(loadPrompt("extract.v3")).not.toContain("prompt: extract.v3");
+  it("extract.v3 is extract.v2 plus the group-promise rule (Nov 2), and v2 is unchanged", () => {
+    const v2 = loadPrompt("extract.v2");
+    const v3 = loadPrompt("extract.v3");
+    expect(v3).not.toContain("prompt: extract.v3");
+    expect(v2).not.toContain("A promise made to a group the user belongs to");
+    expect(v3).toContain("A promise made to a group the user belongs to is also `waiting_on`");
+    expect(v3.replace(/ A promise made to a group the user belongs to[^\n]*?\("Ilse: collect the raffle prizes"\)\./, "")).toBe(v2);
   });
 
   it("promptSha is a stable 12-hex hash of the whole file, so a header or body edit changes it", () => {
