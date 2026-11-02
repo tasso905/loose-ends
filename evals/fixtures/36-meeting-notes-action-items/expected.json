@@ -15,7 +15,7 @@
       "note": "0.90."
     },
     {
-      "type": "commitment",
+      "type": "waiting_on",
       "title": "Jae to pick up the compost bins",
       "owner": "other",
       "quote": "Jae: pick up the compost bins from the depot on Saturday.",
@@ -26,10 +26,10 @@
       "counterparty": "Jae",
       "amount_text": null,
       "band": "high",
-      "note": "0.90."
+      "note": "Action item owed to the committee the user is on. 0.80 + 0.05 + 0.05 = 0.90. Promise to a group the user belongs to: waiting_on (user decision, Nov 2)."
     },
     {
-      "type": "commitment",
+      "type": "waiting_on",
       "title": "Wen and Okon to draft the volunteer schedule",
       "owner": "other",
       "quote": "Wen + Okon: draft the volunteer schedule for November, due Nov 2.",
@@ -40,7 +40,7 @@
       "counterparty": null,
       "amount_text": null,
       "band": "high",
-      "note": "'November' names the schedule's month, not the deadline. 0.90."
+      "note": "Action item owed to the committee the user is on. 'November' names the schedule's month, not the deadline. 0.80 + 0.05 + 0.05 = 0.90. Promise to a group the user belongs to: waiting_on (user decision, Nov 2)."
     },
     {
       "type": "commitment",

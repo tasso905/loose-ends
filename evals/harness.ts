@@ -242,7 +242,7 @@ export interface EvalReport {
     unverified_quotes_shown: number;
     /** F19: golden speculative (or "ignore") items shown as High. Must be 0. */
     speculative_scored_high: number;
-    /** F19: golden explicit, dated commitments scored Low or Ignore. Must be 0. */
+    /** F19: golden explicit, dated promises (commitment or waiting_on, D63) scored Low or Ignore. Must be 0. */
     explicit_dated_scored_low: number;
     extraction_failures: number;
   };
@@ -330,7 +330,20 @@ type Tally = Record<
 >;
 
 const isSpeculative = (e: Expected) => e.certainty === "speculative" || e.band === "ignore";
-const isExplicitDatedCommitment = (e: Expected) => e.type === "commitment" && e.certainty === "explicit" && e.due_date !== null;
+// D64(a): an explicit, dated promise by anyone is never Low: the user's own (commitment) or someone
+// else's to the user or the user's group (waiting_on, D63/D64(b)).
+const isExplicitDatedCommitment = (e: Expected) =>
+  (e.type === "commitment" || e.type === "waiting_on") && e.certainty === "explicit" && e.due_date !== null;
+/**
+ * D64(a)+(c): gate (a) judges the pipeline's FINAL certainty. A prediction whose quote the
+ * conditional guard capped at speculative (signal "conditional") is not explicit, so its Low band
+ * is the rule working, not a gate violation. A model that labels a plain promise speculative is
+ * still caught: only the guard's cap is exempt.
+ */
+export function explicitDatedScoredLow(e: Pick<Expected, "type" | "certainty" | "due_date">, p: Pick<Proposal, "band" | "signals"> | undefined): boolean {
+  if (!p || !(p.band === "low" || p.band === "ignore") || !isExplicitDatedCommitment(e as Expected)) return false;
+  return !(p.signals as readonly string[]).includes("conditional");
+}
 
 /** Scores one fixture's proposals against its golden items, adding to `t`. Pure; no text leaves it. */
 function scoreFixture(text: string, expected: Expected[], proposals: Proposal[], ambiguous: boolean, t: Tally): { items: ItemResult[]; shown: number } {
@@ -352,7 +365,7 @@ function scoreFixture(text: string, expected: Expected[], proposals: Proposal[],
       if (ok && ambiguous) t.bandAmbOk++;
     };
     if (isShown && p!.band === "high" && isSpeculative(e)) t.specHigh++;
-    if (p && (p.band === "low" || p.band === "ignore") && isExplicitDatedCommitment(e)) t.explicitLow++;
+    if (explicitDatedScoredLow(e, p)) t.explicitLow++;
 
     if (e.band === "ignore") {
       r.status = isShown ? "ignore_shown" : "ignore_ok";
@@ -575,7 +588,7 @@ export function renderScorecard(r: EvalReport, ask: AskWhyEvalReport | null = nu
     `| False-positive rate | ${pct(s.false_positive_rate)} | | Shown items not in the golden set ÷ all shown items |`,
     `| Uncertainty band accuracy | ${pct(s.band)} | ≥ ${pct(th.band)} | Golden items in ambiguous fixtures landing in their expected band |`,
     `| Speculative items scored High | ${s.speculative_scored_high} | 0 | Golden speculative or Ignore items shown as Likely |`,
-    `| Explicit dated commitments scored Low | ${s.explicit_dated_scored_low} | 0 | Golden explicit, dated commitments scored Also noticed or Ignore |`,
+    `| Explicit dated promises scored Low | ${s.explicit_dated_scored_low} | 0 | Golden explicit, dated promises (yours or owed to you) scored Also noticed or Ignore |`,
     ask
       ? `| Ask-why fabrications | ${ask.fabrications} | 0 | Questions (of ${ask.questions}: ${ask.answerable} answerable, ${ask.questions - ask.answerable} with no recorded decision) whose answer cites, quotes or claims anything not in the retrieved, stored decisions, or calls the model with nothing retrieved |`
       : `| Ask-why fabrications | not run | 0 | The Ask-why eval was not run |`,
