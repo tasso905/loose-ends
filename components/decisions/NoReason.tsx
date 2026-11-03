@@ -55,7 +55,13 @@ export function NoReason({ decisionId, onAdded }: { decisionId: string; onAdded:
         }
         onAdded(res.reason);
         // The card re-renders with the reason; focus follows it so it is announced and not lost.
-        requestAnimationFrame(() => document.getElementById(`reason-${decisionId}`)?.focus());
+        // The re-render can land after the next frame, so wait (up to about half a second) for it.
+        const focusReason = (frames: number) => {
+          const el = document.getElementById(`reason-${decisionId}`);
+          if (el) el.focus();
+          else if (frames > 0) requestAnimationFrame(() => focusReason(frames - 1));
+        };
+        requestAnimationFrame(() => focusReason(30));
       } catch {
         setError(apiError(typeof navigator !== "undefined" && !navigator.onLine ? "offline" : "save_failed").error.message);
       }
