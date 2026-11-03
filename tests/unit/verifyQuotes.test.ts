@@ -180,3 +180,37 @@ describe("verifyQuotes(): date_text must be in the source (round 2 fix)", () => 
     expect(r.items[0]!.item.date_text).toBe("Friday");
   });
 });
+
+describe("verifyQuotes(): date_text must be inside the item's own quote (eval gate, Oct 27)", () => {
+  it("clears a date_text that is in the source but only in a neighbouring sentence", () => {
+    const logger = vi.fn();
+    const r = verifyQuotes([item("We should grab lunch sometime", { date_text: "Friday", date_iso: "2026-10-09" })], SOURCE, { logger });
+    expect(r.items[0]!.item.date_text).toBeNull();
+    expect(logger).toHaveBeenCalledWith("field_unverified", expect.objectContaining({ field: "date_text", reason: "outside_quote" }));
+  });
+
+  it("keeps it when any of the item's verified quotes carries it", () => {
+    const evidence = [
+      { quote: "We should grab lunch sometime", speaker: null },
+      { quote: "revised proposal Friday", speaker: null },
+    ];
+    const r = verifyQuotes([item("x", { evidence, date_text: "Friday" })], SOURCE, { logger: () => {} });
+    expect(r.items[0]!.item.date_text).toBe("Friday");
+  });
+
+  it("an unverified quote does not anchor a date", () => {
+    const evidence = [
+      { quote: "We should grab lunch sometime", speaker: null },
+      { quote: "I will mail the cheque on Friday", speaker: null },
+    ];
+    const r = verifyQuotes([item("x", { evidence, date_text: "Friday" })], SOURCE, { logger: () => {} });
+    expect(r.items[0]!.evidence).toHaveLength(1);
+    expect(r.items[0]!.item.date_text).toBeNull();
+  });
+
+  it("a date not in the source at all is logged as not_in_source", () => {
+    const logger = vi.fn();
+    verifyQuotes([item("We should grab lunch sometime", { date_text: "Thursday" })], SOURCE, { logger });
+    expect(logger).toHaveBeenCalledWith("field_unverified", expect.objectContaining({ field: "date_text", reason: "not_in_source" }));
+  });
+});

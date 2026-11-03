@@ -20,6 +20,10 @@
       "title": "Send Marco the invoice for the remaining balance",
       "owner": "user",
       "quote": "I'll send the invoice for it by Friday",
+      "alt_quotes": [
+        "I'll send the invoice for it by Friday, with payment terms of 15 days as in our contract.",
+        "the remaining balance is $1,470. I'll send the invoice for it by Friday, with payment terms of 15 days as in our contract."
+      ],
       "date_text": "by Friday",
       "due_date": "2026-10-16",
       "due_certainty": "explicit",
@@ -27,13 +31,17 @@
       "counterparty": "Marco",
       "amount_text": "$1,470",
       "band": "high",
-      "note": "The amount is in the preceding sentence; a model may quote both sentences."
+      "note": "The amount is in the preceding sentence; a model may quote both sentences. Alternates: the whole sentence, or both sentences with the amount."
     },
     {
       "type": "waiting_on",
       "title": "Confirm the cup sleeve wording (from Marco)",
       "owner": "other",
       "quote": "please confirm the cup sleeve wording",
+      "alt_quotes": [
+        "please confirm the cup sleeve wording (\"Brewed on the harbor since 1998\") before I send anything to the printer.",
+        "One thing I need from your side: please confirm the cup sleeve wording (\"Brewed on the harbor since 1998\") before I send anything to the printer."
+      ],
       "date_text": null,
       "due_date": null,
       "due_certainty": "none",
@@ -41,7 +49,7 @@
       "counterparty": "Marco",
       "amount_text": null,
       "band": "high",
-      "note": "The user asks the client: the user is waiting on Marco. No date."
+      "note": "The user asks the client: the user is waiting on Marco. No date. Alternates: the whole sentence, or the whole line. 'before I send anything to the printer' is a condition, not a date."
     },
     {
       "type": "waiting_on",

@@ -20,14 +20,19 @@
  *                                         "due_date": "YYYY-MM-DD" | null,
  *                                         "band": "high|medium|low|ignore" } ] }
  *                                         (optional, scored when present: "due_certainty",
- *                                         "certainty", "page" (informational); other tester
- *                                         extensions are ignored)
+ *                                         "certainty", "page" (informational), "alt_quotes"
+ *                                         (matching only, below); other tester extensions are
+ *                                         ignored)
  * A predicted item matches an expected one when one quote contains the other (normalized,
  * case-insensitive) AND the shorter covers at least MIN_QUOTE_COVERAGE of the longer's words, so a
  * fragment ("Ravi") or a blob spanning several sentences matches nothing on its own. Matching is
  * one-to-one: each golden item takes at most one predicted item and vice versa (best coverage
  * first), so duplicates and blobs count as extras. Items with expected band "ignore" must not be
- * shown.
+ * shown. A golden may list `alt_quotes`: other verbatim spans that state the same loop (the
+ * whole sentence round a clause, the neighbouring sentence that carries the action, the user's
+ * acceptance of a request). A prediction matches the golden when it matches the quote or any
+ * alternate under the same containment and coverage rule; the item is still reported by the
+ * hash of the primary quote, and one-to-one assignment is unchanged.
  *
  * Scoring (see EvalReport.scores): a failed fixture is scored as if the model returned nothing, so
  * its golden items are misses; any failure, any null gated metric, or any F19 sub-threshold miss
@@ -45,7 +50,7 @@ import { join } from "node:path";
 import { wrapLanguageModel, type LanguageModel } from "ai";
 import type { AiFailureKind } from "@/lib/ai/errors";
 import { extract } from "@/lib/ai/extract";
-import { EXTRACT_PROMPT_VERSION } from "@/lib/ai/prompts";
+import { EXTRACT_PROMPT_VERSION, promptSha } from "@/lib/ai/prompts";
 import { safeErrorFields } from "@/lib/ai/safeError";
 import { EXTRACTION_SCHEMA_VERSION } from "@/lib/ai/schema";
 import { normalizeText } from "@/lib/pipeline/normalize";
@@ -151,6 +156,8 @@ interface Expected {
   certainty?: "explicit" | "implied" | "speculative";
   /** Tester extension: 1-based page of the quote in an upload with meta.page_offsets. Informational. */
   page?: number;
+  /** Tester extension: other verbatim spans of the same loop that also count as a match (see header). */
+  alt_quotes?: string[];
 }
 
 /**
@@ -200,6 +207,8 @@ export type EvalResult = "pass" | "fail" | "incomplete_quota";
 export interface EvalReport {
   model: string;
   prompt_version: string;
+  /** First 12 hex of sha256 over the prompt file (lib/ai/prompts.ts promptSha). */
+  prompt_sha256: string;
   schema_version: string;
   run_at: string;
   rpm: number | null;
@@ -233,7 +242,7 @@ export interface EvalReport {
     unverified_quotes_shown: number;
     /** F19: golden speculative (or "ignore") items shown as High. Must be 0. */
     speculative_scored_high: number;
-    /** F19: golden explicit, dated commitments scored Low or Ignore. Must be 0. */
+    /** F19: golden explicit, dated promises (commitment or waiting_on, D63) scored Low or Ignore. Must be 0. */
     explicit_dated_scored_low: number;
     extraction_failures: number;
   };
@@ -277,7 +286,8 @@ export function quoteMatch(a: string, b: string): number {
   const coverage = Math.min(wa, wb) / Math.max(wa, wb);
   return coverage >= MIN_QUOTE_COVERAGE ? coverage : 0;
 }
-const pairScore = (p: Proposal, e: Expected) => Math.max(0, ...p.evidence.map((ev) => quoteMatch(ev.quote, e.quote)));
+const goldenQuotes = (e: Expected) => [e.quote, ...(e.alt_quotes ?? [])];
+const pairScore = (p: Proposal, e: Expected) => Math.max(0, ...p.evidence.flatMap((ev) => goldenQuotes(e).map((q) => quoteMatch(ev.quote, q))));
 
 /**
  * One-to-one assignment of proposals to golden items: every matching pair, best coverage first
@@ -320,7 +330,20 @@ type Tally = Record<
 >;
 
 const isSpeculative = (e: Expected) => e.certainty === "speculative" || e.band === "ignore";
-const isExplicitDatedCommitment = (e: Expected) => e.type === "commitment" && e.certainty === "explicit" && e.due_date !== null;
+// D64(a): an explicit, dated promise by anyone is never Low: the user's own (commitment) or someone
+// else's to the user or the user's group (waiting_on, D63/D64(b)).
+const isExplicitDatedCommitment = (e: Expected) =>
+  (e.type === "commitment" || e.type === "waiting_on") && e.certainty === "explicit" && e.due_date !== null;
+/**
+ * D64(a)+(c): gate (a) judges the pipeline's FINAL certainty. A prediction whose quote the
+ * conditional guard capped at speculative (signal "conditional") is not explicit, so its Low band
+ * is the rule working, not a gate violation. A model that labels a plain promise speculative is
+ * still caught: only the guard's cap is exempt.
+ */
+export function explicitDatedScoredLow(e: Pick<Expected, "type" | "certainty" | "due_date">, p: Pick<Proposal, "band" | "signals"> | undefined): boolean {
+  if (!p || !(p.band === "low" || p.band === "ignore") || !isExplicitDatedCommitment(e as Expected)) return false;
+  return !(p.signals as readonly string[]).includes("conditional");
+}
 
 /** Scores one fixture's proposals against its golden items, adding to `t`. Pure; no text leaves it. */
 function scoreFixture(text: string, expected: Expected[], proposals: Proposal[], ambiguous: boolean, t: Tally): { items: ItemResult[]; shown: number } {
@@ -342,7 +365,7 @@ function scoreFixture(text: string, expected: Expected[], proposals: Proposal[],
       if (ok && ambiguous) t.bandAmbOk++;
     };
     if (isShown && p!.band === "high" && isSpeculative(e)) t.specHigh++;
-    if (p && (p.band === "low" || p.band === "ignore") && isExplicitDatedCommitment(e)) t.explicitLow++;
+    if (explicitDatedScoredLow(e, p)) t.explicitLow++;
 
     if (e.band === "ignore") {
       r.status = isShown ? "ignore_shown" : "ignore_ok";
@@ -488,6 +511,7 @@ export async function runEval(opts: RunEvalOptions): Promise<EvalReport> {
   return {
     model: opts.modelLabel,
     prompt_version: EXTRACT_PROMPT_VERSION,
+    prompt_sha256: promptSha(EXTRACT_PROMPT_VERSION),
     schema_version: EXTRACTION_SCHEMA_VERSION,
     run_at: opts.runAt,
     rpm: throttle.rpm,
@@ -546,7 +570,7 @@ export function renderScorecard(r: EvalReport, ask: AskWhyEvalReport | null = nu
     "# Trust Scorecard",
     "",
     `- Model: ${r.model}`,
-    `- Prompt version: ${r.prompt_version}`,
+    `- Prompt version: ${r.prompt_version} (sha256 ${r.prompt_sha256})`,
     `- Schema version: ${r.schema_version}`,
     `- Run date: ${r.run_at}`,
     `- Fixtures: ${r.fixtures} (${r.ambiguous_fixtures} ambiguous)`,
@@ -564,7 +588,7 @@ export function renderScorecard(r: EvalReport, ask: AskWhyEvalReport | null = nu
     `| False-positive rate | ${pct(s.false_positive_rate)} | | Shown items not in the golden set ÷ all shown items |`,
     `| Uncertainty band accuracy | ${pct(s.band)} | ≥ ${pct(th.band)} | Golden items in ambiguous fixtures landing in their expected band |`,
     `| Speculative items scored High | ${s.speculative_scored_high} | 0 | Golden speculative or Ignore items shown as Likely |`,
-    `| Explicit dated commitments scored Low | ${s.explicit_dated_scored_low} | 0 | Golden explicit, dated commitments scored Also noticed or Ignore |`,
+    `| Explicit dated promises scored Low | ${s.explicit_dated_scored_low} | 0 | Golden explicit, dated promises (yours or owed to you) scored Also noticed or Ignore |`,
     ask
       ? `| Ask-why fabrications | ${ask.fabrications} | 0 | Questions (of ${ask.questions}: ${ask.answerable} answerable, ${ask.questions - ask.answerable} with no recorded decision) whose answer cites, quotes or claims anything not in the retrieved, stored decisions, or calls the model with nothing retrieved |`
       : `| Ask-why fabrications | not run | 0 | The Ask-why eval was not run |`,
@@ -580,7 +604,7 @@ export function renderScorecard(r: EvalReport, ask: AskWhyEvalReport | null = nu
   ];
   if (ask) {
     lines.push(
-      `- Ask-why: ${RESULT_LINE[ask.result].replace(/^Result: /, "")}; model ${ask.model}, prompt ${ask.prompt_version}, schema ${ask.schema_version}; answerable hit rate ${pct(ask.answerable_hit_rate)}; model calls ${ask.llm_calls}; failed calls ${ask.failures}`,
+      `- Ask-why: ${RESULT_LINE[ask.result].replace(/^Result: /, "")}; model ${ask.model}, prompt ${ask.prompt_version} (sha256 ${ask.prompt_sha256}), schema ${ask.schema_version}; answerable hit rate ${pct(ask.answerable_hit_rate)}; model calls ${ask.llm_calls}; failed calls ${ask.failures}`,
     );
     const fab = Object.entries(ask.fabrications_by_kind);
     if (fab.length) lines.push(`- Ask-why fabrications by kind: ${fab.map(([k, n]) => `${k} ${n}`).join(", ")}`);

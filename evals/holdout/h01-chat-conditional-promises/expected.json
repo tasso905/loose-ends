@@ -1,0 +1,46 @@
+{
+  "items": [
+    {
+      "type": "waiting_on",
+      "title": "Omar to send the invites",
+      "owner": "other",
+      "quote": "if the venue confirms by Friday, I'll send out the invites on Monday",
+      "date_text": "on Monday",
+      "due_date": "2026-10-26",
+      "due_certainty": "explicit",
+      "certainty": "speculative",
+      "counterparty": "Omar",
+      "amount_text": null,
+      "band": "low",
+      "note": "Conditional on the venue: speculative. 'by Friday' dates the condition, 'on Monday' the action (Mon Oct 26). 0.30 + 0.05 + 0.05 = 0.40, Also noticed. D63: Omar's promise to the user is waiting_on."
+    },
+    {
+      "type": "commitment",
+      "title": "Order the banners",
+      "owner": "user",
+      "quote": "Assuming the budget gets approved, I'll order the banners.",
+      "date_text": null,
+      "due_date": null,
+      "due_certainty": "none",
+      "certainty": "speculative",
+      "counterparty": null,
+      "amount_text": null,
+      "band": "low",
+      "note": "The user's own conditional promise: 0.30 + 0.05 + 0.05 modal = 0.40, Also noticed."
+    },
+    {
+      "type": "waiting_on",
+      "title": "Guest list from Omar",
+      "owner": "other",
+      "quote": "also I'll email you the guest list tomorrow",
+      "date_text": "tomorrow",
+      "due_date": "2026-10-22",
+      "due_certainty": "explicit",
+      "certainty": "explicit",
+      "counterparty": "Omar",
+      "amount_text": null,
+      "band": "high",
+      "note": "Plain dated promise to the user: 0.80 + 0.05 + 0.05 = 0.90, Likely."
+    }
+  ]
+}
