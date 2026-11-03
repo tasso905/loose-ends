@@ -44,7 +44,9 @@ const NOT_CONDITIONS: RegExp[] = [
   /\b(?:if|assuming)\s+(?:nobody|no\s+one|no-one)\s+(?:objects|says\s+otherwise)\b[^,.;!?]*/giu,
   /\bif\s+there\s+are\s+no\s+objections\b[^,.;!?]*/giu,
   // Courtesies.
-  /\bif\s+(?:you|u)(?:['’]d\s+(?:like|prefer)|\s+(?:have|need|want|wish|would\s+like|get\s+stuck|run\s+into|prefer|like|don['’]t\s+mind))\b[^,.;!?]*/giu,
+  // "have" only with what a courtesy is about: "If you have the contract signed by Thursday" is a real condition.
+  /\bif\s+(?:you|u)\s+have\s+(?:(?:any|a|some|more|further|other)\s+)*(?:questions?|issues?|concerns?|problems?|trouble|comments?|thoughts?|feedback|time|minute|sec|second|chance)\b[^,.;!?]*/giu,
+  /\bif\s+(?:you|u)(?:['’]d\s+(?:like|prefer)|\s+(?:need|want|wish|would\s+like|get\s+stuck|run\s+into|prefer|like|don['’]t\s+mind))\b[^,.;!?]*/giu,
   /\bif\s+(?:needed|possible|necessary|so|not|any|anything)\b/giu,
   // Only as a courtesy to the reader: "if that's fine with the board" is a real condition.
   /\bif\s+(?:that\s+works|that\s+helps|it\s+helps|(?:that|it)['’]s\s+(?:ok|okay|fine|alright|all\s+right|easier|easiest|better))(?=\s*(?:[,.;:!?)]|$|(?:with|for|by)\s+(?:you|u|everyone|all)\b))/giu,
@@ -203,7 +205,10 @@ function sentences(text: string): Array<[number, number]> {
 }
 
 /** Words that may stand around a condition fragment without being a main clause of their own. */
-const FRAGMENT_FILLER = /^(?:only|though|but|and|just|then|of|course|obviously|naturally|ok|okay|so|that|is|all|really|still)$/iu;
+const FRAGMENT_FILLER = /^(?:only|though|but|and|just|then|of|course|obviously|naturally|ok|okay|so|that|is|all|really|still|well|again|also|however|remember|note|yes|yeah|sure|oh|um)$/iu;
+/** After the condition's comma, these continue the condition rather than open a main clause (T-G8). */
+const CONTINUES_CONDITION = /^[\s,;:–—-]*(?:and|or|by|on|at|in|before|after|until|till)\b/iu;
+const ASIDE = /\b(?:i\s+mean|i\s+guess|i\s+think|i\s+suppose|you\s+know)\b/giu;
 /** Where a condition clause ends when it is written with punctuation. */
 const CLAUSE_END = /[,;:]|\s[-–—]\s/u;
 /** Instructions that open a main clause with no comma before them ("If I'm out text me"; T-G7). */
@@ -231,7 +236,8 @@ function runsIntoInstruction(clause: string): boolean {
 /**
  * A sentence with no promise verb that is only a condition clause: "Only if the venue confirms,
  * though.", "If the venue confirms by Friday.", "Assuming the budget passes." It belongs to the
- * neighbouring promise (T-G3). A trigger sentence with a main clause of its own, with or without a
+ * neighbouring promise (T-G3), also with words around it: "Well, only if the venue confirms, I mean."
+ * (T-G8). A trigger sentence with a main clause of its own, with or without a
  * comma ("If I don't pick up, text me.", "If I don't pick up text me."), does not (T-G7).
  */
 function isConditionFragment(sentence: string): boolean {
@@ -241,7 +247,10 @@ function isConditionFragment(sentence: string): boolean {
     const after = sentence.slice(m.index + m[0].length);
     const stop = after.search(CLAUSE_END);
     const clause = stop < 0 ? after : after.slice(0, stop);
-    const rest = `${sentence.slice(0, m.index)} ${stop < 0 ? "" : after.slice(stop)}`;
+    const before = sentence.slice(0, m.index);
+    const tail = (stop < 0 ? "" : after.slice(stop)).replace(ASIDE, " ");
+    // "only if" is a condition whatever comes before it; a tail like "and the budget passes" is more of it.
+    const rest = `${/\bonly\s*$/iu.test(before) ? "" : before} ${CONTINUES_CONDITION.test(tail) ? "" : tail}`;
     if (runsIntoInstruction(clause)) continue;
     if (rest.split(/[^\p{L}']+/u).filter(Boolean).every((w) => FRAGMENT_FILLER.test(w))) return true;
   }

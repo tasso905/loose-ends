@@ -388,3 +388,39 @@ describe("findCondition(): more wordings that set no condition (T-G16)", () => {
     expect(findCondition(q, true)).toBeNull(),
   );
 });
+
+describe("findCondition(): words around a condition-only sentence (T-G8)", () => {
+  it.each([
+    "I'll send it Monday. Well, only if the venue confirms.",
+    "I'll send it Monday. Just to be clear, only if the venue confirms.",
+    "I'll send it Monday. If the venue confirms, by Friday.",
+    "I'll send it Monday. Only if the venue confirms, and the budget passes.",
+    "I'll send it Monday. Only if the venue confirms, I mean.",
+    "I'll send it Monday. Again, assuming the budget passes.",
+  ])("caps: %s", (q) => expect(findCondition(q, true)).not.toBeNull());
+
+  it.each([
+    "I'll call you back. If I don't pick up, text me.",
+    "I'll call you Friday. If the venue calls, then tell them I'm out.",
+    "I'll pay Friday. If you're busy, no worries.",
+    "I'll send it Friday. Bring cake if you can.",
+  ])("a main clause stays out: %s", (q) => expect(findCondition(q, true)).toBeNull());
+});
+
+describe("findCondition(): the 'if you have' courtesy is only about offering help", () => {
+  it.each([
+    "If you have the contract signed by Thursday, I'll send it Friday.",
+    "If you have the address, I'll book the van Friday.",
+    "I'll send it Friday if you have the funds.",
+  ])("a real condition caps: %s", (q) => expect(findCondition(q, true)).not.toBeNull());
+
+  it.each([
+    "If you have questions, call me.",
+    "I'll send the deck Friday; if you have any questions, ping me.",
+    "I'll send the deck Friday, if you have a problem with it, tell me.",
+    "If you have time, I'll walk you through it on Friday.",
+    "If you have any further comments about the draft, I'll fold them in on Friday.",
+    "If you need anything, I'll be in on Friday.",
+    "If you want, I'll pick you up on Friday.",
+  ])("a courtesy does not cap: %s", (q) => expect(findCondition(q, true)).toBeNull());
+});

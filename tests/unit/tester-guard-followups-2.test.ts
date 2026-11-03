@@ -53,7 +53,7 @@ describe("T-G3: a condition-only sentence attaches to the adjacent promise", () 
     it(`REGRESSION: a comma-less main clause stays out: ${q}`, () => notCapped(q));
   }
 
-  // OPEN DEFECT (T-G8, low): words around the condition outside FRAGMENT_FILLER lose the fragment.
+  // REGRESSION GUARD (T-G8, fixed in fix/guard-followups-3): words around the condition outside FRAGMENT_FILLER lose the fragment.
   for (const q of [
     "I'll send it Monday. Well, only if the venue confirms.",
     "I'll send it Monday. Again, only if the venue confirms.",
@@ -61,7 +61,7 @@ describe("T-G3: a condition-only sentence attaches to the adjacent promise", () 
     "I'll send it Monday. Only if the venue confirms, and the budget passes.",
     "I'll send it Monday. Only if the venue confirms, I mean.",
   ]) {
-    it.fails(`a condition fragment with other trailing or leading words caps: ${q}`, () => capped(q));
+    it(`a condition fragment with other trailing or leading words caps: ${q}`, () => capped(q));
   }
 });
 
