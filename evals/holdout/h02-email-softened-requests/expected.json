@@ -1,0 +1,46 @@
+{
+  "items": [
+    {
+      "type": "request",
+      "title": "Look over the workshop slides",
+      "owner": "user",
+      "quote": "No rush at all, but if you get a chance could you look over the workshop slides before Thursday?",
+      "date_text": "before Thursday",
+      "due_date": "2026-10-22",
+      "due_certainty": "explicit",
+      "certainty": "implied",
+      "counterparty": "Leo",
+      "amount_text": null,
+      "band": "medium",
+      "note": "Softened request: 'if you get a chance' is politeness, not a condition, so implied, not speculative. 0.55 + 0.05 + 0.05 = 0.65, Maybe."
+    },
+    {
+      "type": "request",
+      "title": "Share the attendee survey results",
+      "owner": "user",
+      "quote": "It would be lovely if you could also share the attendee survey results at some point.",
+      "date_text": null,
+      "due_date": null,
+      "due_certainty": "none",
+      "certainty": "implied",
+      "counterparty": "Leo",
+      "amount_text": null,
+      "band": "medium",
+      "note": "Softened, no date ('at some point' is never a date). 0.55 + 0.05 = 0.60, Maybe."
+    },
+    {
+      "type": "request",
+      "title": "Send Leo the signed room booking form",
+      "owner": "user",
+      "quote": "Please send me the signed room booking form by Wednesday, Oct 21.",
+      "date_text": "by Wednesday, Oct 21",
+      "due_date": "2026-10-21",
+      "due_certainty": "explicit",
+      "certainty": "explicit",
+      "counterparty": "Leo",
+      "amount_text": null,
+      "band": "high",
+      "note": "Control: 0.80 + 0.05 + 0.05 = 0.90, Likely. Oct 21, 2026 is a Wednesday."
+    }
+  ]
+}

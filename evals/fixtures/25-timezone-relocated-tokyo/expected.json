@@ -17,7 +17,7 @@
       "note": "0.90. 8:00 AM JST Mon Oct 26 = 23:00Z Sun Oct 25."
     },
     {
-      "type": "commitment",
+      "type": "waiting_on",
       "title": "Hannah to forward the vendor contacts",
       "owner": "other",
       "quote": "I'll forward the vendor contacts by noon on Tuesday.",
@@ -29,7 +29,7 @@
       "counterparty": "Hannah",
       "amount_text": null,
       "band": "high",
-      "note": "Written by Hannah, so owner other. 0.80 + 0.05 + 0.05 + 0.05 modal = 0.95. Noon JST = 03:00Z."
+      "note": "Written by Hannah, so owner other. 0.80 + 0.05 + 0.05 = 0.90. Noon JST = 03:00Z. D63: another person's promise to the user is waiting_on (no first-person-modal bonus)."
     },
     {
       "type": "request",

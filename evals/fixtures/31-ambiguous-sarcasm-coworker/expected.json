@@ -14,7 +14,7 @@
       "note": "Sarcasm: not a commitment. Pass if left out or scored Ignore; shown as Likely breaks the F19 zero-tolerance gate."
     },
     {
-      "type": "commitment",
+      "type": "waiting_on",
       "title": "Jamal to file the IT ticket",
       "owner": "other",
       "quote": "Seriously though, I'll file the ticket with IT today.",
@@ -25,7 +25,7 @@
       "counterparty": "Jamal",
       "amount_text": null,
       "band": "high",
-      "note": "Control: explicit dated commitment. 0.95."
+      "note": "Control: explicit dated promise by Jamal to the user. 0.80 + 0.05 + 0.05 = 0.90. D63: another person's promise to the user is waiting_on (no first-person-modal bonus)."
     },
     {
       "type": "request",
@@ -42,7 +42,7 @@
       "note": "Plain request, no date: 0.85."
     },
     {
-      "type": "commitment",
+      "type": "waiting_on",
       "title": "Jamal to pass on what Facilities says",
       "owner": "other",
       "quote": "And if Facilities ever answers, I'll let you know what they say.",
@@ -53,7 +53,7 @@
       "counterparty": "Jamal",
       "amount_text": null,
       "band": "low",
-      "note": "Conditional, and doubtful ('ever'). 0.30 + 0.05 + 0.05 = 0.40, Also noticed."
+      "note": "Conditional, and doubtful ('ever'). 0.30 + 0.05 = 0.35, Also noticed. D63: another person's promise to the user is waiting_on (no first-person-modal bonus)."
     }
   ]
 }

@@ -1,0 +1,18 @@
+{
+  "items": [
+    {
+      "type": "commitment",
+      "title": "Renew the car registration",
+      "owner": "user",
+      "quote": "renew the car registration before it expires on Nov 15",
+      "date_text": "on Nov 15",
+      "due_date": "2026-11-15",
+      "due_certainty": "explicit",
+      "certainty": "explicit",
+      "counterparty": null,
+      "amount_text": null,
+      "band": "high",
+      "note": "The user's own task with a firm expiry: 0.80 + 0.05 + 0.05 = 0.90, Likely. Type may come back as deadline (same band); informational."
+    }
+  ]
+}

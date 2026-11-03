@@ -1,0 +1,21 @@
+{
+  "description": "Held-out (not used for prompt tuning). Family group message written Sat Oct 24, 2026, Chicago; the user is Kim. Nothing is owed: a recap, a done task ('Photos are in the shared album already') and an idiom ('Same time next year, who knows!'). The correct output is no items.",
+  "covers": [
+    "group_message",
+    "no_items",
+    "done_task_decoy",
+    "idiom_decoy"
+  ],
+  "reference_date": "2026-10-24",
+  "reference_date_source": "user",
+  "timezone": "America/Chicago",
+  "source_kind": "paste",
+  "user": {
+    "display_name": "Kim Tran",
+    "aliases": [
+      "kim.tran@example.com",
+      "Kim"
+    ]
+  },
+  "ambiguous": false
+}
