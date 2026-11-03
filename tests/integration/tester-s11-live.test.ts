@@ -241,8 +241,8 @@ describe.skipIf(!live)("lead-tester S11 on real local Supabase", () => {
       expect((await admin.from("threads").select("primary_source_id").eq("id", t2).single()).data).toEqual({ primary_source_id: null });
     });
 
-    // OPEN DEFECT S11-D5 (low): the hash lives only on extraction_items, which Delete source only removes.
-    it.fails("the dialog's promise holds after Delete source only: forgetting the surviving thread still leaves its one-way hash", async () => {
+    // FIXED S11-D5 (low): the hash now outlives the proposal (private.thread_suppression_hashes).
+    it("the dialog's promise holds after Delete source only: forgetting the surviving thread still leaves its one-way hash", async () => {
       const A = await makeUser("fd");
       const s = await seedSource(A, `Fgh${randomUUID().slice(0, 8)}`, ["one"]);
       current.client = A.client;
@@ -387,20 +387,21 @@ describe.skipIf(!live)("lead-tester S11 on real local Supabase", () => {
       expect((await A.client.rpc("storage_deletions_settle")).data).toEqual([]);
     });
 
-    // OPEN DEFECT S11-D2: the file goes, but the retry returns not_found, so the dialog stays open with an error.
-    it.fails("Try again after a Storage failure removes the file AND reports success (data.ts promises the retry completes)", async () => {
+    // FIXED S11-D2 (adapted by lead-developer, was `ok: true`): the retry finishes the file and answers
+    // not_found, because this call deleted no rows; SourcesList shows that as gone (E2E outage test).
+    it("Try again after a Storage failure removes the file and answers not_found, only once the file is gone", async () => {
       const A = await makeUser("qd");
       const s = await seedSource(A, `Qad${randomUUID().slice(0, 8)}`, []);
       expect((await deleteSource(failingStorage(A.client, 1), s.sourceId, true, () => undefined)).ok).toBe(false);
       current.client = A.client;
       const retry = await deleteSourceAction(s.sourceId, true);
       expect(await fileExists(s.path)).toBe(false);
-      expect(retry).toMatchObject({ ok: true });
+      expect(retry).toMatchObject({ ok: false, error: { code: "not_found" } });
     });
 
-    // OPEN DEFECT S11-D1 (rule 8, rule 10): forgetThread returns not_found on P0002 before it finishes the
+    // FIXED S11-D1 (rule 8, rule 10): forgetThread returns not_found on P0002 before it finishes the
     // queue, so the retry leaves the file in Storage while the UI moves on to Threads with no error.
-    it.fails("Try again after a Forget's Storage failure removes the file", async () => {
+    it("Try again after a Forget's Storage failure removes the file", async () => {
       const A = await makeUser("qf");
       const s = await seedSource(A, `Qaf${randomUUID().slice(0, 8)}`, ["one"]);
       expect((await forgetThread(failingStorage(A.client, 1), s.threads[0]!, true, () => undefined)).ok).toBe(false);
@@ -419,11 +420,15 @@ describe.skipIf(!live)("lead-tester S11 on real local Supabase", () => {
       expect(body).not.toContain(m);
     });
 
-    // OPEN DEFECT S11-D3 (rule 8): the migration says cron/daily finishes queued files. There is no cron
+    // FIXED S11-D3 (rule 8; adapted by lead-developer, was: service_role has usage on private and select on
+    // the queue, which the fix deliberately does not grant): one narrow function, service role only.
+    // Was: the migration says cron/daily finishes queued files. There is no cron
     // route, and the service role has no usage on schema private, so nothing but the user's next delete does.
-    it.runIf(DB).fails("the queue has an owner-independent finisher: the service role can reach it (the migration promises cron/daily)", async () => {
-      const can = psql(`select has_schema_privilege('service_role','private','usage') and has_table_privilege('service_role','private.storage_deletions','select')`);
-      expect(can).toBe("t");
+    it.runIf(DB)("the queue has an owner-independent finisher: the service role can reach it through one function, and nothing else in private", async () => {
+      const sig = "public.storage_deletions_sweep(integer)";
+      expect(psql(`select has_function_privilege('service_role','${sig}','execute')`)).toBe("t");
+      expect(psql(`select has_function_privilege('authenticated','${sig}','execute') or has_function_privilege('anon','${sig}','execute')`)).toBe("f");
+      expect(psql(`select has_schema_privilege('service_role','private','usage')`)).toBe("f");
     });
   });
 

@@ -61,14 +61,18 @@ export function SourcesList({ sources, headingId }: { sources: SourceRow[]; head
     startTransition(async () => {
       try {
         const res = await deleteSourceAction(source.id, everything);
-        if (!res.ok) {
+        // not_found comes only after any queued file is finished: an earlier attempt's rows went
+        // before its Storage step failed, or another tab deleted it. Either way the source is gone.
+        const alreadyGone = !res.ok && res.error.code === "not_found";
+        if (!res.ok && !alreadyGone) {
           setError(res.error.message);
           return;
         }
         focusAfter.current = "heading";
         setGone((g) => new Set(g).add(source.id));
         setTarget(null);
-        setStatus(everything ? C.everythingDeleted(res.threadsForgotten) : C.sourceDeleted);
+        // The retry can't know how many threads the first attempt forgot, so it names none.
+        setStatus(res.ok && everything ? C.everythingDeleted(res.threadsForgotten) : C.sourceDeleted);
         router.refresh();
       } catch {
         setError(apiError(typeof navigator !== "undefined" && !navigator.onLine ? "offline" : "save_failed").error.message);

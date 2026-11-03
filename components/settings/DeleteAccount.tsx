@@ -1,6 +1,5 @@
 "use client";
 import { useId, useRef, useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
 import { deleteAccountAction } from "@/app/settings/data-actions";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { FieldError } from "@/components/Notice";
@@ -15,7 +14,6 @@ import { apiError } from "@/lib/errors";
  * the browser goes to sign-in, which says the account was deleted (rule 10).
  */
 export function DeleteAccount() {
-  const router = useRouter();
   const [open, setOpen] = useState(false);
   const [word, setWord] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -40,8 +38,8 @@ export function DeleteAccount() {
           else setError(res.error.message);
           return;
         }
-        router.replace("/sign-in");
-        router.refresh();
+        // A full page load: the proxy shows the deletion notice once, on a document request (S11-D4).
+        window.location.href = new URL("/sign-in", window.location.origin).href;
       } catch {
         setError(apiError(typeof navigator !== "undefined" && !navigator.onLine ? "offline" : "save_failed").error.message);
       }

@@ -1,9 +1,9 @@
 "use server";
 import { cookies } from "next/headers";
 import { z } from "zod";
-import { ACCOUNT_DELETE_WORD, ACCOUNT_DELETED_COOKIE, DATA_COPY } from "@/lib/account/copy";
+import { ACCOUNT_DELETE_WORD, ACCOUNT_DELETED_COOKIE, ACCOUNT_DELETED_FULLY, ACCOUNT_DELETED_RECORDS_REMAIN, DATA_COPY } from "@/lib/account/copy";
 import { deleteSource, type DataClient } from "@/lib/account/data";
-import { deleteAccount } from "@/lib/account/deleteAccount";
+import { deleteAccount, type AccountAdminClient } from "@/lib/account/deleteAccount";
 import { createTracker, track } from "@/lib/analytics/track";
 import { apiError, type ApiError } from "@/lib/errors";
 import { log } from "@/lib/log";
@@ -58,13 +58,15 @@ export async function deleteAccountAction(confirm: unknown): Promise<DeleteAccou
     log("account_delete_sweep_failed", { user_id: userId, step: "config" });
     return { ok: false, error: apiError("save_failed").error };
   }
-  const res = await deleteAccount(admin, userId);
+  const res = await deleteAccount(admin as unknown as AccountAdminClient, userId, { email: data.user.email });
   if (!res.ok) return { ok: false, error: res.error };
 
   await supabase.auth.signOut({ scope: "local" }).catch(() => undefined);
-  // Lets the sign-in page say the account was deleted. Only this success path sets it (a link can't),
-  // so the page never claims a deletion that did not happen (rule 10).
-  (await cookies()).set(ACCOUNT_DELETED_COOKIE, "1", { httpOnly: true, sameSite: "lax", path: "/sign-in", maxAge: 120 });
+  // Lets the sign-in page say the account was deleted, and what remains if the audit log purge failed.
+  // Only this success path sets it (a link can't), so the page never claims a deletion that did not
+  // happen (rules 9, 10).
+  const notice = res.signInRecordsRemain ? ACCOUNT_DELETED_RECORDS_REMAIN : ACCOUNT_DELETED_FULLY;
+  (await cookies()).set(ACCOUNT_DELETED_COOKIE, notice, { httpOnly: true, sameSite: "lax", path: "/sign-in", maxAge: 120 });
   createTracker({ isOptedIn: async () => optedIn }).track(userId, "account_deleted", {});
   return { ok: true };
 }

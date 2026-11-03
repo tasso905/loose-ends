@@ -106,8 +106,28 @@ describe("forgetThread", () => {
   });
 
   it("another user's thread (P0002) is not found", async () => {
-    const { c } = client({ forget_thread: [{ data: null, error: { code: "P0002" } }] });
+    const { c } = client({ forget_thread: [{ data: null, error: { code: "P0002" } }], storage_deletions_settle: [{ data: [], error: null }] });
     expect(await forgetThread(c, THR, false, vi.fn())).toMatchObject({ ok: false, code: "not_found" });
+  });
+
+  it("S11-D1: an already-gone thread still finishes the queue first, and says not_found only when it empties", async () => {
+    const { c, removed } = client({
+      forget_thread: [{ data: null, error: { code: "P0002" } }],
+      storage_deletions_settle: [
+        { data: ["u/f"], error: null },
+        { data: [], error: null },
+      ],
+    });
+    expect(await forgetThread(c, THR, true, vi.fn())).toMatchObject({ ok: false, code: "not_found" });
+    expect(removed).toEqual([["u/f"]]);
+  });
+
+  it("S11-D1: an already-gone thread whose queued file can't be removed reports the failure, not not_found", async () => {
+    const { c } = client(
+      { forget_thread: [{ data: null, error: { code: "P0002" } }], storage_deletions_settle: [{ data: ["u/f"], error: null }] },
+      { code: "storage_down" },
+    );
+    expect(await forgetThread(c, THR, true, vi.fn())).toMatchObject({ ok: false, code: "save_failed", error: { code: "save_failed" } });
   });
 });
 

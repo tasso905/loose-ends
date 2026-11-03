@@ -15,9 +15,37 @@ import { log as defaultLog, type Logger } from "@/lib/log";
  * deleted (the storage insert policy also refuses uploads once the profile row is gone). If that
  * sweep fails, the failure is logged (IDs only) and returned; a retry finds the user already gone
  * (treated as deleted) and sweeps again.
+ *
+ * The user's auth.audit_log_entries go too (migration 20261104100000). The purge is recorded before
+ * anything is deleted, and refusing there stops the deletion. It runs after the auth user is deleted,
+ * because that delete writes an entry of its own. If it fails then, the account is already gone and
+ * can't be restored: the result says the records remain (rules 9, 10) and cron/daily retries.
  */
 
 export const SOURCES_BUCKET = "sources";
+
+/**
+ * How long one Storage call may take. With Storage down a call otherwise hangs for about 60 s at the
+ * gateway while the confirmation dialog can't close (rule 10). A slow call that later succeeds is
+ * harmless: every caller re-checks, and the queue clears only when the file is really gone.
+ */
+export const STORAGE_TIMEOUT_MS = 15_000;
+export const STORAGE_TIMEOUT_CODE = "storage_timeout";
+
+/** The call's result, or an error result with STORAGE_TIMEOUT_CODE once the time is up. */
+export async function storageCall<T>(call: PromiseLike<{ data: T | null; error: unknown }>, ms = STORAGE_TIMEOUT_MS): Promise<{ data: T | null; error: unknown }> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<{ data: null; error: { code: string } }>((resolve) => {
+    timer = setTimeout(() => resolve({ data: null, error: { code: STORAGE_TIMEOUT_CODE } }), ms);
+  });
+  try {
+    return await Promise.race([Promise.resolve(call), timeout]);
+  } catch (error) {
+    return { data: null, error: error ?? { code: "unknown" } };
+  } finally {
+    clearTimeout(timer);
+  }
+}
 
 interface ListedObject {
   name: string;
@@ -34,11 +62,15 @@ export interface AccountAdminClient {
     };
   };
   auth: { admin: { deleteUser(id: string): PromiseLike<{ data: unknown; error: unknown }> } };
+  rpc(fn: string, args?: Record<string, unknown>): PromiseLike<{ data: unknown; error: unknown }>;
 }
 
-export type DeleteAccountResult = { ok: true; objectsRemoved: number } | ({ ok: false } & ApiError);
+/** `signInRecordsRemain`: the account is gone but its audit log entries are not, yet. */
+export type DeleteAccountResult = { ok: true; objectsRemoved: number; signInRecordsRemain?: true } | ({ ok: false } & ApiError);
 
 export interface DeleteAccountOptions {
+  /** The session's email, to find audit log entries that name it. Without it, the one on the auth user. */
+  email?: string | null;
   /** Listing page size (Storage API maximum is 1000; small values are for tests). */
   pageSize?: number;
   logger?: Logger;
@@ -53,7 +85,7 @@ async function listAll(client: AccountAdminClient, prefix: string, pageSize: num
   const bucket = client.storage.from(SOURCES_BUCKET);
   const paths: string[] = [];
   for (let offset = 0; ; offset += pageSize) {
-    const { data, error } = await bucket.list(prefix, { limit: pageSize, offset });
+    const { data, error } = await storageCall(bucket.list(prefix, { limit: pageSize, offset }));
     if (error || !data) throw new StorageStepError("list failed");
     for (const o of data) {
       const path = `${prefix}/${o.name}`;
@@ -68,7 +100,7 @@ async function listAll(client: AccountAdminClient, prefix: string, pageSize: num
 async function sweep(client: AccountAdminClient, userId: string, pageSize: number): Promise<number> {
   const paths = await listAll(client, userId, pageSize);
   for (let i = 0; i < paths.length; i += pageSize) {
-    const { error } = await client.storage.from(SOURCES_BUCKET).remove(paths.slice(i, i + pageSize));
+    const { error } = await storageCall(client.storage.from(SOURCES_BUCKET).remove(paths.slice(i, i + pageSize)));
     if (error) throw new StorageStepError("remove failed");
   }
   // Prove the folder is empty.
@@ -80,11 +112,35 @@ async function sweep(client: AccountAdminClient, userId: string, pageSize: numbe
 const isNotFound = (error: unknown) =>
   typeof error === "object" && error !== null && ((error as { status?: number }).status === 404 || (error as { code?: string }).code === "user_not_found");
 
+/** True only when the database confirms nothing identifying the user is left. Logs IDs only. */
+async function purgeAuditLog(client: AccountAdminClient, userId: string, email: string | null, logger: Logger): Promise<boolean> {
+  let remaining: unknown;
+  try {
+    const { data, error } = await client.rpc("auth_audit_purge", { p_user_id: userId, p_email: email });
+    remaining = error ? undefined : (data as { remaining?: unknown } | null)?.remaining;
+  } catch {
+    remaining = undefined;
+  }
+  if (remaining === 0) return true;
+  logger("account_delete_audit_failed", { user_id: userId, step: "purge", remaining: typeof remaining === "number" ? remaining : null });
+  return false;
+}
+
 export async function deleteAccount(client: AccountAdminClient, userId: string, opts: DeleteAccountOptions = {}): Promise<DeleteAccountResult> {
   if (!UUID.test(userId)) return { ok: false, ...apiError("save_failed") };
   const pageSize = Math.min(Math.max(opts.pageSize ?? 1000, 1), 1000);
   const logger = opts.logger ?? defaultLog;
+  const email = opts.email || null;
   let removed = 0;
+
+  // First, so that a purge that could never run deletes nothing at all, not even the files.
+  try {
+    const { error } = await client.rpc("auth_audit_purge_prepare", { p_user_id: userId, p_email: email });
+    if (error) throw error;
+  } catch {
+    logger("account_delete_audit_failed", { user_id: userId, step: "prepare", remaining: null });
+    return { ok: false, ...apiError("save_failed") };
+  }
 
   try {
     removed = await sweep(client, userId, pageSize);
@@ -99,6 +155,9 @@ export async function deleteAccount(client: AccountAdminClient, userId: string, 
     return { ok: false, ...apiError("save_failed") };
   }
 
+  // The user is gone from here on, so the purge runs whatever the final sweep does.
+  const auditPurged = await purgeAuditLog(client, userId, email, logger);
+
   // Final sweep for anything uploaded between the check and the user deletion.
   try {
     const late = await sweep(client, userId, pageSize);
@@ -108,5 +167,5 @@ export async function deleteAccount(client: AccountAdminClient, userId: string, 
     logger("account_delete_sweep_failed", { user_id: userId });
     return { ok: false, ...apiError("save_failed") };
   }
-  return { ok: true, objectsRemoved: removed };
+  return auditPurged ? { ok: true, objectsRemoved: removed } : { ok: true, objectsRemoved: removed, signInRecordsRemain: true };
 }

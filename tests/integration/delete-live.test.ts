@@ -7,7 +7,7 @@
  * Skipped unless LE_SUPABASE_LIVE=1 (`pnpm test:supabase`). Throwaway users, synthetic text only,
  * no model. Never resets the database.
  */
-import { execSync } from "node:child_process";
+import { execFileSync, execSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
@@ -25,6 +25,9 @@ vi.mock("@/lib/analytics/track", () => ({
   createTracker: () => ({ track: (_u: string, name: string, props: unknown) => void tracked.events.push({ name, props }) }),
 }));
 
+import { GET as cronRoute } from "@/app/api/cron/daily/route";
+import { deleteSource, type DataClient } from "@/lib/account/data";
+import { sweepStorageDeletions, type SweepClient } from "@/lib/account/sweep";
 import { GET as exportRoute } from "@/app/api/export/route";
 import { deleteAccountAction, deleteSourceAction } from "@/app/settings/data-actions";
 import { forgetAction } from "@/app/threads/[id]/actions";
@@ -43,7 +46,11 @@ function env() {
   return { url: j.API_URL, anon: j.ANON_KEY, service: j.SERVICE_ROLE_KEY };
 }
 
-type User = { id: string; client: SupabaseClient };
+type User = { id: string; email: string; client: SupabaseClient };
+const DB = process.env.LE_S11_DB_CONTAINER;
+const psql = (sql: string) => execFileSync("docker", ["exec", DB!, "psql", "-U", "postgres", "-d", "postgres", "-tAc", sql], { encoding: "utf8" }).trim();
+/** Every audit log entry that mentions this text anywhere: wider than the purge's own match, on purpose. */
+const auditMentions = (text: string) => Number(psql(`select count(*) from auth.audit_log_entries where payload::text ilike '%${text}%'`));
 const SECRET = "Quillon zebrafish";
 
 describe.skipIf(!live)("S11 deletion and export on real local Supabase", () => {
@@ -59,7 +66,7 @@ describe.skipIf(!live)("S11 deletion and export on real local Supabase", () => {
     const client = createClient(e.url, e.anon, opts);
     const signIn = await client.auth.signInWithPassword({ email, password });
     if (signIn.error) throw signIn.error;
-    const u = { id: data.user.id, client };
+    const u = { id: data.user.id, email, client };
     users.push(u);
     return u;
   }
@@ -236,6 +243,61 @@ describe.skipIf(!live)("S11 deletion and export on real local Supabase", () => {
     expect((await exportRoute()).status).toBe(401);
   });
 
+  describe("cron/daily sweep (S11-D3)", () => {
+    /** A user client whose Storage always fails: leaves a source's file stranded in the queue. */
+    const brokenStorage = (client: SupabaseClient): DataClient => ({
+      rpc: (fn, args) => client.rpc(fn, args) as unknown as PromiseLike<{ data: unknown; error: unknown }>,
+      storage: { from: () => ({ remove: async () => ({ data: null, error: { code: "storage_down" } }) }) },
+    });
+    const strand = async (tag: string) => {
+      const A = await makeUser(tag);
+      const s = await seed(A);
+      expect((await deleteSource(brokenStorage(A.client), s.sourceId, false, () => undefined)).ok).toBe(false);
+      expect(await fileExists(s.path)).toBe(true);
+      return { A, s };
+    };
+    const adminSweep = () => admin as unknown as SweepClient;
+
+    it("with Storage failing, the file's entry stays queued", async () => {
+      const { A, s } = await strand("s11s");
+      const failing: SweepClient = {
+        rpc: (fn, args) => admin.rpc(fn, args) as unknown as PromiseLike<{ data: unknown; error: unknown }>,
+        storage: { from: () => ({ remove: async () => ({ data: null, error: { code: "storage_down" } }) }) },
+      };
+      const res = await sweepStorageDeletions(failing, () => undefined);
+      expect(res.ok).toBe(false);
+      expect(await fileExists(s.path)).toBe(true);
+      expect((await A.client.rpc("storage_deletions_settle")).data).toEqual([s.path]);
+      // Tidy: the next test expects to drain what it stranded.
+      expect((await sweepStorageDeletions(adminSweep(), () => undefined)).ok).toBe(true);
+    });
+
+    it("the route, with the secret, drains a stranded entry with no action from the user", async () => {
+      const { A, s } = await strand("s11r");
+      vi.stubEnv("CRON_SECRET", "live-test-secret");
+      vi.stubEnv("NEXT_PUBLIC_SUPABASE_URL", e.url);
+      vi.stubEnv("SUPABASE_SERVICE_ROLE_KEY", e.service);
+      try {
+        expect((await cronRoute(new Request("http://x/api/cron/daily"))).status).toBe(401);
+        expect(await fileExists(s.path)).toBe(true);
+        const res = await cronRoute(new Request("http://x/api/cron/daily", { headers: { authorization: "Bearer live-test-secret" } }));
+        expect(res.status).toBe(200);
+        expect(await res.json()).toMatchObject({ ok: true, files_remaining: 0 });
+      } finally {
+        vi.unstubAllEnvs();
+      }
+      expect(await fileExists(s.path)).toBe(false);
+      expect((await A.client.rpc("storage_deletions_settle")).data).toEqual([]);
+    });
+
+    it("the service role can run the sweep; a signed-in user and the anon key cannot", async () => {
+      const A = await makeUser("s11p");
+      expect((await admin.rpc("storage_deletions_sweep")).error).toBeNull();
+      expect((await A.client.rpc("storage_deletions_sweep")).error).not.toBeNull();
+      expect((await createClient(e.url, e.anon, opts).rpc("storage_deletions_sweep")).error).not.toBeNull();
+    });
+  });
+
   it("account deletion needs the typed word, then leaves no rows and no files for the user", async () => {
     const A = await makeUser("s11i");
     const s = await seed(A);
@@ -255,5 +317,72 @@ describe.skipIf(!live)("S11 deletion and export on real local Supabase", () => {
     expect((await admin.auth.admin.getUserById(A.id)).data.user).toBeNull();
     expect(tracked.events).toEqual([{ name: "account_deleted", props: {} }]);
     expect(jar.set).toEqual([{ name: "le_account_deleted", value: "1" }]);
+  });
+
+  describe("auth audit log", () => {
+    it("only the service role can run the purge, and it refuses what would match other users", async () => {
+      const A = await makeUser("s11q");
+      const anon = createClient(e.url, e.anon, opts);
+      const args = { p_user_id: A.id, p_email: A.email };
+      for (const c of [A.client, anon]) {
+        expect((await c.rpc("auth_audit_purge_prepare", args)).error).not.toBeNull();
+        expect((await c.rpc("auth_audit_purge", args)).error).not.toBeNull();
+        expect((await c.rpc("auth_audit_purge_pending")).error).not.toBeNull();
+      }
+      expect((await admin.rpc("auth_audit_purge", args)).error?.message).toBe("user still exists");
+      expect((await admin.rpc("auth_audit_purge", { p_user_id: "00000000-0000-0000-0000-000000000000", p_email: null })).error).not.toBeNull();
+      expect((await admin.rpc("auth_audit_purge", { p_user_id: randomUUID(), p_email: "service_role" })).error).not.toBeNull();
+      expect((await admin.rpc("auth_audit_purge", { p_user_id: randomUUID(), p_email: "" })).error).not.toBeNull();
+    });
+
+    it.skipIf(!DB)("account deletion leaves no entry with the user's id or email, including user_deleted; another user's stay", async () => {
+      const A = await makeUser("s11r");
+      const B = await makeUser("s11s");
+      expect(auditMentions(A.id)).toBeGreaterThan(0);
+      expect(auditMentions(A.email)).toBeGreaterThan(0);
+      const others = { id: auditMentions(B.id), email: auditMentions(B.email) };
+      expect(others.id).toBeGreaterThan(0);
+      const token = (await A.client.auth.getSession()).data.session!.access_token;
+
+      current.client = A.client;
+      jar.set.length = 0;
+      expect(await deleteAccountAction("delete")).toEqual({ ok: true });
+
+      expect(auditMentions(A.id)).toBe(0);
+      expect(auditMentions(A.email)).toBe(0);
+      // Another device's old token, used afterwards, writes nothing back about the user.
+      const auth = { apikey: e.anon, authorization: `Bearer ${token}` };
+      await fetch(`${e.url}/auth/v1/user`, { headers: auth });
+      await fetch(`${e.url}/auth/v1/logout`, { method: "POST", headers: auth });
+      expect(auditMentions(A.id)).toBe(0);
+      expect(auditMentions(A.email)).toBe(0);
+      expect(jar.set).toEqual([{ name: "le_account_deleted", value: "1" }]);
+      expect(psql(`select count(*) from private.auth_audit_purges where user_id='${A.id}'`)).toBe("0");
+      expect(auditMentions(B.id)).toBe(others.id);
+      expect(auditMentions(B.email)).toBe(others.email);
+    });
+
+    it.skipIf(!DB)("a purge that failed at deletion is finished by cron/daily, which then holds nothing about the user", async () => {
+      const A = await makeUser("s11t");
+      const B = await makeUser("s11u");
+      const bBefore = auditMentions(B.id);
+      expect((await admin.rpc("auth_audit_purge_prepare", { p_user_id: A.id, p_email: A.email })).error).toBeNull();
+      expect((await admin.auth.admin.deleteUser(A.id)).error).toBeNull();
+      // As if the purge had failed straight after the delete: the entries and the pending row are there.
+      expect(auditMentions(A.id)).toBeGreaterThan(0);
+      expect(psql(`select email from private.auth_audit_purges where user_id='${A.id}'`)).toBe(A.email);
+
+      vi.stubEnv("CRON_SECRET", "live-secret");
+      vi.stubEnv("NEXT_PUBLIC_SUPABASE_URL", e.url);
+      vi.stubEnv("SUPABASE_SERVICE_ROLE_KEY", e.service);
+      const res = await cronRoute(new Request("http://x/api/cron/daily", { headers: { authorization: "Bearer live-secret" } }));
+      vi.unstubAllEnvs();
+      expect(await res.json()).toMatchObject({ audit_pending: 0 });
+
+      expect(auditMentions(A.id)).toBe(0);
+      expect(auditMentions(A.email)).toBe(0);
+      expect(psql(`select count(*) from private.auth_audit_purges where user_id='${A.id}'`)).toBe("0");
+      expect(auditMentions(B.id)).toBe(bBefore);
+    });
   });
 });

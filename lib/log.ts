@@ -16,6 +16,7 @@ export type LogEvent =
   | "decisions_load_failed"
   | "account_delete_late_objects"
   | "account_delete_sweep_failed"
+  | "account_delete_audit_failed"
   | "sign_in_link_failed"
   | "auth_callback_failed"
   | "onboarding_save_failed"
@@ -29,6 +30,7 @@ export type LogEvent =
   | "reason_add_failed"
   | "data_delete_failed"
   | "export_failed"
+  | "cron_sweep_failed"
   | "upload_failed"
   | "brief_line_unverified";
 

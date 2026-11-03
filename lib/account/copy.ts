@@ -12,6 +12,11 @@ export const ACCOUNT_DELETE_WORD = "delete";
 
 /** Set only by a successful account deletion; the sign-in page reads it once. */
 export const ACCOUNT_DELETED_COOKIE = "le_account_deleted";
+/** Its values: everything is gone, or the account is gone but its audit log entries are not, yet. */
+export const ACCOUNT_DELETED_FULLY = "1";
+export const ACCOUNT_DELETED_RECORDS_REMAIN = "2";
+/** Set only by the proxy, from that cookie, for the one document request that shows the notice. */
+export const ACCOUNT_DELETED_HEADER = "x-le-account-deleted";
 
 export const DATA_COPY = {
   // Settings page
@@ -81,4 +86,5 @@ export const DATA_COPY = {
   accountConfirmError: "Type delete to confirm.", // PROPOSED
   accountButton: "Delete account", // PROPOSED
   accountDeleted: "Your account and everything in it were deleted.", // PROPOSED (sign-in page after deletion)
+  accountDeletedRecordsRemain: "Your account was deleted, but sign-in records with your email address are still stored. We'll keep trying to remove them automatically.", // PROPOSED (the audit log purge failed; rules 9, 10)
 } as const;

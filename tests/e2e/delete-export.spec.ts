@@ -331,3 +331,15 @@ test("Delete account: disabled until `delete` is typed; then every row and file 
   await page.goto("/today");
   await expect(page).toHaveURL(/\/sign-in/);
 });
+
+test("when sign-in records remain after deletion, the sign-in notice says so instead, once", async ({ browser, baseURL }) => {
+  const ctx = await browser.newContext();
+  await ctx.addCookies([{ name: "le_account_deleted", value: "2", domain: new URL(baseURL!).hostname, path: "/sign-in" }]);
+  const p = await ctx.newPage();
+  await p.goto("/sign-in");
+  await expect(p.getByRole("status").filter({ hasText: "sign-in records with your email address are still stored" })).toBeVisible();
+  await expect(p.getByText("Your account and everything in it were deleted.")).toHaveCount(0);
+  await p.reload();
+  await expect(p.getByText("sign-in records with your email address")).toHaveCount(0);
+  await ctx.close();
+});

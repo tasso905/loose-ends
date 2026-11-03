@@ -12,8 +12,9 @@ export async function migratedDb(opts: { clockGuard?: boolean } = {}): Promise<P
   const db = new PGlite({ extensions: { pg_trgm } });
   await db.exec(`
     create schema auth; create schema storage; create schema extensions;
-    create role authenticated; create role anon;
+    create role authenticated; create role anon; create role service_role;
     create table auth.users (id uuid primary key, email text, raw_user_meta_data jsonb);
+    create table auth.audit_log_entries (instance_id uuid, id uuid primary key default gen_random_uuid(), payload json, created_at timestamptz default now(), ip_address varchar(64) default '');
     create function auth.uid() returns uuid language sql stable as
       $$ select nullif(current_setting('request.jwt.claim.sub', true), '')::uuid $$;
     create table storage.buckets (id text primary key, name text, public boolean, file_size_limit bigint);

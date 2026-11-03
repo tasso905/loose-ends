@@ -475,9 +475,8 @@ test.describe("Delete account", () => {
     await fresh.close();
   });
 
-  // OPEN DEFECT S11-D4 (low): the cookie is never cleared, so the notice repeats for its 120 s lifetime.
+  // FIXED S11-D4 (low): the proxy clears the cookie on the document load that shows the notice.
   test("the deletion notice shows once: a reload of sign-in no longer claims it", async ({ browser }) => {
-    test.fail();
     const { page } = await signIn(browser);
     await page.goto("/settings");
     await page.getByRole("button", { name: "Delete account…" }).click();
@@ -543,9 +542,8 @@ test.describe("a real Storage outage", () => {
     }
   });
 
-  // OPEN DEFECT S11-D1 (rule 8, rule 10): the retry reaches Threads with no error, but the file stays.
+  // FIXED S11-D1 (rule 8, rule 10): the retry now finishes the queue before it answers not_found.
   test("Forget + Also delete source with Storage down reports failure; the retry reaches Threads with the file gone", async ({ browser }) => {
-    test.fail();
     const { page, uid } = await signIn(browser);
     const s = await seed(uid, "Outage forget");
     await page.goto(`/threads/${s.threadId}`);
@@ -565,9 +563,8 @@ test.describe("a real Storage outage", () => {
     expect(await fileExists(s.path)).toBe(false);
   });
 
-  // OPEN DEFECT S11-D2: the retry removes the file, but the dialog stays open with an error.
+  // FIXED S11-D2: SourcesList treats not_found as gone.
   test("Delete source with Storage down reports failure; Try again finishes and says so", async ({ browser }) => {
-    test.fail();
     const { page, uid } = await signIn(browser);
     const s = await seed(uid, "Outage source");
     await page.goto("/settings");

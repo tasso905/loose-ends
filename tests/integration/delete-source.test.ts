@@ -171,3 +171,77 @@ describe("the Storage deletion queue", () => {
     await expect(call(A, `(select count(*) from private.source_thread_ids('${SRC}', '${A}'))`)).rejects.toThrow(/permission denied/);
   });
 });
+
+describe("storage_deletions_sweep (cron/daily, S11-D3)", () => {
+  const sweep = async () => (await db.query<{ r: string[] }>("select public.storage_deletions_sweep() as r")).rows[0]!.r;
+
+  it("returns a stranded file across users, keeps it while the file exists, clears it once gone", async () => {
+    await deleteSource(A, false);
+    expect(await sweep()).toEqual([PATH]);
+    expect(await sweep()).toEqual([PATH]);
+    expect(await queue()).toHaveLength(1);
+    await db.exec(`delete from storage.objects where name = '${PATH}'`);
+    expect(await sweep()).toEqual([]);
+    expect(await queue()).toEqual([]);
+  });
+
+  it("drops an entry whose path a live source owns again, so its file is never returned for removal", async () => {
+    await deleteSource(A, false);
+    await db.exec(`insert into sources (user_id, kind, title, text_content, storage_path, reference_date, reference_date_source)
+      values ('${A}', 'upload', 'Same path', 'Synthetic', '${PATH}', '2026-10-05', 'user')`);
+    expect(await sweep()).toEqual([]);
+    expect(await queue()).toEqual([]);
+  });
+
+  it("is limited and validates the limit", async () => {
+    await expect(db.query("select public.storage_deletions_sweep(0)")).rejects.toThrow(/invalid limit/);
+    await expect(db.query("select public.storage_deletions_sweep(5001)")).rejects.toThrow(/invalid limit/);
+  });
+
+  it("only the service role may run it", async () => {
+    await expect(call(A, "public.storage_deletions_sweep()")).rejects.toThrow(/permission denied/);
+    const can = await db.query<{ svc: boolean; anon: boolean; auth: boolean; schema: boolean }>(`select
+      has_function_privilege('service_role', 'public.storage_deletions_sweep(integer)', 'execute') as svc,
+      has_function_privilege('anon', 'public.storage_deletions_sweep(integer)', 'execute') as anon,
+      has_function_privilege('authenticated', 'public.storage_deletions_sweep(integer)', 'execute') as auth,
+      has_schema_privilege('service_role', 'private', 'usage') as schema`);
+    expect(can.rows[0]).toEqual({ svc: true, anon: false, auth: false, schema: false });
+  });
+});
+
+describe("the fingerprint survives Delete source only (S11-D5)", () => {
+  const hashes = async () => (await db.query<{ suppression_hash: string; reason: string; thread_id: string | null }>("select suppression_hash, reason, thread_id from suppressions order by 1")).rows;
+
+  it("Delete source only, then Forget: the thread's hash becomes a suppression, and nothing else stays", async () => {
+    await deleteSource(A, false);
+    expect(await hashes()).toEqual([]); // the thread is still open: nothing suppressed yet
+    await call(A, `public.forget_thread('${THR}', false)`);
+    expect(await hashes()).toEqual([{ suppression_hash: HASH, reason: "forgotten", thread_id: null }]);
+    expect(await count("private.thread_suppression_hashes")).toBe(0);
+    expect(await textEverywhere()).not.toContain("zebrafish");
+  });
+
+  it("Forget in the usual order is unchanged: one suppression, no held hash left", async () => {
+    await call(A, `public.forget_thread('${THR}', false)`);
+    expect(await hashes()).toEqual([{ suppression_hash: HASH, reason: "forgotten", thread_id: null }]);
+    expect(await count("private.thread_suppression_hashes")).toBe(0);
+  });
+
+  it("a pending proposal's hash (no thread) is not held", async () => {
+    await deleteSource(A, false);
+    const held = await db.query<{ suppression_hash: string }>("select suppression_hash from private.thread_suppression_hashes");
+    expect(held.rows).toEqual([{ suppression_hash: HASH }]);
+  });
+
+  it("account deletion takes the held hash with it and writes no suppression", async () => {
+    await deleteSource(A, false);
+    await db.exec(`delete from auth.users where id = '${A}'`);
+    expect(await count("private.thread_suppression_hashes")).toBe(0);
+    expect(await hashes()).toEqual([]);
+  });
+
+  it("the held hashes are out of the user's reach", async () => {
+    await deleteSource(A, false);
+    await expect(asUser(db, A, () => db.query("select * from private.thread_suppression_hashes"))).rejects.toThrow(/permission denied/);
+  });
+});
