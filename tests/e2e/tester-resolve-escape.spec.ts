@@ -172,11 +172,11 @@ for (const how of ["Escape twice", "scrim"] as const) {
   });
 }
 
-// OPEN DEFECT (a11y, WCAG 2.4.3; pre-existing, not introduced by fix/s8-escape): Save is disabled
+// FIXED (was OPEN DEFECT; focus now moves to the error wrapper, tabIndex -1) (a11y, WCAG 2.4.3; pre-existing, not introduced by fix/s8-escape): Save is disabled
 // while pending, so the focused Save button drops focus to <body>; when the save fails, the error
 // (role=alert) renders in the still-open sheet but nothing moves focus back into it. The repo's bar
 // elsewhere is "never <body>" (7c4c3fa, T-U1). Asserts the safe behaviour; fails today.
-test.fail("focus after a failed save is inside the sheet (error banner or Save), never <body>", async () => {
+test("focus after a failed save is inside the sheet (error banner or Save), never <body>", async () => {
   const h = await startDecidedSave(true);
   h.release();
   await expect(sheet().getByText("That didn't save. Try again.")).toBeVisible();
@@ -248,12 +248,12 @@ test("Undo right after Save focuses Done at once, before the Save's refresh land
   }
 });
 
-// OPEN DEFECT (a11y regression introduced by 18c0c2b, ThreadActions undo()): an Undo clicked while
+// FIXED (was OPEN DEFECT; undo() uses Done only when enabled, else waits for it) (a11y regression introduced by 18c0c2b, ThreadActions undo()): an Undo clicked while
 // Done's own transition is still pending (Done is `disabled` until its refresh lands) now calls
 // focus() on the disabled Done, which does nothing, and skips the old fallback, so focus ends on
 // <body>. With origin/main's ThreadActions the same steps end on Done (2/2); with 18c0c2b on
 // <body> (4/4 alone, --workers=1). Asserts the safe behaviour; fails today.
-test.fail("Done then an immediate Undo: focus returns to Done (not <body>)", async () => {
+test("Done then an immediate Undo: focus returns to Done (not <body>)", async () => {
   await reopen();
   await page.goto(threadUrl);
   await page.getByRole("button", { name: "Done", exact: true }).click();
