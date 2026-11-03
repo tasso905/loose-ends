@@ -37,7 +37,7 @@ const NAME = /^[A-Za-z_$][\w$.]{0,63}$/;
 const safeName = (v: unknown): string => (typeof v === "string" && NAME.test(v) ? v : "Error");
 const num = (v: unknown): number | null => (typeof v === "number" && Number.isFinite(v) ? v : null);
 
-const KINDS: readonly AiFailureKind[] = ["quota", "unavailable", "safety", "malformed", "rejected", "config", "unknown"];
+const KINDS: readonly AiFailureKind[] = ["quota", "unavailable", "safety", "malformed", "rejected", "config", "budget", "unknown"];
 const kindOf = (v: unknown): AiFailureKind => (KINDS.includes(v as AiFailureKind) ? (v as AiFailureKind) : "unknown");
 
 const fallback = (error: string): SafeErrorFields => ({

@@ -26,6 +26,8 @@ const WRITERS = [
   "decision_add_reason", // S9b (D58): writes decisions.reason_user (only while null) and thread_events
   "delete_source", // S11 (F13): deletes the caller's source (and, with p_everything, forgets its threads)
   "storage_deletions_settle", // S11 (F13): clears the caller's Storage deletion queue entries whose file is gone
+  "ai_budget_open", // DAILY_AI_BUDGET_USD: definer because it reads the global private.ai_spend_daily; writes nothing
+  "record_ai_cost", // DAILY_AI_BUDGET_USD: writes the caller's usage_counters share and private.ai_spend_daily
   "thread_resolve", // S8 (F11): writes threads, thread_events and decisions
   "thread_undo",
   "undo_reject_proposals",

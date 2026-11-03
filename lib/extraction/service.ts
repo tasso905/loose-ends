@@ -1,5 +1,6 @@
 import type { LanguageModel } from "ai";
 import { z } from "zod";
+import { withBudget } from "@/lib/ai/budget";
 import { extract, ExtractionFailedError } from "@/lib/ai/extract";
 import { EXTRACT_PROMPT_VERSION } from "@/lib/ai/prompts";
 import { safeErrorFields } from "@/lib/ai/safeError";
@@ -191,6 +192,8 @@ export interface RunDeps {
   /** Label recorded as `extractions.model` for an injected model. */
   modelLabel?: string;
   logger?: Logger;
+  /** Environment for the budget configuration (tests); process.env otherwise. */
+  env?: Record<string, string | undefined>;
   /**
    * Called once when this attempt ends as succeeded or failed (not when skipped), with counts and
    * enums only; the caller sends `extraction_completed` (S1 track()). Must not throw.
@@ -273,7 +276,14 @@ export async function runExtraction(db: RpcDb, extractionId: string, deps: RunDe
           timezone: ctx.timezone,
           user: { displayName: ctx.display_name, aliases: ctx.aliases ?? [] },
         },
-        { model: deps.model, modelLabel: deps.modelLabel, logger, extractionId },
+        {
+          model: deps.model,
+          modelLabel: deps.modelLabel,
+          logger,
+          extractionId,
+          // Every model call is checked against, and counted in, DAILY_AI_BUDGET_USD (lib/ai/budget.ts).
+          wrapModel: (m) => withBudget(m, db, { feature: "extract", logger, env: deps.env }),
+        },
       );
     } catch (err) {
       logger("extraction_failed", { ...safeErrorFields(err), extraction_id: extractionId });

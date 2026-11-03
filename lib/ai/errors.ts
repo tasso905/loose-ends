@@ -32,6 +32,7 @@ export type AiFailureKind =
   | "malformed" // output was not valid JSON, failed Zod validation, or was cut off
   | "rejected" // provider 400: the request itself was refused (e.g. an unsupported schema keyword)
   | "config" // missing/invalid key or model, unregistered provider, no recording (fake)
+  | "budget" // refused before the call: DAILY_AI_BUDGET_USD is spent, unset or unreadable (lib/ai/budget.ts)
   | "unknown";
 
 export interface AiFailure {
@@ -49,6 +50,7 @@ const RETRYABLE: Record<AiFailureKind, boolean> = {
   malformed: true,
   rejected: false,
   config: false,
+  budget: false, // the day's budget does not come back within one request
   unknown: true,
 };
 
@@ -90,6 +92,7 @@ function classify(err: unknown): AiFailure {
   if (RetryError.isInstance(err)) return classify(err.lastError);
   if (err instanceof AiConfigError || LoadAPIKeyError.isInstance(err) || NoSuchModelError.isInstance(err)) return failure("config");
   if (err instanceof Error && err.name === "NoRecordingError") return failure("config");
+  if (err instanceof Error && err.name === "AiBudgetError") return failure("budget");
 
   if (APICallError.isInstance(err)) {
     const status = err.statusCode ?? null;

@@ -1,5 +1,6 @@
 import type { LanguageModel } from "ai";
 import { z } from "zod";
+import { withBudget } from "@/lib/ai/budget";
 import { askWhy, NO_RECORD_MESSAGE, type AskWhyAnswer, type RetrievedDecision } from "@/lib/ai/askWhy";
 import { apiError, type ApiError } from "@/lib/errors";
 import type { RpcDb } from "@/lib/extraction/service";
@@ -31,6 +32,8 @@ export interface AskDeps {
   model?: LanguageModel;
   modelLabel?: string;
   logger?: Logger;
+  /** Environment for the budget configuration (tests); process.env otherwise. */
+  env?: Record<string, string | undefined>;
 }
 
 const Fact = z.object({ text: z.string(), evidence_id: z.string().nullable() });
@@ -118,7 +121,13 @@ export async function askQuestion(db: RpcDb, question: string, deps: AskDeps = {
 
   let answer: AskWhyAnswer;
   try {
-    answer = await askWhy(question, retrieved, { model: deps.model, modelLabel: deps.modelLabel, logger });
+    answer = await askWhy(question, retrieved, {
+      model: deps.model,
+      modelLabel: deps.modelLabel,
+      logger,
+      // Every model call is checked against, and counted in, DAILY_AI_BUDGET_USD (lib/ai/budget.ts).
+      wrapModel: (m) => withBudget(m, db, { feature: "ask", logger, env: deps.env }),
+    });
   } catch {
     // askWhy() has already logged the failure kind (rule 9: no content); every kind is ask_failed (D54).
     logger("ask_failed", { step: "answer", retrieved: retrieved.length });
