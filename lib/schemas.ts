@@ -37,6 +37,8 @@ export const ThreadEventType = z.enum([
   "marked_not_useful",
   // D44 (a), approved Oct 21: an undo of the latest event (8 s toast + 4 s grace) appends this; history is never rewritten.
   "undone",
+  // S9b (D58): a reason added later to a decision saved without one (before/after reason_user).
+  "reason_added",
 ]);
 export type ThreadEventType = z.infer<typeof ThreadEventType>;
 

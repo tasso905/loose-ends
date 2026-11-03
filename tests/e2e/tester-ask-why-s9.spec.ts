@@ -136,7 +136,6 @@ test("an Interpretation phrased as the user's words never shows as You wrote; th
 });
 
 test("SITE_CONTRACT §2.11 / CONTENT_MODEL §10: the no-reason state offers Add a reason now", async () => {
-  test.fail(true, "DEFECT: AnswerCard renders the no-reason sentence without the `Add a reason now` action");
   await expect(page.getByRole("article").getByRole("link", { name: "Add a reason now" }).or(page.getByRole("article").getByRole("button", { name: "Add a reason now" }))).toBeVisible({ timeout: 2_000 });
 });
 

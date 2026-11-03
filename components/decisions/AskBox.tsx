@@ -3,6 +3,7 @@ import { useId, useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import { PenLine, Quote } from "lucide-react";
 import { askAction } from "@/app/decisions/actions";
+import { NoReason } from "@/components/decisions/NoReason";
 import { Spinner } from "@/components/auth/Spinner";
 import { FieldError } from "@/components/Notice";
 import { Button } from "@/components/ui/button";
@@ -10,6 +11,7 @@ import { Input } from "@/components/ui/input";
 import { ASK_MAX, type AskView } from "@/lib/decisions/view";
 import { DECISIONS_COPY as D } from "@/lib/decisions/copy";
 import { apiError, type ApiError } from "@/lib/errors";
+import { clampChars } from "@/lib/threads/transition";
 import { formatDecisionDate } from "@/lib/threads/view";
 
 /**
@@ -21,7 +23,8 @@ import { formatDecisionDate } from "@/lib/threads/view";
  * reloaded; opening the link does not ask by itself (each ask counts toward the 50 a day).
  */
 export function AskBox({ initialQuestion, timezone }: { initialQuestion: string; timezone: string }) {
-  const [question, setQuestion] = useState(initialQuestion.slice(0, ASK_MAX));
+  // Counted in characters (code points), like the server; maxLength would count UTF-16 units.
+  const [question, setQuestion] = useState(clampChars(initialQuestion, ASK_MAX));
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<ApiError["error"] | null>(null);
   const [view, setView] = useState<AskView | null>(null);
@@ -72,10 +75,9 @@ export function AskBox({ initialQuestion, timezone }: { initialQuestion: string;
             type="text"
             name="question"
             value={question}
-            maxLength={ASK_MAX}
             placeholder={D.askPlaceholder}
             autoComplete="off"
-            onChange={(e) => setQuestion(e.target.value)}
+            onChange={(e) => setQuestion(clampChars(e.target.value, ASK_MAX))}
             aria-invalid={error ? true : undefined}
             aria-describedby={error ? errorId : undefined}
             className="min-w-0 flex-1"
@@ -105,6 +107,8 @@ export function AskBox({ initialQuestion, timezone }: { initialQuestion: string;
 }
 
 function AnswerCard({ view, timezone }: { view: AskView; timezone: string }) {
+  // Reasons added here after the server confirmed them (rule 10), by decision id.
+  const [added, setAdded] = useState<Record<string, string>>({});
   if (!view.found) {
     return (
       <div className="mt-6 rounded-card border border-le-border bg-le-surface p-5">
@@ -116,6 +120,7 @@ function AnswerCard({ view, timezone }: { view: AskView; timezone: string }) {
     <div className="mt-6 space-y-4">
       {view.decisions.map((d) => {
         const date = formatDecisionDate(d.decided_at, timezone);
+        const reason = d.reason_user ?? added[d.id] ?? null;
         return (
           <article key={d.id} aria-label={`${D.youDecided} · ${date}`} className="space-y-4 rounded-card border border-le-border bg-le-surface p-5">
             <div>
@@ -124,20 +129,20 @@ function AnswerCard({ view, timezone }: { view: AskView; timezone: string }) {
               </p>
               <p className="mt-1 text-body-strong whitespace-pre-wrap text-le-text">{d.choice}</p>
             </div>
-            {d.reason_user !== null ? (
-              <figure className="border-l-2 border-le-border-strong pl-4">
+            {reason !== null ? (
+              <figure id={`reason-${d.id}`} tabIndex={-1} className="focus-ring rounded-r-control border-l-2 border-le-border-strong pl-4">
                 <figcaption className="flex items-center gap-1 text-label text-le-text-secondary">
                   <PenLine aria-hidden strokeWidth={1.75} className="size-3.5" />
                   {D.youWrote}
                 </figcaption>
                 <blockquote className="mt-1 text-body whitespace-pre-wrap text-le-text">
                   <span aria-hidden>“</span>
-                  <span data-testid="reason">{d.reason_user}</span>
+                  <span data-testid="reason">{reason}</span>
                   <span aria-hidden>”</span>
                 </blockquote>
               </figure>
             ) : (
-              <p className="text-body text-le-text-secondary">{D.noReason}</p>
+              <NoReason decisionId={d.id} onAdded={(text) => setAdded((a) => ({ ...a, [d.id]: text }))} />
             )}
             {d.facts.map((f) => (
               <figure key={f} className="rounded-r-control border-l-2 border-(--le-evidence-rule) bg-(--le-evidence-bg) px-4 py-3">

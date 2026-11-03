@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useRef, useState, useTransition } from "react";
+import { useContext, useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Check } from "lucide-react";
 import { markDoneAction, undoAction } from "@/app/threads/[id]/actions";
@@ -11,6 +11,7 @@ import { apiError, type ApiError } from "@/lib/errors";
 import type { ThreadKind, ThreadStatus } from "@/lib/schemas";
 import { RESOLVE_COPY } from "@/lib/threads/resolve";
 import { canMarkDone, canResolve, THREADS_COPY as C } from "@/lib/threads/view";
+import { ActionHostContext } from "./ActionHost";
 import { ResolveSheet, type Resolved } from "./ResolveSheet";
 
 /**
@@ -32,18 +33,38 @@ export function ThreadActions({
   status,
   kind,
   openResolve = false,
+  compact = false,
+  surface = "detail",
+  focusTargetId = "thread-status",
 }: {
   threadId: string;
   title: string;
   status: ThreadStatus;
   kind: ThreadKind;
   openResolve?: boolean;
+  /** Today rows: small ghost buttons whose names include the thread title (DESIGN_STANDARD Thread row). */
+  compact?: boolean;
+  surface?: "today" | "detail";
+  /** Where focus goes when the action takes the buttons away (Thread detail: the status line). */
+  focusTargetId?: string;
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<ApiError["error"] | null>(null);
   const [toast, setToast] = useState<ToastData | null>(null);
   const toastId = useRef(0);
+  // On Today the row leaves after Done or Resolve; the host keeps its toast and Undo errors (ActionHost).
+  const host = useContext(ActionHostContext);
+  function showToast(t: Omit<ToastData, "id">) {
+    if (host) return host.showToast(t);
+    toastId.current += 1;
+    setToast({ ...t, id: toastId.current });
+  }
+  function undoFailed(e: ApiError["error"]) {
+    if (host) return host.showError(e);
+    focusErrorOnRender.current = true;
+    setError(e);
+  }
   const doneRef = useRef<HTMLButtonElement>(null);
   const resolveRef = useRef<HTMLButtonElement>(null);
   const [sheetOpen, setSheetOpen] = useState(() => openResolve && canResolve({ status }));
@@ -61,20 +82,18 @@ export function ThreadActions({
     const actionAt = actionClock();
     startTransition(async () => {
       try {
-        const res = await markDoneAction(threadId, status);
+        const res = await markDoneAction(threadId, status, surface);
         if (!res.ok) return setError(res.error);
         router.refresh();
         // The Done button leaves the page; focus goes to the status line, not into the toast, so the
         // 8 s timer runs unless the user moves to the toast.
-        document.getElementById("thread-status")?.focus();
-        toastId.current += 1;
-        setToast({
-          id: toastId.current,
+        document.getElementById(focusTargetId)?.focus();
+        showToast({
           message: C.doneToast(title),
           onUndo: () => undo(res.eventId),
           undoLabel: `Undo done: ${title}`,
           actionAt,
-          restoreFocus: () => document.getElementById("thread-status")?.focus(),
+          restoreFocus: () => document.getElementById(focusTargetId)?.focus(),
         });
       } catch {
         setError(failure("save_failed"));
@@ -88,14 +107,12 @@ export function ThreadActions({
     focusOnClose.current = "status";
     setSheetOpen(false);
     router.refresh();
-    toastId.current += 1;
-    setToast({
-      id: toastId.current,
+    showToast({
       message: r.resolution === "done" ? C.doneToast(title) : RESOLVE_COPY.resolvedToast(title),
       onUndo: () => undo(r.eventId),
       undoLabel: RESOLVE_COPY.undoLabel(title),
       actionAt: r.actionAt,
-      restoreFocus: () => document.getElementById("thread-status")?.focus(),
+      restoreFocus: () => document.getElementById(focusTargetId)?.focus(),
     });
   }
 
@@ -112,32 +129,28 @@ export function ThreadActions({
     const target = focusOnClose.current;
     focusOnClose.current = null;
     if (target === "resolve") resolveRef.current?.focus();
-    else document.getElementById("thread-status")?.focus();
-  }, [sheetOpen]);
+    else document.getElementById(focusTargetId)?.focus();
+  }, [sheetOpen, focusTargetId]);
 
   async function undo(eventId: number) {
     setError(null);
     try {
       const res = await undoAction(threadId, eventId);
-      if (!res.ok) {
-        focusErrorOnRender.current = true;
-        return setError(res.error);
-      }
+      if (!res.ok) return undoFailed(res.error);
       // Done comes back after the refresh; until then focus waits on the status line, never <body>.
       focusDoneOnReturn.current = true;
-      document.getElementById("thread-status")?.focus();
+      document.getElementById(focusTargetId)?.focus();
       router.refresh();
     } catch {
-      focusErrorOnRender.current = true;
-      setError(failure("save_failed"));
+      undoFailed(failure("save_failed"));
     }
   }
 
   useEffect(() => {
     if (!focusErrorOnRender.current) return;
     focusErrorOnRender.current = false;
-    (bannerRef.current ?? document.getElementById("thread-status"))?.focus();
-  }, [error]);
+    (bannerRef.current ?? document.getElementById(focusTargetId))?.focus();
+  }, [error, focusTargetId]);
 
   const showDone = canMarkDone({ status, kind });
   const showResolve = canResolve({ status });
@@ -176,14 +189,23 @@ export function ThreadActions({
       {showResolve ? (
         <div className="flex flex-wrap items-center gap-3">
           {showDone ? (
-            <Button ref={doneRef} onClick={done} disabled={pending}>
+            <Button
+              ref={doneRef}
+              onClick={done}
+              disabled={pending}
+              variant={compact ? "ghost" : "primary"}
+              size={compact ? "small" : "default"}
+              aria-label={compact ? `${C.done}: ${title}` : undefined}
+            >
               {pending ? <Spinner /> : <Check aria-hidden strokeWidth={1.75} />}
               {C.done}
             </Button>
           ) : null}
           <Button
             ref={resolveRef}
-            variant={showDone ? "secondary" : "primary"}
+            variant={compact ? "ghost" : showDone ? "secondary" : "primary"}
+            size={compact ? "small" : "default"}
+            aria-label={compact ? `${C.resolve} ${title}` : undefined}
             onClick={() => setSheetOpen(true)}
             disabled={pending}
             aria-haspopup="dialog"
@@ -194,10 +216,10 @@ export function ThreadActions({
       ) : null}
 
       {showResolve ? (
-        <ResolveSheet threadId={threadId} status={status} kind={kind} open={sheetOpen} onClose={closeSheet} onResolved={resolved} />
+        <ResolveSheet threadId={threadId} status={status} kind={kind} open={sheetOpen} onClose={closeSheet} onResolved={resolved} surface={surface} />
       ) : null}
 
-      <UndoToast toast={toast} onClose={(id) => setToast((t) => (t && t.id === id ? null : t))} />
+      {host ? null : <UndoToast toast={toast} onClose={(id) => setToast((t) => (t && t.id === id ? null : t))} />}
     </div>
   );
 }
