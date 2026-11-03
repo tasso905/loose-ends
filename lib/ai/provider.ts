@@ -1,6 +1,6 @@
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import type { LanguageModel } from "ai";
-import { createRecordedModel } from "./fake";
+import type { MockLanguageModelV4 } from "ai/test";
 
 /**
  * Provider-agnostic model selection. The provider and model are config values
@@ -35,8 +35,30 @@ function googleModel(modelId: string, env: Record<string, string | undefined>): 
   return createGoogleGenerativeAI({ apiKey })(modelId);
 }
 
+type ModelV4 = Pick<MockLanguageModelV4, "specificationVersion" | "provider" | "modelId" | "supportedUrls" | "doGenerate" | "doStream">;
+
+/**
+ * The fake provider, loaded only when it is first called (AI_PROVIDER=fake). A static import would
+ * pull ./fake (and its fixture-directory reads, which make the bundler trace the whole project)
+ * into every server bundle that can reach the model; the dynamic import keeps it out of the
+ * production path. getModel() stays synchronous.
+ */
+function lazyRecordedModel(modelId: string): LanguageModel {
+  let inner: Promise<MockLanguageModelV4> | undefined;
+  const load = () => (inner ??= import("./fake").then((m) => m.createRecordedModel({ modelId })));
+  const model: ModelV4 = {
+    specificationVersion: "v4",
+    provider: "fake",
+    modelId,
+    supportedUrls: {},
+    doGenerate: async (options) => (await load()).doGenerate(options),
+    doStream: async (options) => (await load()).doStream(options),
+  };
+  return model as LanguageModel;
+}
+
 const registry = new Map<string, ModelFactory>([
-  ["fake", (modelId) => createRecordedModel({ modelId })],
+  ["fake", (modelId) => lazyRecordedModel(modelId)],
   ["google", googleModel],
 ]);
 
