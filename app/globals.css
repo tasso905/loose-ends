@@ -1,5 +1,27 @@
 @import "tailwindcss";
 
+/* IBM Plex, self-hosted (app/layout.tsx). Each unicode-range subset is its own next/font family,
+   exposed on <html> as --font-plex-{sans,serif}-<subset>. The stacks list them in order, then a
+   size-adjusted local fallback for text shown before the web font loads (metrics are next/font's
+   adjustFontFallback output for these exact files). Composed here, not in an inline style, so a
+   strict `style-src 'self'` CSP keeps every subset. */
+@font-face {
+  font-family: "Plex Sans Fallback";
+  src: local("Arial");
+  ascent-override: 101.35%; descent-override: 27.19%; line-gap-override: 0%; size-adjust: 101.13%;
+}
+@font-face {
+  font-family: "Plex Serif Fallback";
+  src: local("Times New Roman");
+  ascent-override: 88%; descent-override: 23.61%; line-gap-override: 0%; size-adjust: 116.47%;
+}
+:root {
+  --font-plex-sans: var(--font-plex-sans-latin), var(--font-plex-sans-latin-ext), var(--font-plex-sans-cyrillic),
+    var(--font-plex-sans-cyrillic-ext), var(--font-plex-sans-greek), var(--font-plex-sans-vietnamese), "Plex Sans Fallback";
+  --font-plex-serif: var(--font-plex-serif-latin), var(--font-plex-serif-latin-ext), var(--font-plex-serif-cyrillic),
+    var(--font-plex-serif-cyrillic-ext), var(--font-plex-serif-vietnamese), "Plex Serif Fallback";
+}
+
 /* Tokens copied from docs/DESIGN_STANDARD.md "Tokens". Font families point at the
    next/font variables set in app/layout.tsx, with the standard's fallbacks. */
 :root {

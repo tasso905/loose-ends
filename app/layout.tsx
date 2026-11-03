@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import localFont from "next/font/local";
-import { fontStack } from "@/lib/fontStack";
 import "./globals.css";
 
 // Self-hosted IBM Plex (SIL OFL 1.1, licences in app/fonts/): the same subsets, weights and CSS
@@ -10,10 +9,13 @@ import "./globals.css";
 // Fonts); the unicode-range values are copied from their CSS. IBM Plex Serif has no Greek subset.
 //
 // next/font/local applies `declarations` to every file of one call, so each subset is its own call
-// with its own unicode-range, and so its own family name. --font-plex-sans and --font-plex-serif
-// list the subset families in order before the size-adjusted fallback (fontStack below): the
-// browser takes each character from the first family whose unicode-range covers it, and downloads a
-// subset file only when a page uses a character in its range. Only latin Sans is preloaded (as
+// with its own unicode-range, and so its own family name, exposed as one CSS variable per subset
+// (--font-plex-sans-latin, --font-plex-sans-greek, ...). app/globals.css composes --font-plex-sans
+// and --font-plex-serif from them in a :root rule: the subset families in order, then the
+// size-adjusted fallback face declared there. The browser takes each character from the first
+// family whose unicode-range covers it, and downloads a subset file only when a page uses a
+// character in its range. No inline style attribute, so a strict CSP `style-src 'self'` still
+// gets every subset. Only latin Sans is preloaded (as
 // before); the other subsets cost nothing on first load. next/font loader arguments must be
 // literals, so the calls are written out.
 
@@ -23,9 +25,10 @@ const plexSans = localFont({
     { path: "./fonts/ibm-plex-sans-latin-500-normal.woff2", weight: "500", style: "normal" },
     { path: "./fonts/ibm-plex-sans-latin-600-normal.woff2", weight: "600", style: "normal" },
   ],
-  variable: "--font-plex-sans",
+  variable: "--font-plex-sans-latin",
   display: "swap",
-  adjustFontFallback: "Arial",
+  // The size-adjusted Arial fallback is declared in app/globals.css so it can come after every subset.
+  adjustFontFallback: false,
   declarations: [
     { prop: "unicode-range", value: "U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD" },
   ],
@@ -104,10 +107,11 @@ const plexSansVietnamese = localFont({
 // Serif is for verbatim source quotes only; don't preload it on every page (sign-in has none).
 const plexSerif = localFont({
   src: [{ path: "./fonts/ibm-plex-serif-latin-400-normal.woff2", weight: "400", style: "normal" }],
-  variable: "--font-plex-serif",
+  variable: "--font-plex-serif-latin",
   display: "swap",
   preload: false,
-  adjustFontFallback: "Times New Roman",
+  // The size-adjusted Times New Roman fallback is declared in app/globals.css (see Sans).
+  adjustFontFallback: false,
   declarations: [
     { prop: "unicode-range", value: "U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD" },
   ],
@@ -153,14 +157,8 @@ const plexSerifVietnamese = localFont({
   ],
 });
 
-const fontVars = {
-  "--font-plex-sans": fontStack(plexSans, [plexSansLatinExt, plexSansCyrillic, plexSansCyrillicExt, plexSansGreek, plexSansVietnamese]),
-  "--font-plex-serif": fontStack(plexSerif, [plexSerifLatinExt, plexSerifCyrillic, plexSerifCyrillicExt, plexSerifVietnamese]),
-} as React.CSSProperties;
-
-// Every call's class goes on <html> so its @font-face rules are always in the page CSS. The two
-// stacks above override --font-plex-sans and --font-plex-serif (used by globals.css) inline; the
-// per-subset variables the classes also set are unused.
+// Every call's class goes on <html> so its @font-face rules are always in the page CSS and its
+// family variable is defined where globals.css's :root rule reads it.
 const fontClasses = [
   plexSans,
   plexSansLatinExt,
@@ -184,7 +182,7 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en" className={fontClasses} style={fontVars}>
+    <html lang="en" className={fontClasses}>
       <body>{children}</body>
     </html>
   );
