@@ -138,8 +138,15 @@ export function ThreadActions({
       const res = await undoAction(threadId, eventId);
       if (!res.ok) return undoFailed(res.error);
       // Done comes back after the refresh; until then focus waits on the status line, never <body>.
-      focusDoneOnReturn.current = true;
-      document.getElementById(focusTargetId)?.focus();
+      // If Undo came before the Save's own refresh landed, Done never left the page: that refresh is
+      // superseded by this one, `showResolve` does not change, and the effect below would not run.
+      const back = doneRef.current ?? resolveRef.current;
+      if (back) {
+        back.focus();
+      } else {
+        focusDoneOnReturn.current = true;
+        document.getElementById(focusTargetId)?.focus();
+      }
       router.refresh();
     } catch {
       undoFailed(failure("save_failed"));
