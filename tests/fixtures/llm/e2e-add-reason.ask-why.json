@@ -1,0 +1,14 @@
+{
+  "name": "e2e-add-reason",
+  "task": "ask_why",
+  "input": "Why did I pick the pool gym?",
+  "responses": [
+    {
+      "answer_found": true,
+      "decision_ids": ["e2e5b9b0-0000-4000-8000-000000000001"],
+      "answer_parts": [
+        { "kind": "user_reason", "text": "placeholder", "ref": "e2e5b9b0-0000-4000-8000-000000000001" }
+      ]
+    }
+  ]
+}

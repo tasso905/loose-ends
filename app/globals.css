@@ -97,6 +97,8 @@
   /* Layout widths: the 720px content column and the 480px dialog/form measure. */
   --container-column: 720px;
   --container-narrow: 480px;
+  /* The Why sheet: a 440px side sheet from 768px up (DESIGN_STANDARD Layout). */
+  --container-sheet: 440px;
   /* Prose measure: 68ch (DESIGN_STANDARD Rhythm and measure). */
   --container-prose: 68ch;
 

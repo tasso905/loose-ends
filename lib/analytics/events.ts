@@ -76,6 +76,8 @@ export const ANALYTICS_EVENTS = {
   marked_wrong: z.strictObject({ thread_id: id, next_step: z.enum(["edit", "dismiss"]) }),
   not_useful: z.strictObject({ thread_id: id, surface }),
   resolve_saved: z.strictObject({ resolution: Resolution, reason_given: z.boolean() }),
+  /** S9b (D58): a reason added later to a decision saved without one. No properties: never the text (rule 9). */
+  reason_added: z.strictObject({}),
   ask_submitted: z.strictObject({
     answer_found: z.boolean(),
     parts_by_kind: countsBy(AnswerPartKind.options as unknown as readonly ["user_reason", "source_fact", "inference"]),
