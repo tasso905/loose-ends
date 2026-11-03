@@ -1,0 +1,23 @@
+{
+  "description": "Held-out (not used for prompt tuning). Chat written Thu Oct 22, 2026, Chicago; the user is Kim. A hedged shared plan with vague timing, the user's hedged offer with a weekend, and the user's plain promise for tonight as the control.",
+  "covers": [
+    "chat",
+    "hedged_intention",
+    "vague_timing_next_month",
+    "hedged_offer_this_weekend",
+    "commitment_by_user",
+    "tonight"
+  ],
+  "reference_date": "2026-10-22",
+  "reference_date_source": "user",
+  "timezone": "America/Chicago",
+  "source_kind": "paste",
+  "user": {
+    "display_name": "Kim Tran",
+    "aliases": [
+      "kim.tran@example.com",
+      "Kim"
+    ]
+  },
+  "ambiguous": true
+}

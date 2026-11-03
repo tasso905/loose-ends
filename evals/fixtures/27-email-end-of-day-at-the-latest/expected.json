@@ -15,7 +15,7 @@
       "note": "End of the day = the written-on day, Tue Oct 20; no clock time stated. 0.90."
     },
     {
-      "type": "commitment",
+      "type": "waiting_on",
       "title": "Grace to send the narrative draft",
       "owner": "other",
       "quote": "I'll have the narrative draft to you Thursday at the latest.",
@@ -26,7 +26,7 @@
       "counterparty": "Grace",
       "amount_text": null,
       "band": "high",
-      "note": "'at the latest' is masked; Thu Oct 22. 0.95."
+      "note": "'at the latest' is masked; Thu Oct 22. 0.80 + 0.05 + 0.05 = 0.90. D63: another person's promise to the user is waiting_on (no first-person-modal bonus)."
     },
     {
       "type": "request",

@@ -9,7 +9,7 @@ import { askWhy, type RetrievedDecision } from "@/lib/ai/askWhy";
 import { AskWhyFailedError } from "@/lib/ai/errors";
 import { createRecordedModel } from "@/lib/ai/fake";
 import { extract, ExtractionFailedError, type ExtractInput } from "@/lib/ai/extract";
-import { EXTRACT_PROMPT_VERSION, readBlock } from "@/lib/ai/prompts";
+import { EXTRACT_PROMPT_VERSION, promptSha, readBlock } from "@/lib/ai/prompts";
 import { AiConfigError, getModel } from "@/lib/ai/provider";
 import { safeErrorFields } from "@/lib/ai/safeError";
 import { EXTRACTION_SCHEMA_VERSION } from "@/lib/ai/schema";
@@ -195,7 +195,7 @@ describe("eval harness", () => {
     const times: number[] = [];
     const r = await runEval({ fixturesDir: dir, model: model(times), modelLabel: "fake:recorded", runAt: "2026-10-20T12:00:00.000Z" });
 
-    expect(r).toMatchObject({ model: "fake:recorded", prompt_version: EXTRACT_PROMPT_VERSION, schema_version: EXTRACTION_SCHEMA_VERSION, run_at: "2026-10-20T12:00:00.000Z", fixtures: 2, rpm: null });
+    expect(r).toMatchObject({ model: "fake:recorded", prompt_version: EXTRACT_PROMPT_VERSION, prompt_sha256: promptSha(EXTRACT_PROMPT_VERSION), schema_version: EXTRACTION_SCHEMA_VERSION, run_at: "2026-10-20T12:00:00.000Z", fixtures: 2, rpm: null });
     expect(r.perFixture[0]).toMatchObject({ name: "a-mike", ok: true, attempts: 1, failure: null });
     expect(r.perFixture[1]).toMatchObject({ name: "b-quota", ok: false, attempts: 1, failure: { kind: "quota", status: 429, error: "ExtractionFailedError" } });
     expect(r.failures_by_kind).toEqual({ quota: 1 });
@@ -206,7 +206,7 @@ describe("eval harness", () => {
     const card = renderScorecard(r);
     const header = card.slice(0, card.indexOf("| Metric"));
     expect(header).toContain("Model: fake:recorded");
-    expect(header).toContain(`Prompt version: ${EXTRACT_PROMPT_VERSION}`);
+    expect(header).toContain(`Prompt version: ${EXTRACT_PROMPT_VERSION} (sha256 ${promptSha(EXTRACT_PROMPT_VERSION)})`);
     expect(header).toContain(`Schema version: ${EXTRACTION_SCHEMA_VERSION}`);
     expect(header).toContain("Run date: 2026-10-20T12:00:00.000Z");
     expect(card).toContain("Failures by kind: quota 1");
