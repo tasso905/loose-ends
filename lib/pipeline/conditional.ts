@@ -38,22 +38,26 @@ export interface ConditionFound {
 /** Phrases removed before searching: they contain a trigger word but set no condition. */
 const NOT_CONDITIONS: RegExp[] = [
   // Opt-out defaults: the promise happens unless someone objects.
-  /\bif\s+(?:i|we)\s+(?:don['’]t|do\s+not|haven['’]t|have\s+not)\s+(?:hear|heard|get\s+a\s+reply)\b[^,.;!?]*/giu,
+  /\b(?:if|assuming)\s+(?:i|we)\s+(?:don['’]t|do\s+not|haven['’]t|have\s+not)\s+(?:hear|heard|get\s+an?\s+(?:reply|response|answer))\b[^,.;!?]*/giu,
+  /\bif\s+(?:i|we)\s+hear\s+nothing\b[^,.;!?]*/giu,
   /\bif\s+(?:you|nobody|no\s+one|no-one)\s+(?:don['’]t|doesn['’]t|do\s+not|does\s+not)\s+(?:object|reply|respond|say\s+otherwise|tell\s+me\s+otherwise)\b[^,.;!?]*/giu,
-  /\bif\s+(?:nobody|no\s+one|no-one)\s+objects\b[^,.;!?]*/giu,
+  /\b(?:if|assuming)\s+(?:nobody|no\s+one|no-one)\s+(?:objects|says\s+otherwise)\b[^,.;!?]*/giu,
   /\bif\s+there\s+are\s+no\s+objections\b[^,.;!?]*/giu,
   // Courtesies.
-  /\bif\s+(?:you|u)(?:['’]d\s+(?:like|prefer)|\s+(?:have|need|want|would\s+like|get\s+stuck|run\s+into|prefer|like))\b[^,.;!?]*/giu,
-  /\bif\s+(?:needed|possible|necessary|so|not|any|anything|that\s+works|that\s+helps|it\s+helps|that['’]s\s+(?:ok|okay|easier|easiest|better))\b/giu,
-  /\blet\s+(?:me|us)\s+know\s+if\b[^,.;!?]*/giu,
+  /\bif\s+(?:you|u)(?:['’]d\s+(?:like|prefer)|\s+(?:have|need|want|wish|would\s+like|get\s+stuck|run\s+into|prefer|like|don['’]t\s+mind))\b[^,.;!?]*/giu,
+  /\bif\s+(?:needed|possible|necessary|so|not|any|anything)\b/giu,
+  // Only as a courtesy to the reader: "if that's fine with the board" is a real condition.
+  /\bif\s+(?:that\s+works|that\s+helps|it\s+helps|(?:that|it)['’]s\s+(?:ok|okay|fine|alright|all\s+right|easier|easiest|better))(?=\s*(?:[,.;:!?)]|$|(?:with|for|by)\s+(?:you|u|everyone|all)\b))/giu,
+  /\blet\s+(?:me|us|you|them|him|her)\s+know\b[^,.;!?]*?\bif\b[^,.;!?]*/giu,
   // Embedded questions ("check if" = "check whether").
-  /\b(?:see|check|ask|asked|asking|know|wonder|wondering|find\s+out|confirm|tell\s+(?:me|you|us))\s+if\b[^,.;!?]*/giu,
+  /\b(?:see|check|ask|asked|asking|know|wonder|wondering|find\s+out|confirm|verify|decide|determine|figure\s+out|tell\s+(?:me|you|us))(?:\s+by\s+\w+)?\s+if\b[^,.;!?]*/giu,
   // Idioms.
   /\b(?:even|as|what)\s+if\b/giu,
-  /\bas\s+soon\s+as\s+(?:possible|you\s+can|i\s+can|we\s+can)\b/giu,
+  /\bas\s+soon\s+as\s+(?:possible|you\s+can|i\s+can|we\s+can|today|tonight|tomorrow|next\s+\w+|(?:mon|tues|wednes|thurs|fri|satur|sun)day)\b(?!['’])/giu,
   /\basap\b/giu,
   /\bonce\s+(?:a|an|per|every|each)\s+(?:day|week|month|year|quarter|while|fortnight)\b/giu,
-  /\bonce\s+(?:again|more|or\s+twice|in\s+a\s+while|upon\s+a\s+time)\b/giu,
+  /\bonce\s+(?:again|more|or\s+twice|in\s+a\s+while|upon\s+a\s+time|and\s+for\s+all)\b/giu,
+  /\b(?:just\s+this|at\s+least|more\s+than)\s+once\b/giu,
   /\b(?:at|all\s+at|for)\s+once\b/giu,
 ];
 
@@ -67,27 +71,54 @@ const TRIGGERS: Array<[ConditionKind, RegExp]> = [
 /** The promise's verb: what the condition is attached to. */
 const PROMISE_VERB = /\b(?:i|we|you|he|she|they|it)['’]ll\b|\b(?:will|shall|going\s+to|gonna)\b|\bi\s+can\b/iu;
 
-const isOwnOrTimeStep = (rest: string) => isOwnStep(rest) || TIME_STEP.test(rest);
+/** "...and the client approves", "...and Sam signs off": a second clause someone else has to do (T-G10, T-G12). */
+const JOINED_OTHER =
+  /\b(?:and|or|but)\s+(?:(?:the|a|an|my|our|your|his|her|their|this|that)\s+[\p{L}-]+(?:\s+[\p{L}-]+)?|(?!I\b|We\b)\p{Lu}[\p{L}-]*)\s+(?:[\p{L}-]+(?:s|ed)|is|are|was|were|has|have|will|gets?|goes)\b/u;
+
+const isOwnOrTimeStep = (rest: string) => {
+  const clause = rest.split(/[,.;:!?]/u)[0]!;
+  return !JOINED_OTHER.test(clause) && (isOwnStep(clause) || TIME_STEP.test(clause));
+};
 
 /** Auxiliaries and adverbs between "I" / "we" and the step's verb ("I've just", "we will finally"). */
-const STEP_AUX = new Set(["have", "has", "had", "will", "would", "can", "could", "should", "just", "finally", "first", "both", "all", "also"]);
+const STEP_AUX = new Set(["have", "has", "had", "will", "would", "can", "could", "should", "just", "finally", "first", "both", "all", "also", "actually", "eventually", "really", "only", "already", "then"]);
 /** "am / are / was / be..." before a participle: the step is done to the speaker ("once I'm paid"). */
 const BE = new Set(["am", "are", "is", "was", "were", "be", "been", "being"]);
 /** Receiving or waiting: the step depends on someone else ("once I hear from the venue"; T-G4). */
-const WAITING = new Set(["hear", "heard", "hearing", "receive", "received", "receiving", "wait", "waited", "waiting"]);
-/** Participles after "be": told, paid, approved... by someone else (T-G4). */
+const WAITING = new Set(["hear", "heard", "hearing", "receive", "received", "receiving", "wait", "waited", "waiting", "know", "learn", "learned"]);
+/** Participles after "be": told, paid, approved... by someone else (T-G4, T-G10). */
 const DONE_TO = new Set([
-  "told", "paid", "approved", "given", "allowed", "cleared", "notified", "invited", "asked", "sent", "contacted",
+  "told", "paid", "approved", "given", "granted", "signed", "allowed", "cleared", "notified", "invited", "asked", "sent", "contacted",
   "reimbursed", "informed", "authorized", "authorised", "confirmed", "accepted", "hired", "assigned", "funded",
 ]);
-/** "get" / "got" that is the speaker's own doing ("once I get back", "once we get it done"); any other "get" waits ("get paid", "get approval", "get the go-ahead"). */
+/** What someone else gives: "once I have approval", "once we have the go-ahead" (T-G10). */
+const RECEIVED = new Set([
+  "approval", "go-ahead", "ok", "okay", "sign-off", "signoff", "permission", "funds", "money", "deposit", "payment",
+  "confirmation", "clearance", "authorization", "authorisation", "answer", "reply", "response", "word", "access", "green",
+]);
+const DETERMINER = new Set(["a", "an", "the", "my", "our", "their", "your", "his", "her", "some", "any"]);
 const GET = new Set(["get", "gets", "got", "gotten", "getting"]);
-const GET_OWN = new Set(["back", "home", "in", "there", "through", "to", "it", "this", "done", "started", "going", "set", "settled", "round", "around", "off", "ready", "up"]);
+/**
+ * "get" is the speaker's own doing or own time only in these wordings (coordinator, T-G9); any other
+ * "get" caps, because an unknown wording landing on Low is the safe side: "get paid", "get approval",
+ * "get the go-ahead", "get it from Sam".
+ */
+const GET_OWN = new Set(["back", "home", "in", "there", "through", "to", "started", "going", "set", "settled", "round", "around", "off", "up", "done", "ready"]);
+const GET_OWN_TIME = /^(?:(?:a|an)\s+(?:chance|minute|moment|sec|second|break)|some\s+time|time)\b/u;
+/** Causative: "get everything sorted", "get my notes together", "get the kids to bed", "get it done". */
+const GET_CAUSED = /^(?:[\p{L}'-]+\s+){1,4}(?:sorted|together|done|ready|finished|to\s+bed)\b/u;
+
+function isOwnGet(after: string[]): boolean {
+  if (GET_OWN.has(after[0] ?? "")) return true;
+  const rest = after.join(" ");
+  return GET_OWN_TIME.test(rest) || GET_CAUSED.test(rest);
+}
 
 /**
  * A trailing step the speaker performs: subject I / we and an action verb ("once I've cleaned them
  * up", "as soon as I finish the edits", "once we're back"). Receiving or waiting ("once I hear from
- * the venue", "once we get approval", "once I get paid", "once I'm told") is not their own step (T-G4).
+ * the venue", "once we get approval", "once I have approval", "once I find out", "once I'm told") is
+ * not their own step (T-G4, T-G10).
  */
 function isOwnStep(rest: string): boolean {
   const m = /^\s*(i|we)\b(.*)$/isu.exec(rest);
@@ -99,72 +130,122 @@ function isOwnStep(rest: string): boolean {
     .filter(Boolean);
   let i = 0;
   let passive = false;
-  while (i < words.length && (STEP_AUX.has(words[i]!) || BE.has(words[i]!))) passive ||= BE.has(words[i++]!);
+  let have = false;
+  while (i < words.length && (STEP_AUX.has(words[i]!) || BE.has(words[i]!))) {
+    passive ||= BE.has(words[i]!);
+    have ||= words[i] === "have" || words[i] === "had";
+    i += 1;
+  }
   const verb = words[i];
   if (!verb) return passive; // "once I'm", "as soon as we are": nothing waited on
   if (WAITING.has(verb)) return false;
+  if ((verb === "find" || verb === "found") && words[i + 1] === "out") return false;
   if (passive && DONE_TO.has(verb)) return false;
-  if (GET.has(verb)) return GET_OWN.has(words[i + 1] ?? "");
+  if (GET.has(verb)) return isOwnGet(words.slice(i + 1));
+  if (have && RECEIVED.has(words.slice(i).find((w) => !DETERMINER.has(w)) ?? "")) return false;
   return true;
 }
 
 /**
  * A trailing step that is only time passing, which no one has to do and which cannot fail to happen:
- * "once the clocks have changed", "as soon as the holidays are over", "once the week is over"
+ * "once the clocks have changed", "as soon as the holidays are over", "once the week's over"
  * (golden 12 g1 is explicit, High). Only the period itself ending, starting or changing counts; a
  * period word that names whose thing someone else acts on ("once the month's invoices are
- * approved", "once the season tickets go on sale") caps (T-G5).
+ * approved", "once the season tickets go on sale") caps (T-G5). Must be the whole clause up to any
+ * date words: "once the month is over and the invoices are approved" caps (T-G12, JOINED_OTHER).
  */
 const TIME_STEP = new RegExp(
   String.raw`^\s*(?:the\s+)?(?:` +
     String.raw`clocks?\s+(?:(?:have|has)\s+(?:changed|gone\s+(?:back|forward))|change|go\s+(?:back|forward))` +
-    String.raw`|(?:(?:this|next)\s+)?(?:holidays?|weekend|week|month|quarter|term|semester|season|new\s+year|long\s+weekend)\s+` +
-    String.raw`(?:(?:is|are|'s|'re)\s+over|ends?|(?:has|have)\s+(?:ended|changed|started|begun|passed)|starts?|begins?)` +
+    String.raw`|(?:(?:this|next)\s+)?(?:holidays?|weekend|week|month|quarter|term|semester|season|new\s+year|long\s+weekend)` +
+    String.raw`(?:'s\s+over|'re\s+over|\s+(?:(?:is|are)\s+over|ends?|(?:has|have)\s+(?:ended|changed|started|begun|passed)|starts?|begins?))` +
     String.raw`)\b`,
   "iu",
 );
 
-/** Abbreviations whose period does not end a sentence. */
-const ABBREV = /\b(?:dr|mr|mrs|ms|st|vs|etc|e\.g|i\.e|jan|feb|mar|apr|jun|jul|aug|sep|sept|oct|nov|dec|no)\.$/iu;
-/** "a.m." / "p.m." end a sentence only before a capital ("at 9 a.m. If you're busy..."; T-G6). */
-const CLOCK_END = /\b[ap]\.m\.$/iu;
-
-/** Words that may stand around a condition fragment without being a main clause of their own. */
-const FRAGMENT_FILLER = /^(?:only|though|but|and|just|then|of|course|obviously|naturally|ok|okay|so|that|is|all|really|still)$/iu;
+/** Abbreviations whose period does not end a sentence by itself. */
+const ABBREV = /^(?:dr|mr|mrs|ms|st|vs|etc|jan|feb|mar|apr|jun|jul|aug|sep|sept|oct|nov|dec|no)\.$/iu;
+/** Words that open a new sentence even after an abbreviation: triggers and subject pronouns. */
+const OPENER = /^(?:if|once|assuming|provided|providing|as\s+soon|only|but|unless|(?:i|we|you|he|she|they|it)(?:'\p{L}+)?)$/iu;
 
 /**
- * A sentence with no promise verb that is only a condition clause: "Only if the venue confirms,
- * though.", "If the venue confirms by Friday.", "Assuming the budget passes." It belongs to the
- * neighbouring promise (T-G3). A trigger sentence with a main clause of its own ("If I don't pick
- * up, text me.") does not.
+ * Whether a period ends the sentence (T-G6, T-G13, T-G14). When in doubt it does not, so a condition
+ * stays attached to its promise and caps (the safe side):
+ *  - before an opener ("If", "I'll"): it ends, except a lowercase opener after an abbreviation-shaped
+ *    word ("a.m. if", "Inc. if");
+ *  - before lowercase or a number ("Fri. at 9", "Inc. on Friday", "approx. 40"): it does not;
+ *  - before any other capital: it ends after an ordinary word ("back. Thanks"), not after an
+ *    abbreviation-shaped one ("a.m. Friday", "U.S. Senate", "Prof. Lin").
  */
-function isConditionFragment(sentence: string): boolean {
-  for (const [, re] of TRIGGERS) {
-    const m = re.exec(sentence);
-    if (!m) continue;
-    const clauseEnd = sentence.slice(m.index).search(/[,;:]/u);
-    const rest =
-      sentence.slice(0, m.index) + " " + (clauseEnd < 0 ? "" : sentence.slice(m.index + clauseEnd));
-    if (rest.split(/[^\p{L}']+/u).filter(Boolean).every((w) => FRAGMENT_FILLER.test(w))) return true;
-  }
-  return false;
+function periodEndsSentence(head: string, after: string): boolean {
+  const prev = (head.trimEnd().split(/\s+/u).pop() ?? "").replace(/^["'“‘(]+/u, "").replace(/["'”’)]+$/u, "");
+  const next = /^\s*["'“‘(]*([\p{L}\d'-]+(?:\s+soon\b)?)/u.exec(after)?.[1];
+  if (!next) return true;
+  const capital = /^\p{Lu}/u.test(next);
+  const shaped = /\p{L}\.\p{L}/u.test(prev) || ABBREV.test(prev) || /^\p{Lu}\p{L}{0,4}\.$/u.test(prev);
+  if (OPENER.test(next)) return capital || !shaped;
+  return capital && !shaped;
 }
 
-/** Sentence spans of `text` (T-G6: any casing after the stop, straight or curly quotes, "a.m."). */
+/** Sentence spans of `text`: ends at ! ? ; or a line break, and at a period by the rule above (T-G15). */
 function sentences(text: string): Array<[number, number]> {
   const spans: Array<[number, number]> = [];
   let start = 0;
-  const end = /[.!?]+["'”’)]?(?=\s+\S)/gu;
+  const end = /[.!?]+["'”’)]*(?=\s)|;|[\r\n]+/gu;
   for (let m = end.exec(text); m; m = end.exec(text)) {
     const stop = m.index + m[0].length;
-    const head = text.slice(start, stop);
-    if (ABBREV.test(head)) continue;
-    if (CLOCK_END.test(head) && !/^\s+["'“‘(]?\p{Lu}/u.test(text.slice(stop))) continue;
+    if (m[0].startsWith(".") && !m[0].startsWith("..") && !periodEndsSentence(text.slice(start, stop), text.slice(stop))) continue;
     spans.push([start, stop]);
     start = stop;
   }
   spans.push([start, text.length]);
   return spans;
+}
+
+/** Words that may stand around a condition fragment without being a main clause of their own. */
+const FRAGMENT_FILLER = /^(?:only|though|but|and|just|then|of|course|obviously|naturally|ok|okay|so|that|is|all|really|still)$/iu;
+/** Where a condition clause ends when it is written with punctuation. */
+const CLAUSE_END = /[,;:]|\s[-–—]\s/u;
+/** Instructions that open a main clause with no comma before them ("If I'm out text me"; T-G7). */
+const IMPERATIVE = new Set(["text", "call", "email", "message", "ping", "ring", "phone", "leave", "tell", "ask", "start", "go", "ignore", "skip", "use", "try", "let", "wait", "grab", "reach", "contact", "please", "just", "feel", "don't"]);
+/** A word before a verb form that makes it part of the condition ("if they can call", "if I don't call"). */
+const NOT_BEFORE_IMPERATIVE = new Set(["to", "can", "will", "would", "could", "should", "might", "may", "must", "don't", "doesn't", "didn't", "won't", "can't", "not", "and", "or", "all", "both", "just", "then", "also"]);
+const SUBJECT_PRONOUN = /^(?:i|we|you|he|she|they|it|that|this)(?:'\p{L}+)?$/u;
+const FINITE_VERB = /^(?:[\p{L}-]+(?:s|ed)|is|are|was|were|has|have|had|am|did|does|do)$/u;
+
+/**
+ * A condition clause that runs on into an instruction with no comma: "I don't pick up text me", "it's
+ * urgent call Priya instead". The words before the instruction must already read as a clause
+ * (a pronoun subject, or a finite verb): "If they call" and "If the venue people leave" do not.
+ */
+function runsIntoInstruction(clause: string): boolean {
+  const words = clause.toLowerCase().split(/[^\p{L}']+/u).filter(Boolean);
+  for (let i = 2; i < words.length; i += 1) {
+    if (!IMPERATIVE.has(words[i]!) || NOT_BEFORE_IMPERATIVE.has(words[i - 1]!)) continue;
+    const before = words.slice(0, i);
+    if (SUBJECT_PRONOUN.test(before[0]!) || before.slice(1).some((w) => FINITE_VERB.test(w))) return true;
+  }
+  return false;
+}
+
+/**
+ * A sentence with no promise verb that is only a condition clause: "Only if the venue confirms,
+ * though.", "If the venue confirms by Friday.", "Assuming the budget passes." It belongs to the
+ * neighbouring promise (T-G3). A trigger sentence with a main clause of its own, with or without a
+ * comma ("If I don't pick up, text me.", "If I don't pick up text me."), does not (T-G7).
+ */
+function isConditionFragment(sentence: string): boolean {
+  for (const [, re] of TRIGGERS) {
+    const m = re.exec(sentence);
+    if (!m) continue;
+    const after = sentence.slice(m.index + m[0].length);
+    const stop = after.search(CLAUSE_END);
+    const clause = stop < 0 ? after : after.slice(0, stop);
+    const rest = `${sentence.slice(0, m.index)} ${stop < 0 ? "" : after.slice(stop)}`;
+    if (runsIntoInstruction(clause)) continue;
+    if (rest.split(/[^\p{L}']+/u).filter(Boolean).every((w) => FRAGMENT_FILLER.test(w))) return true;
+  }
+  return false;
 }
 
 /**

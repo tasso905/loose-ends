@@ -134,3 +134,21 @@ describe("possessive month with a day number keeps the day (T-D6)", () => {
     expect(possessiveDatePhrase("June's report")).toBeNull();
   });
 });
+
+describe("possessive month: a person's things and counts are not dates (T-D7, T-D8)", () => {
+  it.each(["May's order", "June's review", "June's schedule", "April's statement", "June's budget", "May's meeting", "June's end", "May's 3 kids", "June's 15 minutes", "Jan's 5 kids"])(
+    "'%s' → no date",
+    (t) => {
+      expect(possessiveDatePhrase(t)).toBeNull();
+      expect(r(t).due_date).toBeNull();
+    },
+  );
+
+  it.each([
+    ["May's rent", "2027-05-01"],
+    ["June's board meeting", "2027-06-01"],
+    ["June's 15", "2027-06-15"],
+    ["June's 15 at noon", "2027-06-15"],
+    ["Jan's 5th", "2027-01-05"],
+  ])("'%s' stays a date: %s", (t, day) => expect(r(t).due_date).toBe(day));
+});

@@ -1,0 +1,21 @@
+{
+  "description": "Chat written by the user (Noor) on Wed Oct 14, 2026. Each dated promise carries a condition on someone else, in a sentence where an abbreviation or a time ('a.m.', 'Inc.', 'U.S.') could be mistaken for a sentence end, or in a step that waits ('once I get paid'). All must score Low whatever the model's certainty.",
+  "covers": [
+    "conditional_guard",
+    "abbreviation_not_sentence_end",
+    "ampm_before_weekday",
+    "own_step_that_waits",
+    "commitment_by_user"
+  ],
+  "reference_date": "2026-10-14",
+  "reference_date_source": "user",
+  "timezone": "America/Chicago",
+  "source_kind": "paste",
+  "user": {
+    "display_name": "Noor Haddad",
+    "aliases": [
+      "Noor"
+    ]
+  },
+  "ambiguous": false
+}

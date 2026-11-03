@@ -42,7 +42,7 @@ describe("T-G3: a condition-only sentence attaches to the adjacent promise", () 
     "I'll be there Friday. Once I've finished up.",
   ])("a sentence with its own main clause stays out: %s", notCapped);
 
-  // OPEN DEFECT (T-G7, medium; REGRESSION from T-G3): isConditionFragment treats "no comma" as "no main
+  // REGRESSION GUARD (T-G7, fixed in fix/guard-followups-3): isConditionFragment treats "no comma" as "no main
   // clause", so a chat-style conditional instruction attaches and a firm dated promise drops to Low.
   for (const q of [
     "I'll call you back. If I don't pick up text me.",
@@ -50,7 +50,7 @@ describe("T-G3: a condition-only sentence attaches to the adjacent promise", () 
     "I'll call you Friday. If it's urgent call Priya instead.",
     "I'll call you Friday. If I'm late - start without me.",
   ]) {
-    it.fails(`REGRESSION: a comma-less main clause stays out: ${q}`, () => notCapped(q));
+    it(`REGRESSION: a comma-less main clause stays out: ${q}`, () => notCapped(q));
   }
 
   // OPEN DEFECT (T-G8, low): words around the condition outside FRAGMENT_FILLER lose the fragment.
@@ -105,7 +105,7 @@ describe("T-G4: an I/we step that receives or waits caps; own actions stay exemp
     "I'll send them Tuesday, once I have a minute.",
   ])("own action exempt: %s", notCapped);
 
-  // OPEN DEFECT (T-G9, high for the gate; REGRESSION from T-G4): any "get" outside GET_OWN caps, so an
+  // REGRESSION GUARD (T-G9, fixed in fix/guard-followups-3): any "get" outside GET_OWN caps, so an
   // ordinary dated promise on the speaker's own time scores Low. This is the false positive
   // explicit_dated_scored_low exists to catch; no golden has this wording. Note "once I have a minute"
   // is exempt and "once I get a minute" is not.
@@ -117,10 +117,10 @@ describe("T-G4: an I/we step that receives or waits caps; own actions stay exemp
     "I'll send them Tuesday, once I get my notes together.",
     "I'll send them Tuesday, once I get the kids to bed.",
   ]) {
-    it.fails(`REGRESSION: the speaker's own 'get' stays High: ${q}`, () => expect(band(q)).toBe("high"));
+    it(`REGRESSION: the speaker's own 'get' stays High: ${q}`, () => expect(band(q)).toBe("high"));
   }
 
-  // OPEN DEFECT (T-G10, medium): waiting wordings outside the lists read as own actions and stay High.
+  // REGRESSION GUARD (T-G10, fixed in fix/guard-followups-3): waiting wordings outside the lists read as own actions and stay High.
   for (const q of [
     "I'll send it Friday, once I have approval.",
     "I'll send it Friday, once we have the go-ahead.",
@@ -133,7 +133,7 @@ describe("T-G4: an I/we step that receives or waits caps; own actions stay exemp
     "I'll send it Friday, once I get it from Sam.",
     "I'll send it Friday, once I've cleaned up and the client approves.",
   ]) {
-    it.fails(`a step that still waits on someone caps: ${q}`, () => capped(q));
+    it(`a step that still waits on someone caps: ${q}`, () => capped(q));
   }
 });
 
@@ -167,16 +167,16 @@ describe("T-G5: only the period itself passing is exempt", () => {
     "I'll send it Monday, once the month has changed",
   ])("exempt: %s", notCapped);
 
-  // OPEN DEFECT (T-G11, medium; REGRESSION from T-G5): TIME_STEP's `'s over` alternative sits after a
+  // REGRESSION GUARD (T-G11, fixed in fix/guard-followups-3): TIME_STEP's `'s over` alternative sits after a
   // mandatory \s+, so it can never match. "the week's over" is the same claim as "the week is over".
   for (const q of ["I'll send it Monday, once the week's over", "I'll send it Monday, once the weekend's over", "I'll send it Monday, once the holidays're over"]) {
-    it.fails(`REGRESSION: the contracted form is exempt too: ${q}`, () => notCapped(q));
+    it(`REGRESSION: the contracted form is exempt too: ${q}`, () => notCapped(q));
   }
 
-  // OPEN DEFECT (T-G12, low-medium): TIME_STEP has no end anchor, so a time step joined to someone else's
+  // REGRESSION GUARD (T-G12, fixed in fix/guard-followups-3): TIME_STEP has no end anchor, so a time step joined to someone else's
   // action is exempt. T-G4's own-step check has the same gap (see T-G10, "and the client approves").
   for (const q of ["I'll send it Friday once the month is over and the invoices are approved", "I'll send it Friday once the week ends and Sam signs off"]) {
-    it.fails(`a time step joined to someone else's action caps: ${q}`, () => capped(q));
+    it(`a time step joined to someone else's action caps: ${q}`, () => capped(q));
   }
 });
 
@@ -204,25 +204,25 @@ describe("T-G6: sentence splitting", () => {
     "If Dr. Lin confirms, I'll book Friday.",
   ])("an abbreviation does not split the condition off: %s", capped);
 
-  // OPEN DEFECT (T-G13, HIGH; REGRESSION from T-G6): a capital after "a.m." / "p.m." is usually a weekday
+  // REGRESSION GUARD (T-G13, fixed in fix/guard-followups-3): a capital after "a.m." / "p.m." is usually a weekday
   // or month, not a new sentence. The condition lands in a sentence with no promise verb and no fragment
   // shape, is blanked, and the conditional promise scores High 0.95. D64(c) exists to stop exactly this.
   for (const q of ["I'll call at 9 a.m. Friday if the venue confirms.", "I'll call by 5 p.m. Friday, once the venue confirms.", "I'll call at 9 a.m. Monday, assuming the budget passes."]) {
-    it.fails(`REGRESSION: a.m./p.m. before a weekday is not a sentence end: ${q}`, () => expect(band(q)).toBe("low"));
+    it(`REGRESSION: a.m./p.m. before a weekday is not a sentence end: ${q}`, () => expect(band(q)).toBe("low"));
   }
 
-  // OPEN DEFECT (T-G14, HIGH; REGRESSION from T-G6 "any casing"): any abbreviation outside ABBREV now splits
+  // REGRESSION GUARD (T-G14, fixed in fix/guard-followups-3): any abbreviation outside ABBREV now splits
   // before a lowercase word too, with the same result: High.
   for (const q of ["I'll see you Fri. at 9 if Sam confirms.", "I'll ship to Acme Inc. on Friday if the deposit clears.", "I'll call the U.S. office Friday if the deal closes.", "I'll pay approx. 40 on Friday if the job is done."]) {
-    it.fails(`REGRESSION: an abbreviation before lowercase is not a sentence end: ${q}`, () => expect(band(q)).toBe("low"));
+    it(`REGRESSION: an abbreviation before lowercase is not a sentence end: ${q}`, () => expect(band(q)).toBe("low"));
   }
-  it.fails("an abbreviation before a capital is not a sentence end (not a regression): I'll call Prof. Lin Friday if she's in.", () =>
+  it("an abbreviation before a capital is not a sentence end (not a regression): I'll call Prof. Lin Friday if she's in.", () =>
     expect(band("I'll call Prof. Lin Friday if she's in.")).toBe("low"),
   );
 
-  // OPEN DEFECT (T-G15, low-medium): a semicolon or a line break does not split; pasted chat is line based.
+  // REGRESSION GUARD (T-G15, fixed in fix/guard-followups-3): a semicolon or a line break does not split; pasted chat is line based.
   for (const q of ["I'll call you Friday; if I don't pick up, text me.", "I'll call you Friday\nIf I don't pick up, text me"]) {
-    it.fails(`an 'if' after a semicolon or line break with its own main clause stays out: ${JSON.stringify(q)}`, () => notCapped(q));
+    it(`an 'if' after a semicolon or line break with its own main clause stays out: ${JSON.stringify(q)}`, () => notCapped(q));
   }
 });
 
@@ -257,7 +257,7 @@ describe("opt-outs, courtesies, idioms and plain promises", () => {
     "Mike will send the contract by Friday.",
   ])("no cap: %s", notCapped);
 
-  // OPEN DEFECT (T-G16, medium; present before this branch): dated, firm promises capped to Low, each a
+  // REGRESSION GUARD (T-G16, fixed in fix/guard-followups-3): dated, firm promises capped to Low, each a
   // live risk to explicit_dated_scored_low. The opt-out wordings are named by D64(c) as exempt.
   for (const q of [
     "If I don't get a response, I'll book Friday.",
@@ -279,7 +279,7 @@ describe("opt-outs, courtesies, idioms and plain promises", () => {
     "We'll start as soon as Monday.",
     "I'll send it as soon as tomorrow.",
   ]) {
-    it.fails(`opt-out, courtesy, embedded question or idiom is not a condition: ${q}`, () => notCapped(q));
+    it(`opt-out, courtesy, embedded question or idiom is not a condition: ${q}`, () => notCapped(q));
   }
 });
 
@@ -354,17 +354,17 @@ describe("T-D6: possessive month and day", () => {
     for (const m of ["January", "Jan", "March", "July", "Sept", "October", "December"]) expect(possessiveDatePhrase(`${m}'s`)).toBe(m);
   });
 
-  // OPEN DEFECT (T-D7, low; rule 3; the shape predates T-D6, which keeps the number as the day): a count
+  // REGRESSION GUARD (T-D7, fixed in fix/guard-followups-3): a count
   // after a name that is a month is read as the day. Reached only if the model offers this as date_text.
   for (const t of ["May's 3 kids", "June's 2 cents", "April's 12 tickets", "June's 15 minutes", "Jan's 5 kids"]) {
-    it.fails(`a count after the possessive is not a day: ${t}`, () => expect(r(t).due_date).toBeNull());
+    it(`a count after the possessive is not a day: ${t}`, () => expect(r(t).due_date).toBeNull());
   }
 
-  // OPEN DEFECT (T-D8, low; rule 3): the reasoning that removed "report" applies to these nouns too.
+  // REGRESSION GUARD (T-D8, fixed in fix/guard-followups-3): the reasoning that removed "report" applies to these nouns too.
   for (const t of ["May's order", "June's review", "June's schedule", "April's statement"]) {
-    it.fails(`a noun a person can own is not a date: ${t}`, () => expect(r(t).due_date).toBeNull());
+    it(`a noun a person can own is not a date: ${t}`, () => expect(r(t).due_date).toBeNull());
   }
 
-  // OPEN DEFECT (T-D9, low; rule 3): "June's end" is flagged inferred but dated the first of the month.
-  it.fails("'June's end' is not Jun 1", () => expect(r("June's end").due_date).not.toBe("2027-06-01"));
+  // REGRESSION GUARD (T-D9, fixed in fix/guard-followups-3): "June's end" is flagged inferred but dated the first of the month.
+  it("'June's end' is not Jun 1", () => expect(r("June's end").due_date).not.toBe("2027-06-01"));
 });

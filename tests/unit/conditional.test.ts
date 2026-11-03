@@ -274,3 +274,117 @@ describe("findCondition(): sentence splitting (T-G6)", () => {
     "I'll bring snacks, e.g. chips, if the store is open.",
   ])("a.m. or e.g. before lowercase does not split: %s", (quote) => expect(findCondition(quote, true)).not.toBeNull());
 });
+
+describe("findCondition(): sentence ends, in doubt the condition stays attached (T-G13, T-G14, T-G15)", () => {
+  it.each([
+    "I'll call at 9 a.m. Friday if the venue confirms.",
+    "I'll call at 5 p.m. June 3 if the venue confirms.",
+    "I'll see you Fri. at 9 if Sam confirms.",
+    "I'll see you Fri. if Sam confirms.",
+    "I'll ship to Acme Inc. on Friday if the deposit clears.",
+    "I'll ship to Acme Inc. if the deposit clears.",
+    "I'll call the U.S. office Friday if the deal closes.",
+    "I'll pay approx. 40 on Friday if the job is done.",
+    "I'll call Prof. Lin Friday if she's in.",
+    "I'll send it Monday; if the venue confirms.",
+    "I'll send it Monday\nif the venue confirms",
+    "If the venue\nconfirms, I'll send it Monday",
+  ])("caps: %s", (q) => expect(findCondition(q, true)).not.toBeNull());
+
+  it.each([
+    "I'll call you back at 9 a.m. If I don't pick up, text me.",
+    "I'll call Sam. If I don't pick up, text me.",
+    "I'll call you back. Text me if I don't pick up.",
+    "i'll call you back. if i don't pick up, text me.",
+    "I'll call you Friday; if I don't pick up, text me.",
+    "I'll call you Friday\r\nIf I don't pick up, text me",
+  ])("does not cap: %s", (q) => expect(findCondition(q, true)).toBeNull());
+});
+
+describe("findCondition(): a condition sentence with no comma (T-G7)", () => {
+  it.each([
+    "I'll call you back. If I don't pick up text me.",
+    "I'll call you Friday. If it's urgent call Priya instead.",
+    "I'll call you Friday. If the venue confirms call me.",
+    "I'll call you Friday. If I'm late - start without me.",
+  ])("its own instruction stays out: %s", (q) => expect(findCondition(q, true)).toBeNull());
+
+  it.each([
+    "I'll send it Monday. If they call.",
+    "I'll send it Monday. If they can call.",
+    "I'll send it Monday. If I don't call.",
+    "I'll send it Monday. If the venue people leave.",
+    "I'll send it Monday. Only if the venue confirms.",
+  ])("a condition with a verb from the list is still a fragment: %s", (q) => expect(findCondition(q, true)).not.toBeNull());
+});
+
+describe("findCondition(): 'get' and 'have' in the speaker's step (T-G9, T-G10)", () => {
+  it.each([
+    "I'll send them Tuesday, once I get a chance.",
+    "I'll send them Tuesday, once I get a moment.",
+    "I'll send them Tuesday, once I get some time.",
+    "I'll send them Tuesday, once I get round to it.",
+    "I'll send them Tuesday, once I get around to it.",
+    "I'll send them Tuesday, once I get everything sorted.",
+    "I'll send them Tuesday, once I get the kids to bed.",
+    "I'll send them Tuesday, once I get the slides finished.",
+    "I'll send them Tuesday, once I have a minute.",
+    "I'll send them Tuesday, once I've had a chance.",
+  ])("exempt: %s", (q) => expect(findCondition(q, true)).toBeNull());
+
+  it.each([
+    "I'll send them Tuesday, once I get paid.",
+    "I'll send them Tuesday, once I get approval.",
+    "I'll send them Tuesday, once I get the go-ahead.",
+    "I'll send them Tuesday, once I get it from Sam.",
+    "I'll send them Tuesday, once I get word.",
+    "I'll send them Tuesday, once I have approval.",
+    "I'll send them Tuesday, once I've got the OK.",
+    "I'll send them Tuesday, once I have the green light.",
+    "I'll send them Tuesday, once I know.",
+    "I'll send them Tuesday, once I've found out.",
+    "I'll send them Tuesday, once I've cleaned up and Sam signs off.",
+  ])("caps: %s", (q) => expect(findCondition(q, true)).not.toBeNull());
+
+  it("an own step with its own second noun is not a joined clause", () => {
+    expect(findCondition("I'll send them Tuesday, once I've cleaned up the deck and the slides.", true)).toBeNull();
+    expect(findCondition("I'll send them Tuesday, once I've cleaned up and I'm back.", true)).toBeNull();
+  });
+});
+
+describe("findCondition(): time steps (T-G11, T-G12)", () => {
+  it.each(["once the week's over", "once the weekend's over", "once the holidays're over", "as soon as the term's over", "once the week is over, and the term starts"])(
+    "exempt: %s",
+    (step) => expect(findCondition(`I'll send it Monday, ${step}.`, true)).toBeNull(),
+  );
+
+  it.each(["once the month's invoices are in", "once the month is over and the invoices are approved", "once the week ends and Sam signs off"])(
+    "caps: %s",
+    (step) => expect(findCondition(`I'll send it Monday ${step}.`, true)).not.toBeNull(),
+  );
+});
+
+describe("findCondition(): more wordings that set no condition (T-G16)", () => {
+  it.each([
+    "If I don't get a response, I'll book Friday.",
+    "Assuming no one objects, I'll send the minutes on Friday.",
+    "I'll let you know by Friday if I can make it.",
+    "I'll decide by Friday if we renew.",
+    "I'll fix it once and for all on Friday.",
+    "We'll start as soon as Monday.",
+  ])("does not cap: %s", (q) => expect(findCondition(q, true)).toBeNull());
+
+  it.each([
+    "If I get a response, I'll book Friday.",
+    "Assuming someone objects, I'll call on Friday.",
+    "If that's fine with the board, I'll book Friday.",
+    "I'll send it as soon as Monday's numbers are in.",
+    "I'll book Friday if we renew.",
+    "I'll book Friday, if that works for the board.",
+    "I'll send it as soon as next week's numbers are in.",
+  ])("near misses still cap: %s", (q) => expect(findCondition(q, true)).not.toBeNull());
+
+  it.each(["I'll book Friday, if that's fine with you.", "I'll book Friday, if that works for you.", "I'll book Friday if that's okay"])("a courtesy to the reader: %s", (q) =>
+    expect(findCondition(q, true)).toBeNull(),
+  );
+});

@@ -1,0 +1,61 @@
+{
+  "notes": "Firm, dated promises by the user, all High. T-G9, T-G11, T-G7, T-G16: none of the trailing wordings is a condition. 'call Priya' is an instruction to Sam if something is urgent, not a loop.",
+  "items": [
+    {
+      "type": "commitment",
+      "title": "Send Sam the volunteer list",
+      "owner": "user",
+      "quote": "I'll send you the volunteer list on Tuesday, once I get a chance.",
+      "date_text": "on Tuesday",
+      "due_date": "2026-10-20",
+      "due_certainty": "explicit",
+      "certainty": "explicit",
+      "counterparty": "Sam",
+      "amount_text": null,
+      "band": "high",
+      "note": "The speaker's own time."
+    },
+    {
+      "type": "commitment",
+      "title": "Email the vendors the map",
+      "owner": "user",
+      "quote": "I'll email the vendors the map on Monday, once the week's over.",
+      "date_text": "on Monday",
+      "due_date": "2026-10-19",
+      "due_certainty": "explicit",
+      "certainty": "explicit",
+      "counterparty": null,
+      "amount_text": null,
+      "band": "high",
+      "note": "Only time passing."
+    },
+    {
+      "type": "commitment",
+      "title": "Call Sam",
+      "owner": "user",
+      "quote": "I'll call you Friday. If it's urgent call Priya instead.",
+      "date_text": "Friday",
+      "due_date": "2026-10-16",
+      "due_certainty": "explicit",
+      "certainty": "explicit",
+      "counterparty": "Sam",
+      "amount_text": null,
+      "band": "high",
+      "note": "The 'if' is its own instruction in the next sentence."
+    },
+    {
+      "type": "commitment",
+      "title": "Drop off the cash box",
+      "owner": "user",
+      "quote": "I'll drop off the cash box on Thursday, if that's fine.",
+      "date_text": "on Thursday",
+      "due_date": "2026-10-15",
+      "due_certainty": "explicit",
+      "certainty": "explicit",
+      "counterparty": "Sam",
+      "amount_text": null,
+      "band": "high",
+      "note": "A courtesy, not a condition."
+    }
+  ]
+}
