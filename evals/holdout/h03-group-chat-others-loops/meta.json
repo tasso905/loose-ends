@@ -1,0 +1,22 @@
+{
+  "description": "Held-out (not used for prompt tuning). Group chat written Thu Oct 22, 2026, Los Angeles; the user is Sam. One request to the user, and two loops between other people (a debt with its promise, a reminder) that are not the user's and must not be shown.",
+  "covers": [
+    "group_chat",
+    "third_party_loop_decoy",
+    "debt_between_others",
+    "request_to_user_accepted",
+    "possessive_weekday"
+  ],
+  "reference_date": "2026-10-22",
+  "reference_date_source": "user",
+  "timezone": "America/Los_Angeles",
+  "source_kind": "paste",
+  "user": {
+    "display_name": "Sam Okafor",
+    "aliases": [
+      "sam.okafor@example.org",
+      "Sam"
+    ]
+  },
+  "ambiguous": true
+}

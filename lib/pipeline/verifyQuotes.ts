@@ -178,7 +178,8 @@ export function verifyQuotes(items: Item[], sourceText: string, opts: VerifyOpti
       result.droppedItemIndexes.push(itemIndex);
       return;
     }
-    result.items.push({ index: itemIndex, item: verifyFields(item, normalized.text, itemIndex, opts, logger), evidence });
+    const quotes = evidence.map((e) => e.quote);
+    result.items.push({ index: itemIndex, item: verifyFields(item, normalized.text, quotes, itemIndex, opts, logger), evidence });
   });
 
   return result;
@@ -214,14 +215,28 @@ export function containsWholePhrase(haystack: string, needle: string, kind: "dat
   return re.test(normalizeText(haystack));
 }
 
-function verifyFields(item: Item, normalizedSource: string, itemIndex: number, opts: VerifyOptions, logger: Logger): Item {
+/**
+ * `date_text` must be inside one of the item's own verified quotes, not just somewhere in the
+ * source (eval gate, Oct 27): a date from a neighbouring sentence ("Thursday at 10:30" two lines
+ * away) belongs to that sentence, not to this item. `amount_text` and `counterparty` must be in the
+ * source. A cleared date_text leaves no due date (resolveDate sees no anchor).
+ */
+function verifyFields(item: Item, normalizedSource: string, quotes: string[], itemIndex: number, opts: VerifyOptions, logger: Logger): Item {
   const KIND = { date_text: "date", amount_text: "amount", counterparty: "text" } as const;
   const out = { ...item };
   for (const field of ["date_text", "amount_text", "counterparty"] as const) {
     const v = out[field];
-    if (v !== null && !containsWholePhrase(normalizedSource, v, KIND[field])) {
+    if (v === null) continue;
+    const inSource = containsWholePhrase(normalizedSource, v, KIND[field]);
+    const ok = field === "date_text" ? inSource && quotes.some((q) => containsWholePhrase(q, v, "date")) : inSource;
+    if (!ok) {
       out[field] = null;
-      logger("field_unverified", { extraction_id: opts.extractionId ?? null, item_index: itemIndex, field });
+      logger("field_unverified", {
+        extraction_id: opts.extractionId ?? null,
+        item_index: itemIndex,
+        field,
+        reason: inSource ? "outside_quote" : "not_in_source",
+      });
     }
   }
   return out;

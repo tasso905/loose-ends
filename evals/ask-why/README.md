@@ -67,7 +67,7 @@ S9 ORs the lexemes (migration `20261022172128_ask_why_search.sql`). `tests/integ
 2. Call `askWhy(question, retrievedDecisions)` with the configured model (live) or the recordings (`AI_PROVIDER=fake AI_MODEL=recorded`, `tests/fixtures/llm/ask-why-eval-a*.ask-why.json`). Unanswerable questions retrieve nothing, so they never reach the model and need no recording.
 3. Call `judgeAskWhy(question, decisions, retrievedIds, answer)`, which returns `{ fabrications[], misses[] }`.
 
-Output: `evals/results/ask-why-<timestamp>.json` (per-question report) and an Ask-why row in the scorecard with model, prompt version (`ask-why.v2`), schema version (`ask-why.v1`), fabrications, answerable hit rate and model calls. The fake provider only checks the harness; it says nothing about a live model.
+Output: `evals/results/ask-why-<timestamp>.json` (per-question report) and an Ask-why row in the scorecard with model, prompt version (`ask-why.v3`), schema version (`ask-why.v1`), fabrications, answerable hit rate and model calls. The fake provider only checks the harness; it says nothing about a live model.
 
 **Fabrications** (gate: 0 across all 20 questions):
 

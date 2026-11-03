@@ -1,0 +1,46 @@
+{
+  "items": [
+    {
+      "type": "commitment",
+      "title": "Send Callum the revised quote",
+      "owner": "user",
+      "quote": "I'll send you the revised quote on Monday.",
+      "date_text": "on Monday",
+      "due_date": "2026-10-26",
+      "due_certainty": "explicit",
+      "certainty": "explicit",
+      "counterparty": "Callum",
+      "amount_text": null,
+      "band": "high",
+      "note": "0.80 + 0.05 + 0.05 + 0.05 modal = 0.95, Likely. Mon Oct 26."
+    },
+    {
+      "type": "waiting_on",
+      "title": "Delivery schedule from Callum",
+      "owner": "other",
+      "quote": "I will get you the delivery schedule by 30 October.",
+      "date_text": "by 30 October",
+      "due_date": "2026-10-30",
+      "due_certainty": "explicit",
+      "certainty": "explicit",
+      "counterparty": "Callum",
+      "amount_text": null,
+      "band": "high",
+      "note": "In the quoted message: 'I' is Callum. 0.80 + 0.05 + 0.05 = 0.90, Likely."
+    },
+    {
+      "type": "waiting_on",
+      "title": "VAT invoice from Hamish",
+      "owner": "other",
+      "quote": "Our accountant, Hamish, will send the VAT invoice as well.",
+      "date_text": null,
+      "due_date": null,
+      "due_certainty": "none",
+      "certainty": "explicit",
+      "counterparty": "Hamish",
+      "amount_text": null,
+      "band": "high",
+      "note": "Third party promising the user, no date: 0.80 + 0.05 = 0.85, Likely."
+    }
+  ]
+}

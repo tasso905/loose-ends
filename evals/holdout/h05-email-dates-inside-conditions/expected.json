@@ -1,0 +1,46 @@
+{
+  "items": [
+    {
+      "type": "waiting_on",
+      "title": "Renata to book the painters",
+      "owner": "other",
+      "quote": "If the inspector signs off on Wednesday, I'll book the painters.",
+      "date_text": null,
+      "due_date": null,
+      "due_certainty": "none",
+      "certainty": "speculative",
+      "counterparty": "Renata",
+      "amount_text": null,
+      "band": "low",
+      "note": "Conditional: speculative. 'on Wednesday' is when the inspector signs off, not when the painters are booked: no date. 0.30 + 0.05 = 0.35, Also noticed. A model that dates it Nov 4 gets a date error."
+    },
+    {
+      "type": "waiting_on",
+      "title": "Renata to schedule the roof repair",
+      "owner": "other",
+      "quote": "Once the permit arrives, we'll schedule the roof repair; I'll confirm the exact day with you.",
+      "date_text": null,
+      "due_date": null,
+      "due_certainty": "none",
+      "certainty": "speculative",
+      "counterparty": "Renata",
+      "amount_text": null,
+      "band": "low",
+      "note": "Conditional on the permit, no date: 0.30 + 0.05 = 0.35, Also noticed."
+    },
+    {
+      "type": "waiting_on",
+      "title": "Renata to drop off the mailbox key",
+      "owner": "other",
+      "quote": "Separately, I'll drop off the new mailbox key on Thursday.",
+      "date_text": "on Thursday",
+      "due_date": "2026-11-05",
+      "due_certainty": "explicit",
+      "certainty": "explicit",
+      "counterparty": "Renata",
+      "amount_text": null,
+      "band": "high",
+      "note": "Control: 0.80 + 0.05 + 0.05 = 0.90, Likely. Thu Nov 5."
+    }
+  ]
+}

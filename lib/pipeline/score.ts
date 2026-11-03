@@ -1,5 +1,6 @@
 import type { Certainty, ItemType, Owner } from "@/lib/ai/schema";
 import type { Band } from "@/lib/schemas";
+import { findCondition } from "./conditional";
 import type { DateAgreement } from "./resolveDates";
 import type { MatchKind } from "./verifyQuotes";
 
@@ -34,7 +35,14 @@ export type Signal =
   | "date_disagrees"
   | "first_person_modal"
   | "hedge_words"
-  | "no_date";
+  | "no_date"
+  /** The quote attaches a condition to the promise; certainty capped at speculative (conditional.ts). */
+  | "conditional";
+
+/** Item types that are promises or plans, which a condition can make uncertain. */
+const CONDITIONAL_TYPES: ReadonlySet<ItemType> = new Set(["commitment", "waiting_on", "intention"]);
+/** A date the pipeline set (chrono read the phrase). */
+const DATED: ReadonlySet<DateAgreement> = new Set(["agree", "disagree", "chrono_only"]);
 
 export interface ScoreInput {
   type: ItemType;
@@ -62,8 +70,13 @@ export function scoreItem(input: ScoreInput): ScoreResult {
   if (input.disabledTypes?.includes(input.type)) return { score: null, band: null, signals: [] };
 
   const signals: Signal[] = [];
-  let s = BASE[input.certainty];
   const quoteText = fold(input.quotes.join("\n"));
+  // Conditional guard (user decision Nov 2, a D36 change): a promise whose own quote attaches a
+  // condition is speculative, whatever certainty the model gave it, so it bands Low at most.
+  const conditional = CONDITIONAL_TYPES.has(input.type) && input.quotes.some((q) => findCondition(q, DATED.has(input.dateAgreement)) !== null);
+  const certainty: Certainty = conditional ? "speculative" : input.certainty;
+  if (conditional) signals.push("conditional");
+  let s = BASE[certainty];
 
   if (input.matchKinds.includes("exact")) {
     s += WEIGHTS.exactQuote;
@@ -94,7 +107,8 @@ export function scoreItem(input: ScoreInput): ScoreResult {
     signals.push("hedge_words");
   }
 
-  const clamped = Math.max(0, Math.min(100, s));
+  // Speculative already tops out at 45 (Low); the cap keeps "Low at most" true if weights change.
+  const clamped = Math.max(0, Math.min(conditional ? BAND_MIN.medium - 1 : 100, s));
   return { score: clamped / 100, band: bandFor(clamped), signals };
 }
 
