@@ -97,9 +97,111 @@ const openForget = async (page: Page) => {
   return d;
 };
 
+/** After a failed action: focus is inside the open dialog, on the error, never on <body>. */
+async function expectFocusOnError(page: Page, dialogName: string) {
+  await expect
+    .poll(() =>
+      page.evaluate((name) => {
+        const a = document.activeElement;
+        const d = [...document.querySelectorAll("dialog")].find((x) => x.open);
+        return {
+          body: a === document.body,
+          inDialog: !!d && !!a && d.contains(a),
+          holdsError: !!a?.textContent?.includes("didn't save") || !!a?.textContent?.includes("offline"),
+          dialog: name,
+        };
+      }, dialogName),
+    )
+    .toEqual({ body: false, inDialog: true, holdsError: true, dialog: dialogName });
+}
+
+const failPosts = (page: Page, glob: string) => page.route(glob, (route) => (route.request().method() === "POST" ? route.fulfill({ status: 500, body: "" }) : route.continue()));
+
 test.afterAll(async () => {
   for (const s of created) await s.context.close().catch(() => undefined);
   await deleteUsers(created.map((s) => s.email));
+});
+
+test.describe("a failed action keeps focus in the dialog (ae9b60f; rule 10)", () => {
+  test("failed Forget: focus on the error, twice in a row; no success, nothing deleted; Tab stays in the dialog; a retry works", async ({ browser }) => {
+    const { page, uid } = await signIn(browser);
+    const s = await seed(uid, "Focus forget");
+    await page.goto(`/threads/${s.threadId}`);
+    const d = await openForget(page);
+    await failPosts(page, "**/threads/*");
+    const confirm = d.getByRole("button", { name: "Forget permanently" });
+    await confirm.click();
+    await expect(d.getByText("That didn't save. Try again.")).toBeVisible();
+    await expectFocusOnError(page, "forget");
+    expect(page.url()).toContain(s.threadId);
+    expect((await admin().from("threads").select("id").eq("id", s.threadId)).data).toHaveLength(1);
+
+    // The same message again must still move focus (the effect depends on the error text).
+    await confirm.click();
+    await expect(confirm).toBeEnabled();
+    await expect(d.getByText("That didn't save. Try again.")).toBeVisible();
+    await expectFocusOnError(page, "forget, second failure");
+
+    await page.keyboard.press("Tab");
+    expect(await page.evaluate(() => document.querySelector("dialog[open]")?.contains(document.activeElement))).toBe(true);
+    await axe(page, "forget dialog with the error");
+
+    await page.unrouteAll();
+    await confirm.click();
+    await expect(page).toHaveURL(/\/threads$/, { timeout: 15_000 });
+    expect((await admin().from("threads").select("id").eq("id", s.threadId)).data).toEqual([]);
+  });
+
+  test("failed Delete account: focus on the error, twice in a row; no success or notice; the account stays; the typed word stays", async ({ browser }) => {
+    const { page, uid } = await signIn(browser);
+    await seed(uid, "Focus account");
+    await page.goto("/settings");
+    await page.getByRole("button", { name: "Delete account…" }).click();
+    const d = page.getByRole("dialog", { name: "Delete your account?" });
+    await d.getByLabel("Type delete to confirm").fill("delete");
+    await failPosts(page, "**/settings");
+    const confirm = d.getByRole("button", { name: "Delete account" });
+    await confirm.click();
+    await expect(d.getByText("That didn't save. Try again.")).toBeVisible();
+    await expectFocusOnError(page, "account");
+    await expect(page.getByText("Your account and everything in it were deleted.")).toHaveCount(0);
+    await expect(page).toHaveURL(/\/settings$/);
+    expect((await admin().auth.admin.getUserById(uid)).data.user).not.toBeNull();
+    await expect(d.getByLabel("Type delete to confirm")).toHaveValue("delete");
+
+    await confirm.click();
+    await expect(confirm).toBeEnabled();
+    await expectFocusOnError(page, "account, second failure");
+    await axe(page, "account dialog with the error");
+
+    await page.unrouteAll();
+    await page.keyboard.press("Escape");
+    await expect(d).toBeHidden();
+    await expect(page.getByRole("button", { name: "Delete account…" })).toBeFocused();
+    expect((await admin().auth.admin.getUserById(uid)).data.user).not.toBeNull();
+  });
+
+  test("375 px: failed Forget and failed Delete account keep focus on the error, and the error is on screen", async ({ browser }) => {
+    const { page, uid } = await signIn(browser, undefined, { viewport: { width: 375, height: 740 } });
+    const s = await seed(uid, "Focus mobile");
+    await page.goto(`/threads/${s.threadId}`);
+    const f = await openForget(page);
+    await failPosts(page, "**/threads/*");
+    await f.getByRole("button", { name: "Forget permanently" }).click();
+    await expect(f.getByText("That didn't save. Try again.")).toBeInViewport();
+    await expectFocusOnError(page, "forget 375");
+    await page.unrouteAll();
+
+    await page.goto("/settings");
+    await page.getByRole("button", { name: "Delete account…" }).click();
+    const d = page.getByRole("dialog", { name: "Delete your account?" });
+    await d.getByLabel("Type delete to confirm").fill("delete");
+    await failPosts(page, "**/settings");
+    await d.getByRole("button", { name: "Delete account" }).click();
+    await expect(d.getByText("That didn't save. Try again.")).toBeInViewport();
+    await expectFocusOnError(page, "account 375");
+    await page.unrouteAll();
+  });
 });
 
 test.describe("Forget permanently", () => {
@@ -414,12 +516,31 @@ test.describe("a real Storage outage", () => {
       await d.getByRole("button", { name: "Delete account" }).click();
       await expect(d.getByText("That didn't save. Try again.")).toBeVisible({ timeout: 280_000 });
       console.log(`outage: account delete error after ${Date.now() - t0} ms`);
+      await expectFocusOnError(page, "account outage");
+      await expect(page.getByText("Your account and everything in it were deleted.")).toHaveCount(0);
       expect((await admin().auth.admin.getUserById(uid)).data.user).not.toBeNull();
       expect((await admin().from("sources").select("id").eq("id", s.sourceId)).data).toHaveLength(1);
     } finally {
       await start();
     }
     expect(await fileExists(s.path)).toBe(true);
+  });
+
+  test("Forget + Also delete source with Storage down: the real failure lands focus on the error and claims nothing", async ({ browser }) => {
+    const { page, uid } = await signIn(browser);
+    const s = await seed(uid, "Outage focus");
+    await page.goto(`/threads/${s.threadId}`);
+    const d = await openForget(page);
+    await d.getByRole("checkbox", { name: "Also delete source" }).check();
+    stop();
+    try {
+      await d.getByRole("button", { name: "Forget permanently" }).click();
+      await expect(d.getByText("That didn't save. Try again.")).toBeVisible({ timeout: 280_000 });
+      await expectFocusOnError(page, "forget outage");
+      expect(page.url()).toContain(s.threadId);
+    } finally {
+      await start();
+    }
   });
 
   // OPEN DEFECT S11-D1 (rule 8, rule 10): the retry reaches Threads with no error, but the file stays.
