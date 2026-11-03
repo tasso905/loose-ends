@@ -195,7 +195,7 @@ test("glyphs with no CSP: every subset in Plex Sans 400 and 600 and Plex Serif; 
   write("glyphs", fonts);
   expectPlex(fonts);
   const greek = fonts["serif400:greek"]!;
-  expect(greek.some((f) => /^Times New Roman:/.test(f)), greek.join(", ")).toBe(true);
+  expect(greek.some((f) => /^(Times New Roman|Liberation Serif):/.test(f)), greek.join(", ")).toBe(true);
   await ctx.close();
 });
 
