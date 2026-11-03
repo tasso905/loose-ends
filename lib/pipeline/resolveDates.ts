@@ -215,8 +215,9 @@ const POSSESSIVE_DATE = new RegExp(
  * ("June's 15th", "May's rent", "April's board meeting"). Otherwise: no date (rule 3).
  */
 const NAME_MONTH = /^(?:may|june|april|august)$/iu;
+const MONTH_WORD = /^(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)/iu;
 const DATE_OWNED =
-  /^\s+(?:the\s+)?(?:\d{1,2}(?:st|nd|rd|th)?\b|(?:rent|bills?|invoices?|payments?|payroll|deadlines?|due\s+dates?|meetings?|board\s+meeting|schedule|calendar|newsletter|report|budget|review|close|closing|end|start|issue|edition|release|statement|retreat|offsite|conference|cohort|intake|shipment|order)\b)/iu;
+  /^\s+(?:the\s+)?(?:\d{1,2}(?:st|nd|rd|th)?\b|(?:rent|bills?|invoices?|payments?|payroll|deadlines?|due\s+dates?|meetings?|board\s+meeting|schedule|calendar|newsletter|budget|review|close|closing|end|start|issue|edition|release|statement|retreat|offsite|conference|cohort|intake|shipment|order)\b)/iu;
 /** Words that may lead a possessive date phrase ("to Saturday's party", "for tomorrow's call"). */
 const POSSESSIVE_LEAD = /^\s*(?:(?:to|for|at|on|by|before|until|till|in|from|during|after)\s+)+/iu;
 
@@ -229,8 +230,12 @@ const POSSESSIVE_LEAD = /^\s*(?:(?:to|for|at|on|by|before|until|till|in|from|dur
 export function possessiveDatePhrase(text: string): string | null {
   const m = POSSESSIVE_DATE.exec(text);
   if (!m) return null;
-  if (NAME_MONTH.test(m[1]!) && !DATE_OWNED.test(text.slice(m.index + m[0].length))) return null;
-  return text.slice(0, m.index + m[1]!.length).replace(POSSESSIVE_LEAD, "").trim();
+  const after = text.slice(m.index + m[0].length);
+  if (NAME_MONTH.test(m[1]!) && !DATE_OWNED.test(after)) return null;
+  const owner = text.slice(0, m.index + m[1]!.length).replace(POSSESSIVE_LEAD, "").trim();
+  // A day number after a possessive month is the day: "June's 15th" is Jun 15, not Jun 1 (T-D6).
+  const day = MONTH_WORD.test(m[1]!) ? /^\s+(?:the\s+)?(\d{1,2}(?:st|nd|rd|th)?)\b/iu.exec(after) : null;
+  return day ? `${owner} ${day[1]}` : owner;
 }
 
 function chronoResolve(fullText: string, ctx: DateContext, possessive = false): ChronoReading {

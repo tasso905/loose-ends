@@ -206,3 +206,71 @@ describe("scoreItem(): the cap", () => {
     expect(r.band).toBe("low");
   });
 });
+
+describe("findCondition(): a condition fragment sentence attaches to the promise (T-G3)", () => {
+  it.each([
+    ["I'll send the invites Monday. Only if the venue confirms, though.", "trailing"],
+    ["If the venue confirms by Friday. I'll send the invites Monday.", "leading"],
+    ["Assuming the budget passes. We'll order the banners on Monday.", "leading"],
+    ["We'll paint Saturday. Provided the weather holds.", "trailing"],
+    ["I'll ship it Friday. Once the labels print.", "trailing"],
+  ] as const)("caps: %s (%s)", (quote, position) => {
+    expect(findCondition(quote, true)?.position).toBe(position);
+  });
+
+  it.each([
+    "I'll call you back. If I don't pick up, text me.",
+    "I'll send it Monday. Once I'm back, though.",
+    "I'll book Friday. If you have questions, ask Sam.",
+  ])("does not cap: %s", (quote) => expect(findCondition(quote, true)).toBeNull());
+});
+
+describe("findCondition(): an I/we step that waits on someone else caps (T-G4)", () => {
+  it.each([
+    "I'll book the room Friday once I hear from the venue",
+    "We'll order the chairs Monday once we get approval from the board",
+    "I'll pay you Friday once I get paid",
+    "I'll start Monday as soon as I'm told the budget is final",
+    "I'll ship it Friday once we've received the parts",
+    "I'll send the deck Thursday once I get the go-ahead",
+    "We'll start Monday once we're approved",
+  ])("caps: %s", (quote) => expect(findCondition(quote, true)).toEqual({ kind: "once", position: "trailing" }));
+
+  it.each([
+    "I'll send the files by Tuesday, once I've cleaned them up",
+    "I'll call you Friday as soon as I get back",
+    "I'll send the slides Monday once I've finished the edits",
+    "We'll send the contract Friday once we've signed it",
+    "I'll send the forms Friday once I'm home",
+  ])("does not cap: %s", (quote) => expect(findCondition(quote, true)).toBeNull());
+});
+
+describe("findCondition(): only the period itself passing is a time step (T-G5)", () => {
+  it.each([
+    "I'll pay the vendors on Friday once the month's invoices are approved",
+    "I'll send the plan Monday once the quarter's budget is signed off",
+    "I'll book the trip Friday once the season tickets go on sale",
+    "I'll file it Monday once the week's numbers come in",
+  ])("caps: %s", (quote) => expect(findCondition(quote, true)).not.toBeNull());
+
+  it.each([
+    "I'll call you Monday at 10am, once the clocks have changed",
+    "I'll start the report on Monday once the week is over",
+    "I'll send the recap Monday, as soon as the holidays are over",
+    "I'll call Monday once the clocks go back",
+    "I'll book it Friday once the term starts",
+  ])("does not cap: %s", (quote) => expect(findCondition(quote, true)).toBeNull());
+});
+
+describe("findCondition(): sentence splitting (T-G6)", () => {
+  it.each([
+    ["I'll call you back. if I don't pick up, text me.", false],
+    ["I'll call you back. \u201cIf I don't pick up, text me.\u201d", false],
+    ["I'll call at 9 a.m. If you're busy, text me.", true],
+  ] as const)("does not cap: %s", (quote, dated) => expect(findCondition(quote, dated)).toBeNull());
+
+  it.each([
+    "I'll call at 9 a.m. tomorrow if the clinic is open.",
+    "I'll bring snacks, e.g. chips, if the store is open.",
+  ])("a.m. or e.g. before lowercase does not split: %s", (quote) => expect(findCondition(quote, true)).not.toBeNull());
+});
