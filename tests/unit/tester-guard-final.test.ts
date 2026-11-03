@@ -108,9 +108,7 @@ describe("guard follow-ups: verified behaviour", () => {
   ])("caps: %s", (q) => expect(findCondition(q, true)).not.toBeNull());
 });
 
-// OPEN DEFECT (proposed T-G3, medium; a REGRESSION from the T-G2 sentence scoping in 5ea08d6: all three
-// capped at aa4b7a0): a condition written as its own fragment sentence, with no promise verb, is
-// blanked out, so the promise is not capped and a model's "explicit" gives High.
+// REGRESSION GUARD (T-G3, fixed in 7cfc259): a condition written as its own fragment sentence caps.
 describe("guard: a condition in its own fragment sentence still caps", () => {
   it.each([
     "I'll send the invites Monday. Only if the venue confirms, though.",
@@ -119,8 +117,7 @@ describe("guard: a condition in its own fragment sentence still caps", () => {
   ])("caps: %s", (q) => expect(findCondition(q, true)).not.toBeNull());
 });
 
-// OPEN DEFECT (proposed T-G4, medium): OWN_STEP matches any "I" / "we" subject, so a step that waits on
-// someone else ("once I hear from the venue", "once we get approval from the board") is exempt.
+// REGRESSION GUARD (T-G4, fixed in 7cfc259): an I/we step that waits on someone else caps.
 describe("guard: an I/we step that waits on someone else still caps", () => {
   it.each([
     "I'll book the room Friday once I hear from the venue",
@@ -129,8 +126,7 @@ describe("guard: an I/we step that waits on someone else still caps", () => {
   ])("caps: %s", (q) => expect(findCondition(q, true)).not.toBeNull());
 });
 
-// OPEN DEFECT (proposed T-G5, low-medium): TIME_STEP matches a period word used as a possessive or a
-// modifier, so someone else's action on that period's things is exempt.
+// REGRESSION GUARD (T-G5, fixed in 7cfc259): a period word that owns someone else's action caps.
 describe("guard: a period word that owns someone else's action still caps", () => {
   it.each([
     "I'll pay the vendors on Friday once the month's invoices are approved",
@@ -139,9 +135,7 @@ describe("guard: a period word that owns someone else's action still caps", () =
   ])("caps: %s", (q) => expect(findCondition(q, true)).not.toBeNull());
 });
 
-// OPEN DEFECT (proposed T-G6, low): sentence splitting needs a capital after straight punctuation, so a
-// lowercase chat continuation, a curly opening quote, or a sentence ending in "a.m." keeps the unrelated
-// "if" in the promise's sentence (a false cap: the plain promise is Low).
+// REGRESSION GUARD (T-G6, fixed in 7cfc259): sentences split on any casing, curly quotes and "a.m.".
 describe("guard: an unrelated 'if' in the next sentence, any casing or quote style", () => {
   it.each([
     ["I'll call you back. if I don't pick up, text me.", false],
@@ -158,8 +152,7 @@ describe("possessive follow-ups: verified behaviour", () => {
   ])("%s → %s", (t, want) => expect(due(t)).toBe(want));
 });
 
-// OPEN DEFECT (proposed T-D6, low): "June's 15th" keeps only "June" and resolves to Jun 1, not Jun 15
-// (a wrong day). Reached only when the model offers that phrase as date_text.
+// REGRESSION GUARD (T-D6, fixed in 7cfc259): "June's 15th" resolves to Jun 15.
 describe("possessive: a day number after the possessive month is kept", () => {
   it("June's 15th → 2027-06-15", () => expect(due("June's 15th")).toBe("2027-06-15"));
 });
