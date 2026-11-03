@@ -46,6 +46,12 @@ export function ConfirmDialog({
   const ref = useRef<HTMLDialogElement>(null);
   const cancelRef = useRef<HTMLButtonElement>(null);
   const ids = useId();
+  // The buttons are disabled while the action runs, so focus falls to <body>; when it fails, focus
+  // moves to the error once it renders (WCAG 2.4.3), as in the Resolve sheet.
+  const errorRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (error) errorRef.current?.focus();
+  }, [error]);
 
   const onClosedRef = useRef(onClosed);
   useEffect(() => {
@@ -116,7 +122,7 @@ export function ConfirmDialog({
             {title}
           </h3>
           {error ? (
-            <div className="mt-4">
+            <div ref={errorRef} tabIndex={-1} className="focus-ring mt-4 rounded-card">
               <ErrorBanner>{error}</ErrorBanner>
             </div>
           ) : null}
