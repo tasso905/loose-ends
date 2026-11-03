@@ -10,6 +10,7 @@ import { joinPages } from "@/lib/capture/document";
 import { processExtraction } from "@/lib/pipeline/proposals";
 import { containsWholePhrase } from "@/lib/pipeline/verifyQuotes";
 import { Band, DueCertainty } from "@/lib/schemas";
+import { quoteMatch } from "@/evals/harness";
 
 /**
  * Checks the eval fixtures in evals/fixtures without any live model call.
@@ -20,6 +21,7 @@ import { Band, DueCertainty } from "@/lib/schemas";
  *    joined as lib/capture/document.ts joinPages() does (a blank line between pages).
  * 2. Every golden quote is a verbatim substring of input.txt, no two golden quotes overlap (the
  *    runner matches by quote containment), and golden date/amount/name phrases appear in the source.
+ *    Optional alt_quotes are verbatim too and cannot capture another golden's own quote.
  * 3. Synthetic only: every email address and web domain uses a reserved example domain, and
  *    phone numbers use the fictional 555-01xx range.
  * 4. "Perfect model" replay: the golden items are turned into a model response, replayed through
@@ -78,6 +80,9 @@ const ExpectedItem = z
     // The date_iso a correct model gives when it differs from the pipeline's due_date (e.g. a
     // weekday that contradicts its date: the model reads the date, chrono refuses the phrase).
     model_date_iso: YMD.optional(),
+    // Other verbatim spans of the same loop that the runner also accepts as a match (evals/harness.ts):
+    // the whole sentence round a clause, the neighbouring sentence with the action, an acceptance.
+    alt_quotes: z.array(z.string().min(3).max(400)).min(1).optional(),
   })
   .strict()
   .refine((e) => e.band === "ignore" || e.certainty !== undefined, { message: "shown items need the expected model certainty" })
@@ -88,15 +93,21 @@ const Expected = z.object({ notes: z.string().optional(), items: z.array(Expecte
 
 type Fixture = { name: string; text: string; meta: z.infer<typeof Meta>; expected: z.infer<typeof Expected> };
 
-const names = existsSync(root)
-  ? readdirSync(root, { withFileTypes: true })
-      .filter((d) => d.isDirectory())
-      .map((d) => d.name)
-      .sort()
-  : [];
+// Held-out fixtures (evals/holdout): written by the lead-tester after the prompt was tuned, never
+// used for tuning; run with EVAL_FIXTURES_DIR=evals/holdout. Same per-fixture checks as the main set.
+const holdoutRoot = join(process.cwd(), "evals", "holdout");
+const dirsIn = (dir: string) =>
+  existsSync(dir)
+    ? readdirSync(dir, { withFileTypes: true })
+        .filter((d) => d.isDirectory())
+        .map((d) => d.name)
+        .sort()
+    : [];
+const names = dirsIn(root);
+const holdoutNames = dirsIn(holdoutRoot).map((n) => `holdout/${n}`);
 
 function load(name: string): Fixture {
-  const dir = join(root, name);
+  const dir = name.startsWith("holdout/") ? join(holdoutRoot, name.slice("holdout/".length)) : join(root, name);
   return {
     name,
     text: readFileSync(join(dir, "input.txt"), "utf8"),
@@ -139,7 +150,17 @@ describe("eval fixtures", () => {
     }
   });
 
-  describe.each(names)("%s", (name) => {
+  it("the held-out set has 10 fixtures, at least 5 of them ambiguous, and one with no items", () => {
+    const all = holdoutNames.map(load);
+    expect(all).toHaveLength(10);
+    expect(all.filter((f) => f.meta.ambiguous).length).toBeGreaterThanOrEqual(5);
+    expect(all.some((f) => f.expected.items.length === 0)).toBe(true);
+    // No held-out input repeats a main-set input.
+    const main = new Set(names.map((n) => norm(load(n).text)));
+    for (const f of all) expect(main.has(norm(f.text)), f.name).toBe(false);
+  });
+
+  describe.each([...names, ...holdoutNames])("%s", (name) => {
     const f = load(name);
 
     it("golden quotes are verbatim, non-overlapping, and phrases appear in the source", () => {
@@ -152,6 +173,25 @@ describe("eval fixtures", () => {
       }
       const q = f.expected.items.map((e) => e.quote);
       for (let i = 0; i < q.length; i++) for (let j = i + 1; j < q.length; j++) expect(overlaps(q[i]!, q[j]!), `${q[i]} / ${q[j]}`).toBe(false);
+    });
+
+    it("alternate quotes are verbatim, distinct, and cannot capture another golden's own quote", () => {
+      const items = f.expected.items;
+      items.forEach((e, i) => {
+        for (const alt of e.alt_quotes ?? []) {
+          expect(f.text.includes(alt), `alt quote not verbatim: ${alt}`).toBe(true);
+          expect(norm(alt), `alt repeats its own quote: ${alt}`).not.toBe(norm(e.quote));
+          items.forEach((o, j) => {
+            if (j === i) return;
+            // An alternate may contain another golden's quote (a two-clause sentence), but it must never
+            // equal it or sit inside it, so a perfect prediction for `o` always matches `o` best (coverage 1).
+            for (const oq of [o.quote, ...(o.alt_quotes ?? [])]) {
+              expect(norm(oq).includes(norm(alt)), `alt ${alt} inside ${oq}`).toBe(false);
+            }
+            expect(quoteMatch(alt, o.quote), `alt ${alt} vs ${o.quote}`).toBeLessThan(1);
+          });
+        }
+      });
     });
 
     it("page offsets (uploads) are page starts joined as joinPages() joins them", () => {
@@ -187,7 +227,7 @@ describe("eval fixtures", () => {
 
     it("perfect-model replay through the fake provider and pipeline reproduces every golden value", async () => {
       const response = perfectOutput(f);
-      const recording: Recording = { name: `golden-${name}`, task: "extract", input: f.text, responses: [response] };
+      const recording: Recording = { name: `golden-${name.replace("/", "-")}`, task: "extract", input: f.text, responses: [response] };
       const ctx = {
         referenceDate: f.meta.reference_date,
         referenceDateSource: f.meta.reference_date_source,
@@ -236,7 +276,7 @@ describe("eval fixtures", () => {
       const outDir = process.env.EVAL_RECORDINGS_OUT;
       if (outDir) {
         mkdirSync(outDir, { recursive: true });
-        writeFileSync(join(outDir, `golden-${name}.json`), JSON.stringify(recording, null, 2));
+        writeFileSync(join(outDir, `golden-${name.replace("/", "-")}.json`), JSON.stringify(recording, null, 2));
       }
     });
   });
@@ -250,7 +290,7 @@ describe("eval fixtures", () => {
     // F19 zero-tolerance gates hold for the goldens themselves.
     const items = all.flatMap((f) => f.expected.items);
     expect(items.filter((e) => e.certainty === "speculative" && e.band === "high")).toEqual([]);
-    expect(items.filter((e) => e.type === "commitment" && e.certainty === "explicit" && e.due_date !== null && (e.band === "low" || e.band === "ignore"))).toEqual([]);
+    expect(items.filter((e) => (e.type === "commitment" || e.type === "waiting_on") && e.certainty === "explicit" && e.due_date !== null && (e.band === "low" || e.band === "ignore"))).toEqual([]);
     // PRD fixture mix and the gap list (quick add, uploads with page breaks).
     expect(all.some((f) => f.meta.source_kind === "quick_add")).toBe(true);
     expect(all.filter((f) => f.meta.page_offsets && f.meta.page_offsets.length > 1).length).toBeGreaterThanOrEqual(1);

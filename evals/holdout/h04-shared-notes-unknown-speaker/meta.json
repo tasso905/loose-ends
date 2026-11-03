@@ -1,0 +1,23 @@
+{
+  "description": "Held-out (not used for prompt tuning). Notes from a shared document copied Tue Oct 20, 2026, Denver; the user is Alex, whose name appears nowhere. The 'I'll' and the 'Could you' have no known speaker (owner unknown, -0.25). A standing rule and an opening-hours fact are not loops.",
+  "covers": [
+    "shared_notes",
+    "unclear_speaker",
+    "owner_unknown",
+    "owner_unknown_penalty",
+    "standing_rule_decoy",
+    "fact_decoy"
+  ],
+  "reference_date": "2026-10-20",
+  "reference_date_source": "user",
+  "timezone": "America/Denver",
+  "source_kind": "paste",
+  "user": {
+    "display_name": "Alex Brennan",
+    "aliases": [
+      "alex.brennan@example.net",
+      "Alex"
+    ]
+  },
+  "ambiguous": true
+}

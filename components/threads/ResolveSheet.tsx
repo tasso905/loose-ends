@@ -67,6 +67,12 @@ export function ResolveSheet({
   const [reasonError, setReasonError] = useState<string | null>(null);
   const [error, setError] = useState<ApiError["error"] | null>(null);
   const [pending, startTransition] = useTransition();
+  // Save is disabled while pending, so focus falls to <body> during a save; when it fails, focus
+  // moves to the error once it renders (WCAG 2.4.3), as Thread detail's banner does.
+  const errorRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (error) errorRef.current?.focus();
+  }, [error]);
   // Set when the user picks Decided: focus moves to its first field once it renders (§3.2).
   const focusDecided = useRef(false);
 
@@ -198,7 +204,7 @@ export function ResolveSheet({
         </div>
 
         {error ? (
-          <div className="mt-4">
+          <div ref={errorRef} tabIndex={-1} className="focus-ring mt-4 rounded-card">
             <ErrorBanner
               action={
                 error.code === "invalid_transition" ? (

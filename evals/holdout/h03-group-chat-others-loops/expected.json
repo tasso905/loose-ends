@@ -1,0 +1,47 @@
+{
+  "items": [
+    {
+      "type": "waiting_on",
+      "title": "Theo to pay Mia back",
+      "owner": "other",
+      "quote": "I'll pay you back Friday, Mia",
+      "alt_quotes": [
+        "Theo, you still owe me $20 for the pizza"
+      ],
+      "date_text": null,
+      "due_date": null,
+      "due_certainty": "none",
+      "counterparty": null,
+      "amount_text": null,
+      "band": "ignore",
+      "note": "Loop between Theo and Mia, not the user's: pass if left out or scored Ignore. Type is not scored for Ignore items."
+    },
+    {
+      "type": "request",
+      "title": "Bring the projector to movie night",
+      "owner": "user",
+      "quote": "Sam, can you bring the projector to Saturday's movie night?",
+      "date_text": "Saturday",
+      "due_date": "2026-10-24",
+      "due_certainty": "explicit",
+      "certainty": "explicit",
+      "counterparty": "Mia",
+      "amount_text": null,
+      "band": "high",
+      "note": "Request to the user, accepted ('yep'). 0.80 + 0.05 + 0.05 = 0.90, Likely. Sat Oct 24."
+    },
+    {
+      "type": "request",
+      "title": "Theo to return Mia's camping chair",
+      "owner": "other",
+      "quote": "Theo, don't forget to return Mia's camping chair",
+      "date_text": null,
+      "due_date": null,
+      "due_certainty": "none",
+      "counterparty": null,
+      "amount_text": null,
+      "band": "ignore",
+      "note": "Reminder between Jun, Theo and Mia: not the user's loop. Pass if left out or scored Ignore."
+    }
+  ]
+}

@@ -12,7 +12,7 @@
 import type { LanguageModel } from "ai";
 import { askWhy, type RetrievedDecision } from "@/lib/ai/askWhy";
 import { AskWhyFailedError, type AiFailureKind } from "@/lib/ai/errors";
-import { ASK_WHY_PROMPT_VERSION } from "@/lib/ai/prompts";
+import { ASK_WHY_PROMPT_VERSION, promptSha } from "@/lib/ai/prompts";
 import { ASK_WHY_SCHEMA_VERSION } from "@/lib/ai/schema";
 import { NO_THROTTLE, throttledModel, type EvalResult, type Throttle } from "../harness";
 import { judgeAskWhy, type AskWhyCaseResult, type AskWhySet, type Fabrication, type Miss } from "./set";
@@ -27,6 +27,8 @@ export interface AskWhyCaseReport extends AskWhyCaseResult {
 export interface AskWhyEvalReport {
   model: string;
   prompt_version: string;
+  /** First 12 hex of sha256 over the prompt file (lib/ai/prompts.ts promptSha). */
+  prompt_sha256: string;
   schema_version: string;
   questions: number;
   answerable: number;
@@ -93,6 +95,7 @@ export async function runAskWhyEval(opts: RunAskWhyEvalOptions): Promise<AskWhyE
   return {
     model: opts.modelLabel,
     prompt_version: ASK_WHY_PROMPT_VERSION,
+    prompt_sha256: promptSha(ASK_WHY_PROMPT_VERSION),
     schema_version: ASK_WHY_SCHEMA_VERSION,
     questions: perQuestion.length,
     answerable: answerable.length,

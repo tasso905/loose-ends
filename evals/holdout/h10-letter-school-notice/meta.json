@@ -1,0 +1,23 @@
+{
+  "description": "Held-out (not used for prompt tuning). School letter dated Mon Oct 19, 2026, Phoenix (no daylight saving). A dated request, a fee due 'with the form' that has no date of its own (it must not borrow Oct 23 from the previous sentence), and a standing rule.",
+  "covers": [
+    "letter",
+    "request_to_user",
+    "deadline_with_amount",
+    "no_date_of_its_own",
+    "standing_rule_decoy",
+    "timezone_no_dst"
+  ],
+  "reference_date": "2026-10-19",
+  "reference_date_source": "detected",
+  "timezone": "America/Phoenix",
+  "source_kind": "paste",
+  "user": {
+    "display_name": "Morgan Ellis",
+    "aliases": [
+      "morgan.ellis@example.com",
+      "Morgan"
+    ]
+  },
+  "ambiguous": false
+}
