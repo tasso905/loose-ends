@@ -42,7 +42,7 @@ describe("conditional guard: verified behaviour", () => {
 // (a speculative→High gate violation). The exemption was meant for the user's own steps ("once I've
 // cleaned them up").
 describe("guard: a dated trailing condition on someone else's action still caps", () => {
-  it.fails.each([
+  it.each([
     "I will send out the invites on Monday once the venue confirms",
     "I will send out the invites on Monday as soon as the venue confirms",
     "I'll pay the deposit on Friday once the contract is signed",
@@ -53,7 +53,7 @@ describe("guard: a dated trailing condition on someone else's action still caps"
 // quote caps the first sentence's plain promise; "provided" used as a verb reads as "provided that".
 // A capped plain promise is Low, so it never surfaces in Today unasked (rule 4).
 describe("guard: no cap from an unrelated sentence or a verb 'provided'", () => {
-  it.fails.each([
+  it.each([
     "I'll call you back. If I don't pick up, text me.",
     "I'll resend the slides I provided the board last week on Monday",
   ])("does not cap: %s", (q) => expect(findCondition(q, true)).toBeNull());
@@ -77,7 +77,7 @@ describe("possessive dates: verified behaviour", () => {
 // becomes a due date (Jun 1 / May 1, 2027, inferred). Rule 3: never fill a date that is not there.
 // Reached only when the model offers the possessive name as date_text.
 describe("possessive dates: a name that is a month is not a date", () => {
-  it.fails.each(["June's", "May's"])("%s → no date", (t) => expect(due(t)).toBeNull());
+  it.each(["June's", "May's"])("%s → no date", (t) => expect(due(t)).toBeNull());
 });
 
 describe("rule 3 after the T-T1 narrowing: an unbacked date in a title is still stripped", () => {

@@ -81,12 +81,55 @@ describe("findCondition(): not conditions", () => {
   it.each([
     "I'll send the final logo files by Tuesday, once I've cleaned up the small-size version.",
     "I'll email everyone the final running order on Monday at 10am, once the clocks have changed.",
-    "I'll ship it Friday as soon as the labels print.",
+    "I'll ship it Friday as soon as we're back from the trade show.",
+    "We'll paint the fence on Saturday once we've bought the primer.",
+    "I'll send the recap Monday, as soon as the holidays are over.",
   ])("a trailing 'once' step on a dated promise is not a condition: '%s'", (quote) => {
     expect(findCondition(quote, true)).toBeNull();
     // Without its own date the same clause is a condition.
     expect(findCondition(quote, false)).not.toBeNull();
   });
+});
+
+describe("findCondition(): a dated trailing step on someone else's action caps (T-G1)", () => {
+  it.each([
+    "I'll ship it Friday as soon as the labels print.",
+    "I will send out the invites on Monday once the venue confirms",
+    "I'll pay the deposit on Friday once the contract is signed",
+    "I'll book the van for Saturday as soon as Priya sends the address",
+    "I'll send the deck Thursday once it's approved",
+    "We'll start the build on Monday once they sign off",
+  ])("caps: %s", (quote) => {
+    expect(findCondition(quote, true)).toEqual({ kind: "once", position: "trailing" });
+  });
+});
+
+describe("findCondition(): a condition belongs to the promise's own sentence (T-G2)", () => {
+  it.each([
+    "I'll call you back. If I don't pick up, text me.",
+    "I'll send the forms Friday. Once you have them, sign page 2.",
+    "I'll call Dr. Lee on Monday. Assuming nothing changes, see you at 3.",
+  ])("does not cap: %s", (quote) => expect(findCondition(quote, true)).toBeNull());
+
+  it.each([
+    "Thanks for the note. If the venue confirms, I'll send the invites Monday.",
+    "I'll call Dr. Lee on Monday if the clinic reopens.",
+    "I'll call you back. If I can't, I'll send a text.",
+  ])("still caps: %s", (quote) => expect(findCondition(quote, true)).not.toBeNull());
+});
+
+describe("findCondition(): 'provided' as a verb is not a condition (T-G2)", () => {
+  it.each([
+    "I'll resend the slides I provided the board last week on Monday",
+    "I'll update the numbers we provided the auditors by Friday",
+    "I'll forward the forms that were provided to us on Tuesday",
+  ])("does not cap: %s", (quote) => expect(findCondition(quote, true)).toBeNull());
+
+  it.each([
+    "Provided the weather holds, we'll paint the fence on Saturday",
+    "We'll paint the fence on Saturday provided the weather holds",
+    "I'll sign on Friday, provided that the numbers match",
+  ])("caps: %s", (quote) => expect(findCondition(quote, true)?.kind).toBe("provided"));
 });
 
 describe("scoreItem(): the cap", () => {

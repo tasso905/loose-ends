@@ -97,3 +97,25 @@ describe("pipeline with the fake provider: a request dated by a possessive day k
     expect(p.item.title).toBe("Bring the projector");
   });
 });
+
+describe("possessive of a month that is also a first name (T-D5)", () => {
+  it.each(["June's", "May's", "April's", "August's", "ask June's team", "for May's birthday"])("'%s' → no date", (t) => {
+    expect(possessiveDatePhrase(t)).toBeNull();
+    expect(r(t).due_date).toBeNull();
+  });
+
+  it.each([
+    ["June's rent", "June"],
+    ["May's 15th", "May"],
+    ["for April's board meeting", "April"],
+    ["August's newsletter", "August"],
+  ])("'%s' with a date-ish noun or day number is still a date ('%s')", (t, want) => {
+    expect(possessiveDatePhrase(t)).toBe(want);
+    expect(r(t).due_date).not.toBeNull();
+  });
+
+  it("other months are unaffected ('Oct's rent', 'December's')", () => {
+    expect(possessiveDatePhrase("Oct's rent")).toBe("Oct");
+    expect(possessiveDatePhrase("December's")).toBe("December");
+  });
+});

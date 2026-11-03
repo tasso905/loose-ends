@@ -209,6 +209,14 @@ const POSSESSIVE_DATE = new RegExp(
     `jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|june?|july?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)['’]s\\b`,
   "iu",
 );
+/**
+ * Months that are also common first names (T-D5): "June's", "May's" are far more often a person
+ * than a month, so their possessive is a date only when a day number or a date-ish noun follows
+ * ("June's 15th", "May's rent", "April's board meeting"). Otherwise: no date (rule 3).
+ */
+const NAME_MONTH = /^(?:may|june|april|august)$/iu;
+const DATE_OWNED =
+  /^\s+(?:the\s+)?(?:\d{1,2}(?:st|nd|rd|th)?\b|(?:rent|bills?|invoices?|payments?|payroll|deadlines?|due\s+dates?|meetings?|board\s+meeting|schedule|calendar|newsletter|report|budget|review|close|closing|end|start|issue|edition|release|statement|retreat|offsite|conference|cohort|intake|shipment|order)\b)/iu;
 /** Words that may lead a possessive date phrase ("to Saturday's party", "for tomorrow's call"). */
 const POSSESSIVE_LEAD = /^\s*(?:(?:to|for|at|on|by|before|until|till|in|from|during|after)\s+)+/iu;
 
@@ -221,6 +229,7 @@ const POSSESSIVE_LEAD = /^\s*(?:(?:to|for|at|on|by|before|until|till|in|from|dur
 export function possessiveDatePhrase(text: string): string | null {
   const m = POSSESSIVE_DATE.exec(text);
   if (!m) return null;
+  if (NAME_MONTH.test(m[1]!) && !DATE_OWNED.test(text.slice(m.index + m[0].length))) return null;
   return text.slice(0, m.index + m[1]!.length).replace(POSSESSIVE_LEAD, "").trim();
 }
 
