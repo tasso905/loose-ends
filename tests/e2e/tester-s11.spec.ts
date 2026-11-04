@@ -845,9 +845,58 @@ test.describe("the unconfirmed message, against a really stopped Auth", () => {
   test.skip(!AUTH, "set LE_S11_AUTH_CONTAINER on an isolated stack");
   test.setTimeout(300_000);
 
-  // OPEN DEFECT S11-D7 (rule 10): accountDeleteUnconfirmed says "Reload this page. If you're signed out, it
-  // was". That message appears when Auth isn't answering, and with Auth still down the reload lands a live
-  // account on sign-in, so the user concludes it was deleted when it wasn't.
+  const UNCONFIRMED = "I couldn't confirm whether your account was deleted. Try again in a few minutes.";
+  const startAuth = async () => {
+    execFileSync("docker", ["start", AUTH!], { encoding: "utf8" });
+    await expect.poll(() => admin().auth.admin.listUsers({ perPage: 1 }).then((r) => r.error === null), { timeout: 90_000 }).toBe(true);
+  };
+
+  // FIXED S11-D7 (rule 10): the line no longer offers being signed out as proof, and this is the state it
+  // shows in. Auth down: the message, nothing deleted, no notice. Auth back: the same dialog's retry works.
+  test("Auth down at the confirm: says it couldn't confirm, deletes nothing; a retry once Auth returns deletes and says so", async ({ browser }) => {
+    const { page, uid, context } = await signIn(browser);
+    const s = await seed(uid, "Auth outage");
+    await page.goto("/settings");
+    await page.getByRole("button", { name: "Delete account…" }).click();
+    const d = page.getByRole("dialog", { name: "Delete your account?" });
+    await d.getByLabel("Type delete to confirm").fill("delete");
+    execFileSync("docker", ["stop", "-t", "1", AUTH!], { encoding: "utf8" });
+    try {
+      await d.getByRole("button", { name: "Delete account" }).click();
+      await expect(d.getByText(UNCONFIRMED, { exact: true })).toBeVisible({ timeout: 120_000 });
+      await expect(d.getByText(/signed out|sign in/i)).toHaveCount(0);
+      expect((await context.cookies()).filter((c) => c.name === "le_account_deleted")).toEqual([]);
+    } finally {
+      await startAuth();
+    }
+    expect((await admin().auth.admin.getUserById(uid)).data.user).not.toBeNull();
+    expect(await fileExists(s.path)).toBe(true);
+
+    await d.getByRole("button", { name: "Delete account" }).click();
+    await expect(page).toHaveURL(/\/sign-in$/, { timeout: 30_000 });
+    await expect(page.getByRole("status").filter({ hasText: "Your account and everything in it were deleted." })).toBeVisible();
+    expect((await admin().auth.admin.getUserById(uid)).data.user).toBeNull();
+    expect(await fileExists(s.path)).toBe(false);
+  });
+
+  test("Auth down, reload: whatever page it lands on claims no deletion, and the account is intact", async ({ browser }) => {
+    const { page, uid } = await signIn(browser);
+    await page.goto("/settings");
+    await expect(page.getByRole("heading", { level: 2, name: "Data" })).toBeVisible();
+    execFileSync("docker", ["stop", "-t", "1", AUTH!], { encoding: "utf8" });
+    try {
+      await page.reload({ timeout: 120_000 }).catch(() => undefined);
+      await expect(page.getByText(/deleted/i)).toHaveCount(0);
+    } finally {
+      await startAuth();
+    }
+    expect((await admin().auth.admin.getUserById(uid)).data.user).not.toBeNull();
+  });
+
+  // OPEN, recorded for a decision; no longer S11-D7, and the copy fix doesn't change it. requireUser and
+  // the proxy treat any Auth error as a dead session, so an outage sends a live account to sign-in and
+  // drops this browser's session. Being signed out no longer implies anything about deletion, so this
+  // isn't a false claim, but it is a real cost. Assertions unchanged, so a fix turns this red.
   test("Auth still down: reloading does not sign a live account out", async ({ browser }) => {
     test.fail();
     const { page, uid } = await signIn(browser);

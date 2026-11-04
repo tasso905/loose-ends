@@ -1,5 +1,5 @@
-import { describe, expect, it, vi } from "vitest";
-import { deleteAccount, type AccountAdminClient } from "@/lib/account/deleteAccount";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { deleteAccount, STORAGE_TIMEOUT_MS, type AccountAdminClient } from "@/lib/account/deleteAccount";
 
 const UID = "00000000-0000-4000-8000-000000000001";
 
@@ -128,11 +128,53 @@ describe("deleteAccount(): Storage has to answer, then the auth user goes, then 
     const logger = vi.fn();
     const f = fakeClient([`${UID}/a.txt`], { deleteUser: true, getUser });
     const r = await deleteAccount(f.client, UID, { logger });
-    expect(r).toMatchObject({ ok: false, error: { code: "save_failed", message: expect.stringContaining("I can't tell whether your account was deleted") } });
-    expect(r).not.toMatchObject({ error: { message: expect.stringContaining("didn't save") } });
+    expect(r).toEqual({ ok: false, error: { code: "save_failed", message: "I couldn't confirm whether your account was deleted. Try again in a few minutes.", retryable: true } });
     expect([...f.store]).toEqual([`${UID}/a.txt`]);
     expect(f.calls).not.toContain("auth_audit_purge");
     expect(logger).toHaveBeenCalledWith("account_delete_sweep_failed", { user_id: UID, step: "user_unconfirmed" });
+  });
+
+  describe("a hung Auth call hits the same limit as Storage", () => {
+    const hang = () => new Promise<never>(() => undefined);
+    beforeEach(() => vi.useFakeTimers());
+    afterEach(() => vi.useRealTimers());
+
+    async function run(c: AccountAdminClient, logger = vi.fn()) {
+      const p = deleteAccount(c, UID, { logger });
+      await vi.advanceTimersByTimeAsync(STORAGE_TIMEOUT_MS * 3);
+      return p;
+    }
+    const UNCONFIRMED = { ok: false, error: { code: "save_failed", message: "I couldn't confirm whether your account was deleted. Try again in a few minutes.", retryable: true } };
+
+    it("deleteUser hangs and the check hangs: unconfirmed, within two limits, no file touched", async () => {
+      const f = fakeClient([`${UID}/a.txt`]);
+      f.client.auth.admin.deleteUser = hang;
+      f.client.auth.admin.getUserById = hang;
+      const t0 = Date.now();
+      expect(await run(f.client)).toEqual(UNCONFIRMED);
+      expect(Date.now() - t0).toBeLessThanOrEqual(STORAGE_TIMEOUT_MS * 3);
+      expect([...f.store]).toEqual([`${UID}/a.txt`]);
+      expect(f.calls).not.toContain("auth_audit_purge");
+    });
+
+    it("deleteUser hangs and the user is still there: unconfirmed, because the delete may still land", async () => {
+      const f = fakeClient([`${UID}/a.txt`], { getUser: "exists" });
+      f.client.auth.admin.deleteUser = hang;
+      expect(await run(f.client)).toEqual(UNCONFIRMED);
+      expect([...f.store]).toEqual([`${UID}/a.txt`]);
+    });
+
+    it("deleteUser hangs and the user is gone: carries on as a deletion", async () => {
+      const f = fakeClient([`${UID}/a.txt`], { getUser: "gone" });
+      f.client.auth.admin.deleteUser = hang;
+      expect(await run(f.client)).toEqual({ ok: true, objectsRemoved: 1 });
+    });
+
+    it("deleteUser refuses and the check hangs: unconfirmed", async () => {
+      const f = fakeClient([`${UID}/a.txt`], { deleteUser: true });
+      f.client.auth.admin.getUserById = hang;
+      expect(await run(f.client)).toEqual(UNCONFIRMED);
+    });
   });
 
   it("deleteUser saying not found needs no check", async () => {

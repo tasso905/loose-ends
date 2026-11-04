@@ -1,9 +1,10 @@
 "use server";
+import type { User } from "@supabase/supabase-js";
 import { cookies } from "next/headers";
 import { z } from "zod";
 import { ACCOUNT_DELETE_WORD, ACCOUNT_DELETED_COOKIE, accountDeletedCookieValue, DATA_COPY } from "@/lib/account/copy";
 import { deleteSource, type DataClient } from "@/lib/account/data";
-import { deleteAccount, type AccountAdminClient } from "@/lib/account/deleteAccount";
+import { authCall, deleteAccount, unconfirmed, type AccountAdminClient } from "@/lib/account/deleteAccount";
 import { createTracker, track } from "@/lib/analytics/track";
 import { apiError, type ApiError } from "@/lib/errors";
 import { log } from "@/lib/log";
@@ -14,6 +15,11 @@ import { createClient } from "@/lib/supabase/server";
  * Settings → Data (SITE_CONTRACT §2.12, PRD F13, D14; rule 8). Irreversible: the UI confirms first
  * and offers no undo (D8). Each result is reported only after the server confirms (rule 10).
  */
+
+const isClientError = (error: unknown) => {
+  const status = (error as { status?: unknown } | null)?.status;
+  return typeof status === "number" && status >= 400 && status < 500;
+};
 
 export type DeleteSourceActionResult = { ok: true; threadsForgotten: number } | { ok: false; error: ApiError["error"]; rowsGone?: true };
 export type DeleteAccountActionResult = { ok: true } | { ok: false; error: ApiError["error"]; field?: "confirm" };
@@ -43,8 +49,13 @@ export async function deleteAccountAction(confirm: unknown): Promise<DeleteAccou
     return { ok: false, error: { code: "invalid_input", message: DATA_COPY.accountConfirmError, retryable: false }, field: "confirm" };
   }
   const supabase = await createClient();
-  const { data } = await supabase.auth.getUser();
-  if (!data.user) return { ok: false, error: apiError("unauthenticated").error };
+  const { data, error } = await authCall<{ user: User | null }>(supabase.auth.getUser());
+  if (!data?.user) {
+    // No session, or Auth refused it: this says nothing about deletion, and neither does the copy. If
+    // Auth didn't answer, "Sign in to continue" would be untrue of a session that may be fine.
+    const refused = (error as { name?: string } | null)?.name === "AuthSessionMissingError" || isClientError(error);
+    return { ok: false, error: !error || refused ? apiError("unauthenticated").error : unconfirmed().error };
+  }
   const userId = data.user.id;
 
   // Read the analytics choice now: once the account is gone, it can no longer be looked up.

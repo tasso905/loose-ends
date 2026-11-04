@@ -827,7 +827,7 @@ describe.skipIf(!live)("lead-tester S11 cron, account deletion failures, purge",
     });
 
     it(
-      "Auth down before the delete: says it can't tell, deletes nothing; a retry after Auth returns succeeds",
+      "Auth down before the delete: says it couldn't confirm, deletes nothing; a retry after Auth returns succeeds",
       async () => {
         const A = await makeUser("ua");
         const s = await source(A);
@@ -844,7 +844,7 @@ describe.skipIf(!live)("lead-tester S11 cron, account deletion failures, purge",
           await startAuth();
         }
         console.log(`auth down: answered in ${Date.now() - t0} ms including the restart`);
-        expect(res).toMatchObject({ ok: false, error: { code: "save_failed", message: expect.stringContaining("I can't tell whether your account was deleted") } });
+        expect(res).toMatchObject({ ok: false, error: { code: "save_failed", message: expect.stringContaining("I couldn't confirm whether your account was deleted") } });
         expect(jar.set).toEqual([]);
         expect(await userExists(A.id)).toBe(true);
         expect(await fileExists(s.path)).toBe(true);
@@ -858,7 +858,7 @@ describe.skipIf(!live)("lead-tester S11 cron, account deletion failures, purge",
     );
 
     it(
-      "the user went and the check fails: can't tell, no cookie; cron finishes the audit log and every file",
+      "the user went and the check fails: couldn't confirm, no cookie; cron finishes the audit log and every file",
       async () => {
         const A = await makeUser("ub");
         const s = await source(A);
@@ -872,7 +872,7 @@ describe.skipIf(!live)("lead-tester S11 cron, account deletion failures, purge",
           current.admin = null;
           await startAuth();
         }
-        expect(res).toMatchObject({ ok: false, error: { message: expect.stringContaining("I can't tell whether your account was deleted") } });
+        expect(res).toMatchObject({ ok: false, error: { message: expect.stringContaining("I couldn't confirm whether your account was deleted") } });
         expect(jar.set).toEqual([]);
         expect(await userExists(A.id)).toBe(false);
         expect(await rowsLeft(A.id)).toBe(0);
@@ -889,7 +889,7 @@ describe.skipIf(!live)("lead-tester S11 cron, account deletion failures, purge",
     );
 
     it(
-      "a hung Auth call: how long the action holds the dialog (measured, no limit asserted)",
+      "a hung Auth call: answered within two 15 s limits, says it couldn't confirm; whichever way the delete lands, the outcome is consistent",
       async () => {
         const A = await makeUser("uc");
         const s = await source(A);
@@ -918,9 +918,13 @@ describe.skipIf(!live)("lead-tester S11 cron, account deletion failures, purge",
         const ms = Date.now() - t0;
         process.stderr.write(`HUNG AUTH: action answered after ${ms} ms: ${JSON.stringify(res)}\n`);
         await startAuth();
-        expect(res).toMatchObject({ ok: false });
-        expect(await userExists(A.id)).toBe(true);
-        expect(await fileExists(s.path)).toBe(true);
+        expect(ms).toBeLessThan(40_000);
+        expect(res).toMatchObject({ ok: false, error: { message: expect.stringContaining("I couldn't confirm whether your account was deleted") } });
+        // The request held by the paused container can still land once it resumes, which is why the
+        // message can't say either way. So: nothing else was deleted, and cron finishes if it did land.
+        expect((await cron()).status).toBe(200);
+        if (await userExists(A.id)) expect(await fileExists(s.path)).toBe(true);
+        else expect(await fileExists(s.path)).toBe(false);
       },
       420_000,
     );
