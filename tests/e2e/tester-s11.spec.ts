@@ -164,7 +164,7 @@ test.describe("a failed action keeps focus in the dialog (ae9b60f; rule 10)", ()
     await confirm.click();
     await expect(d.getByText("That didn't save. Try again.")).toBeVisible();
     await expectFocusOnError(page, "account");
-    await expect(page.getByText("Your account and everything in it were deleted.")).toHaveCount(0);
+    await expect(page.getByText("Your account and your data in Loose Ends were deleted.")).toHaveCount(0);
     await expect(page).toHaveURL(/\/settings$/);
     expect((await admin().auth.admin.getUserById(uid)).data.user).not.toBeNull();
     await expect(d.getByLabel("Type delete to confirm")).toHaveValue("delete");
@@ -451,11 +451,11 @@ test.describe("Delete account", () => {
     await page.keyboard.press("Escape");
     await page.waitForTimeout(300);
     await expect(d).toBeVisible();
-    await expect(page.getByText("Your account and everything in it were deleted.")).toHaveCount(0);
+    await expect(page.getByText("Your account and your data in Loose Ends were deleted.")).toHaveCount(0);
     release();
     await expect(page).toHaveURL(/\/sign-in$/, { timeout: 20_000 });
     await page.unrouteAll();
-    await expect(page.getByRole("status").filter({ hasText: "Your account and everything in it were deleted." })).toBeVisible();
+    await expect(page.getByRole("status").filter({ hasText: "Your account and your data in Loose Ends were deleted." })).toBeVisible();
 
     expect((await admin().auth.admin.getUserById(uid)).data.user).toBeNull();
     expect((await admin().from("profiles").select("id").eq("id", uid)).data).toEqual([]);
@@ -471,7 +471,7 @@ test.describe("Delete account", () => {
     const fresh = await browser.newContext();
     const fp = await fresh.newPage();
     await fp.goto("/sign-in?deleted=1&account_deleted=1");
-    await expect(fp.getByText("Your account and everything in it were deleted.")).toHaveCount(0);
+    await expect(fp.getByText("Your account and your data in Loose Ends were deleted.")).toHaveCount(0);
     await fresh.close();
   });
 
@@ -484,9 +484,9 @@ test.describe("Delete account", () => {
     await d.getByLabel("Type delete to confirm").fill("delete");
     await d.getByRole("button", { name: "Delete account" }).click();
     await expect(page).toHaveURL(/\/sign-in$/, { timeout: 20_000 });
-    await expect(page.getByText("Your account and everything in it were deleted.")).toBeVisible();
+    await expect(page.getByText("Your account and your data in Loose Ends were deleted.")).toBeVisible();
     await page.reload();
-    await expect(page.getByText("Your account and everything in it were deleted.")).toHaveCount(0);
+    await expect(page.getByText("Your account and your data in Loose Ends were deleted.")).toHaveCount(0);
   });
 });
 
@@ -520,7 +520,7 @@ test.describe("cron over HTTP, through the proxy", () => {
 
 test.describe("the deletion notice", () => {
   const NOTICES = {
-    "1": "Your account and everything in it were deleted.",
+    "1": "Your account and your data in Loose Ends were deleted.",
     "2": "Your account was deleted. Sign-in records with your email address are still stored and will be removed automatically.",
     "3": "Your account was deleted. Some of your files are still stored and will be removed automatically.",
     "4": "Your account was deleted. Some of your files and sign-in records with your email address are still stored and will be removed automatically.",
@@ -659,7 +659,7 @@ test.describe("a real Storage outage", () => {
       await expect(d.getByText("That didn't save. Try again.")).toBeVisible({ timeout: 280_000 });
       console.log(`outage: account delete error after ${Date.now() - t0} ms`);
       await expectFocusOnError(page, "account outage");
-      await expect(page.getByText("Your account and everything in it were deleted.")).toHaveCount(0);
+      await expect(page.getByText("Your account and your data in Loose Ends were deleted.")).toHaveCount(0);
       expect((await admin().auth.admin.getUserById(uid)).data.user).not.toBeNull();
       expect((await admin().from("sources").select("id").eq("id", s.sourceId)).data).toHaveLength(1);
     } finally {
@@ -835,7 +835,7 @@ test.describe("a real Storage outage", () => {
     await d.getByLabel("Type delete to confirm").fill("delete");
     await confirm.click();
     await expect(page).toHaveURL(/\/sign-in$/, { timeout: 20_000 });
-    await expect(page.getByRole("status").filter({ hasText: "Your account and everything in it were deleted." })).toBeVisible();
+    await expect(page.getByRole("status").filter({ hasText: "Your account and your data in Loose Ends were deleted." })).toBeVisible();
     expect(await fileExists(s.path)).toBe(false);
   });
 });
@@ -874,7 +874,7 @@ test.describe("the unconfirmed message, against a really stopped Auth", () => {
 
     await d.getByRole("button", { name: "Delete account" }).click();
     await expect(page).toHaveURL(/\/sign-in$/, { timeout: 30_000 });
-    await expect(page.getByRole("status").filter({ hasText: "Your account and everything in it were deleted." })).toBeVisible();
+    await expect(page.getByRole("status").filter({ hasText: "Your account and your data in Loose Ends were deleted." })).toBeVisible();
     expect((await admin().auth.admin.getUserById(uid)).data.user).toBeNull();
     expect(await fileExists(s.path)).toBe(false);
   });
@@ -918,7 +918,7 @@ test.describe("the unconfirmed message, against a really stopped Auth", () => {
     expect(await fileExists(s.path)).toBe(true);
     await d.getByRole("button", { name: "Delete account" }).click();
     await expect(page).toHaveURL(/\/sign-in$/, { timeout: 30_000 });
-    await expect(page.getByRole("status").filter({ hasText: "Your account and everything in it were deleted." })).toBeVisible();
+    await expect(page.getByRole("status").filter({ hasText: "Your account and your data in Loose Ends were deleted." })).toBeVisible();
     expect(await fileExists(s.path)).toBe(false);
   });
 
