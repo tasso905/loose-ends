@@ -97,3 +97,58 @@ describe("pipeline with the fake provider: a request dated by a possessive day k
     expect(p.item.title).toBe("Bring the projector");
   });
 });
+
+describe("possessive of a month that is also a first name (T-D5)", () => {
+  it.each(["June's", "May's", "April's", "August's", "ask June's team", "for May's birthday"])("'%s' → no date", (t) => {
+    expect(possessiveDatePhrase(t)).toBeNull();
+    expect(r(t).due_date).toBeNull();
+  });
+
+  it.each([
+    ["June's rent", "June"],
+    ["May's 15th", "May 15th"],
+    ["for April's board meeting", "April"],
+    ["August's newsletter", "August"],
+  ])("'%s' with a date-ish noun or day number is still a date ('%s')", (t, want) => {
+    expect(possessiveDatePhrase(t)).toBe(want);
+    expect(r(t).due_date).not.toBeNull();
+  });
+
+  it("other months are unaffected ('Oct's rent', 'December's')", () => {
+    expect(possessiveDatePhrase("Oct's rent")).toBe("Oct");
+    expect(possessiveDatePhrase("December's")).toBe("December");
+  });
+});
+
+describe("possessive month with a day number keeps the day (T-D6)", () => {
+  it.each([
+    ["June's 15th", "June 15th", "2027-06-15"],
+    ["for May's 3rd", "May 3rd", "2027-05-03"],
+    ["Nov's 12th", "Nov 12th", "2026-11-12"],
+  ])("'%s' → '%s' → %s", (t, phrase, day) => {
+    expect(possessiveDatePhrase(t)).toBe(phrase);
+    expect(r(t).due_date).toBe(day);
+  });
+
+  it("'report' is not a date-ish noun: 'June's report' is a person's report", () => {
+    expect(possessiveDatePhrase("June's report")).toBeNull();
+  });
+});
+
+describe("possessive month: a person's things and counts are not dates (T-D7, T-D8)", () => {
+  it.each(["May's order", "June's review", "June's schedule", "April's statement", "June's budget", "May's meeting", "June's end", "May's 3 kids", "June's 15 minutes", "Jan's 5 kids"])(
+    "'%s' → no date",
+    (t) => {
+      expect(possessiveDatePhrase(t)).toBeNull();
+      expect(r(t).due_date).toBeNull();
+    },
+  );
+
+  it.each([
+    ["May's rent", "2027-05-01"],
+    ["June's board meeting", "2027-06-01"],
+    ["June's 15", "2027-06-15"],
+    ["June's 15 at noon", "2027-06-15"],
+    ["Jan's 5th", "2027-01-05"],
+  ])("'%s' stays a date: %s", (t, day) => expect(r(t).due_date).toBe(day));
+});

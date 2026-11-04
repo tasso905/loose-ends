@@ -36,24 +36,21 @@ describe("conditional guard: verified behaviour", () => {
   ] as const)("caps: %s", (q, dated) => expect(findCondition(q, dated)).not.toBeNull());
 });
 
-// OPEN DEFECT (proposed T-G1): the approved exemption for a trailing "once" / "as soon as" step on a
-// dated promise also exempts conditions on OTHER people's actions. The held-out venue example with
-// its clause moved after the promise is not capped, so a model's "explicit" makes it High
-// (a speculative→High gate violation). The exemption was meant for the user's own steps ("once I've
-// cleaned them up").
+// REGRESSION GUARD (T-G1, fixed in 5ea08d6): the trailing "once" / "as soon as" exemption on a dated
+// promise covers only the speaker's own step or time passing, so a condition on someone else's action
+// caps (the held-out venue example with its clause moved after the promise).
 describe("guard: a dated trailing condition on someone else's action still caps", () => {
-  it.fails.each([
+  it.each([
     "I will send out the invites on Monday once the venue confirms",
     "I will send out the invites on Monday as soon as the venue confirms",
     "I'll pay the deposit on Friday once the contract is signed",
   ])("caps: %s", (q) => expect(findCondition(q, true)).not.toBeNull());
 });
 
-// OPEN DEFECT (proposed T-G2, low): false caps. An "if" in a second sentence of a multi-sentence
-// quote caps the first sentence's plain promise; "provided" used as a verb reads as "provided that".
-// A capped plain promise is Low, so it never surfaces in Today unasked (rule 4).
+// REGRESSION GUARD (T-G2, fixed in 5ea08d6): an "if" in another capitalised sentence, or "provided"
+// used as a verb, no longer caps a plain promise.
 describe("guard: no cap from an unrelated sentence or a verb 'provided'", () => {
-  it.fails.each([
+  it.each([
     "I'll call you back. If I don't pick up, text me.",
     "I'll resend the slides I provided the board last week on Monday",
   ])("does not cap: %s", (q) => expect(findCondition(q, true)).toBeNull());
@@ -73,11 +70,10 @@ describe("possessive dates: verified behaviour", () => {
   it.each(["Mike's", "Oct's"])("%s → no date", (t) => expect(due(t)).toBeNull());
 });
 
-// OPEN DEFECT (proposed T-D5, low): a month that is a person's name in a possessive ("June's", "May's")
-// becomes a due date (Jun 1 / May 1, 2027, inferred). Rule 3: never fill a date that is not there.
-// Reached only when the model offers the possessive name as date_text.
+// REGRESSION GUARD (T-D5, fixed in 5ea08d6): a month that is a common first name in a possessive
+// ("June's", "May's") is not a date unless a day number or a date-ish noun follows.
 describe("possessive dates: a name that is a month is not a date", () => {
-  it.fails.each(["June's", "May's"])("%s → no date", (t) => expect(due(t)).toBeNull());
+  it.each(["June's", "May's"])("%s → no date", (t) => expect(due(t)).toBeNull());
 });
 
 describe("rule 3 after the T-T1 narrowing: an unbacked date in a title is still stripped", () => {
@@ -87,4 +83,76 @@ describe("rule 3 after the T-T1 narrowing: an unbacked date in a title is still 
   ] as const)("'%s' (date_text %s) → '%s'", (title, dateText, want) => {
     expect(unbackedDateFree(title, dateText, () => "FALLBACK")).toBe(want);
   });
+});
+
+// --- fix/guard-followups (5ea08d6) verification -------------------------------------------------
+
+describe("guard follow-ups: verified behaviour", () => {
+  it.each([
+    ["I'll call you back! If I don't pick up, text me.", false],
+    ['I\'ll call you back. "If I don\'t pick up, text me."', false],
+    ["I'll bring snacks, e.g. chips. If you're hungry, grab some.", false],
+    ["I'll send the files by Tuesday, once I'm back", true],
+    ["I'll send the contract Friday once we've signed", true],
+    ["I'll send the slides Monday as soon as I finish the edits", true],
+    ["I'll start the report on Monday once the week is over", true],
+    ["I'll call you Monday at 10am, once the clocks have changed", true],
+    ["I'll forward what was provided the team on Monday", true],
+    ["I'll use the template they provided you on Monday", true],
+  ] as const)("does not cap: %s", (q, dated) => expect(findCondition(q, dated)).toBeNull());
+
+  it.each([
+    "The venue might fall through. If it confirms, I'll send the invites Monday.",
+    "Dr. Lin will call you Monday if the results are in.",
+    "I'll send the docs Monday, provided the bank has approved them",
+  ])("caps: %s", (q) => expect(findCondition(q, true)).not.toBeNull());
+});
+
+// REGRESSION GUARD (T-G3, fixed in 7cfc259): a condition written as its own fragment sentence caps.
+describe("guard: a condition in its own fragment sentence still caps", () => {
+  it.each([
+    "I'll send the invites Monday. Only if the venue confirms, though.",
+    "If the venue confirms by Friday. I'll send the invites Monday.",
+    "Assuming the budget passes. We'll order the banners on Monday.",
+  ])("caps: %s", (q) => expect(findCondition(q, true)).not.toBeNull());
+});
+
+// REGRESSION GUARD (T-G4, fixed in 7cfc259): an I/we step that waits on someone else caps.
+describe("guard: an I/we step that waits on someone else still caps", () => {
+  it.each([
+    "I'll book the room Friday once I hear from the venue",
+    "We'll order the chairs Monday once we get approval from the board",
+    "I'll pay you Friday once I get paid",
+  ])("caps: %s", (q) => expect(findCondition(q, true)).not.toBeNull());
+});
+
+// REGRESSION GUARD (T-G5, fixed in 7cfc259): a period word that owns someone else's action caps.
+describe("guard: a period word that owns someone else's action still caps", () => {
+  it.each([
+    "I'll pay the vendors on Friday once the month's invoices are approved",
+    "I'll send the plan Monday once the quarter's budget is signed off",
+    "I'll book the trip Friday once the season tickets go on sale",
+  ])("caps: %s", (q) => expect(findCondition(q, true)).not.toBeNull());
+});
+
+// REGRESSION GUARD (T-G6, fixed in 7cfc259): sentences split on any casing, curly quotes and "a.m.".
+describe("guard: an unrelated 'if' in the next sentence, any casing or quote style", () => {
+  it.each([
+    ["I'll call you back. if I don't pick up, text me.", false],
+    ["I'll call you back. “If I don't pick up, text me.”", false],
+    ["I'll call at 9 a.m. If you're busy, text me.", true],
+  ] as const)("does not cap: %s", (q, dated) => expect(findCondition(q, dated)).toBeNull());
+});
+
+describe("possessive follow-ups: verified behaviour", () => {
+  it.each(["April's", "August's"])("%s → no date", (t) => expect(due(t)).toBeNull());
+  it.each([
+    ["May's rent", "2027-05-01"],
+    ["April's board meeting", "2027-04-01"],
+  ])("%s → %s", (t, want) => expect(due(t)).toBe(want));
+});
+
+// REGRESSION GUARD (T-D6, fixed in 7cfc259): "June's 15th" resolves to Jun 15.
+describe("possessive: a day number after the possessive month is kept", () => {
+  it("June's 15th → 2027-06-15", () => expect(due("June's 15th")).toBe("2027-06-15"));
 });
