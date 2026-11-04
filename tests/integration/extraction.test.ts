@@ -91,7 +91,7 @@ describe("submit → extract → persist", () => {
       `select status, stage, model, prompt_version, schema_version, input_tokens, output_tokens, latency_ms, error,
               jsonb_array_length(raw_output -> 'items') as raw_items from extractions where id = '${extractionId}'`,
     );
-    expect(ex).toMatchObject({ status: "succeeded", stage: null, model: "fake:recorded", prompt_version: "extract.v3", schema_version: "extraction.v1", error: null, raw_items: 3 });
+    expect(ex).toMatchObject({ status: "succeeded", stage: null, model: "fake:recorded", prompt_version: "extract.v4", schema_version: "extraction.v1", error: null, raw_items: 3 });
     expect(ex!.input_tokens).toBeGreaterThan(0);
     expect(ex!.output_tokens).toBeGreaterThan(0);
     expect(ex!.latency_ms).not.toBeNull();
