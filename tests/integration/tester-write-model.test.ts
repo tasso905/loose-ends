@@ -24,6 +24,8 @@ const WRITERS = [
   "start_upload_extraction", // S6: writes sources + extractions; checks the caller's own storage folder
   "thread_done",
   "decision_add_reason", // S9b (D58): writes decisions.reason_user (only while null) and thread_events
+  "delete_source", // S11 (F13): deletes the caller's source (and, with p_everything, forgets its threads)
+  "storage_deletions_settle", // S11 (F13): clears the caller's Storage deletion queue entries whose file is gone
   "thread_resolve", // S8 (F11): writes threads, thread_events and decisions
   "thread_undo",
   "undo_reject_proposals",

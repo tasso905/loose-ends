@@ -58,22 +58,27 @@ test("signed out: /settings redirects to sign-in and keeps the destination", asy
 test.describe("gate off (LE_S1_GATE_ON=0; analytics not configured on the server)", () => {
   test.skip(GATE_ON, "the default server has analytics configured");
 
-  test("signed in: /settings shows the not-found page and onboarding shows no analytics notice", async ({ page }) => {
+  // Lead developer, S11 (adapted; coordinator-approved): /settings now holds the Data section (F13,
+  // D14), so it is a real page even where analytics is not configured; D57(d)'s 404 no longer
+  // applies. What the gate still guarantees (rule 9): no analytics toggle and no notice there.
+  test("signed in: /settings shows Data but no analytics toggle, and onboarding shows no analytics notice", async ({ page }) => {
     await signIn(page);
     await expect(page.getByText(NOTICE)).toHaveCount(0);
     await expect(page.getByRole("link", { name: "Turn off analytics" })).toHaveCount(0);
     await page.goto("/settings");
-    await expect(page.getByText("This page could not be found")).toBeVisible();
+    await expect(page.getByRole("heading", { level: 2, name: "Data" })).toBeVisible();
     await expect(page.getByRole("switch")).toHaveCount(0);
     await expect(page.getByText("Analytics", { exact: true })).toHaveCount(0);
+    await expect(page.getByRole("heading", { name: "Profile" })).toHaveCount(0);
   });
 
-  // Regression guard (D1, fixed in 8092143): notFound() in the page ran after loading.tsx had streamed
-  // a 200, a soft 404. The gate now lives in app/settings/layout.tsx.
-  test("signed in: /settings returns HTTP 404 while gated", async ({ page }) => {
+  // Was a regression guard for the 404 gate (D1, fixed in 8092143). With the gate gone, it checks the
+  // page is a real 200 (not a soft 404 streamed as 200).
+  test("signed in: /settings returns HTTP 200 with the Data section", async ({ page }) => {
     await signIn(page);
     const res = await page.goto("/settings");
-    expect(res?.status()).toBe(404);
+    expect(res?.status()).toBe(200);
+    await expect(page.getByText("This page could not be found")).toHaveCount(0);
   });
 });
 

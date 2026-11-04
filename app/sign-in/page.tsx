@@ -1,10 +1,11 @@
 import type { Metadata } from "next";
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import Link from "next/link";
 import { AuthPage } from "@/components/auth/AuthPage";
 import { SignInForm } from "@/components/auth/SignInForm";
 import { AuthNotices } from "@/components/auth/Notices";
 import { ErrorBanner } from "@/components/Notice";
+import { ACCOUNT_DELETED_HEADER, accountDeletedNotice } from "@/lib/account/copy";
 import { SIGN_IN_COPY as C, signInErrorMessage } from "@/lib/auth/copy";
 import { safeNext, signInPath } from "@/lib/auth/next";
 import { SIGN_IN_EMAIL_COOKIE } from "@/lib/auth/signIn";
@@ -22,6 +23,9 @@ export default async function SignInPage({ searchParams }: { searchParams: Searc
   const error = signInErrorMessage(one(params.error));
   // The check-your-email state names the address, which only exists after a confirmed send (rule 10).
   const sentTo = one(params.sent) === "1" ? ((await cookies()).get(SIGN_IN_EMAIL_COOKIE)?.value ?? null) : null;
+  // From the cookie only a successful account deletion sets (app/settings/data-actions.ts), never a
+  // link. The proxy turns it into this header once and clears it, so a reload no longer claims it.
+  const accountDeleted = accountDeletedNotice((await headers()).get(ACCOUNT_DELETED_HEADER));
 
   return (
     <AuthPage>
@@ -43,6 +47,11 @@ export default async function SignInPage({ searchParams }: { searchParams: Searc
           </div>
         ) : (
           <div className="space-y-5">
+            {accountDeleted ? (
+              <p role="status" className="rounded-card border border-le-border bg-le-surface p-4 text-body text-le-text">
+                {accountDeleted}
+              </p>
+            ) : null}
             {error ? <ErrorBanner>{error}</ErrorBanner> : null}
             <SignInForm next={next} googleEnabled={isGoogleSignInEnabled()} />
           </div>

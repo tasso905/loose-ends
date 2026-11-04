@@ -1,5 +1,6 @@
 "use server";
 import { z } from "zod";
+import { forgetThread, type DataClient } from "@/lib/account/data";
 import { track } from "@/lib/analytics/track";
 import { apiError, type ApiError } from "@/lib/errors";
 import { rpcDb } from "@/lib/extraction/supabaseDb";
@@ -118,4 +119,25 @@ export async function whyAction(threadId: string, surface: Surface = "detail"): 
   if (!res.ok) return { ok: false, error: apiError(res.reason === "not_found" ? "not_found" : "save_failed").error };
   track(data.user.id, "why_opened", { thread_id: id.data, surface: Surface.parse(surface) });
   return { ok: true, view: res.view };
+}
+
+export type ForgetActionResult = { ok: true } | { ok: false; error: ApiError["error"]; rowsGone?: true };
+
+/**
+ * F9 Forget permanently (D8, D29, D35; rule 8). Irreversible: the UI confirms first and has no
+ * undo. One SECURITY DEFINER call deletes the rows (public.forget_thread); with "Also delete
+ * source", the source's file is then removed from Storage (lib/account/data.ts). Success only once
+ * both are done (rule 10).
+ */
+export async function forgetAction(threadId: unknown, alsoDeleteSource: unknown): Promise<ForgetActionResult> {
+  const input = z.object({ threadId: z.uuid(), alsoDeleteSource: z.boolean() }).safeParse({ threadId, alsoDeleteSource });
+  if (!input.success) return { ok: false, error: apiError("not_found").error };
+  const supabase = await createClient();
+  const { data } = await supabase.auth.getUser();
+  if (!data.user) return { ok: false, error: apiError("unauthenticated").error };
+  const res = await forgetThread(supabase as unknown as DataClient, input.data.threadId, input.data.alsoDeleteSource);
+  if (!res.ok) return { ok: false, error: { code: res.error.code, message: res.error.message, retryable: res.error.retryable }, ...(res.rowsGone ? { rowsGone: true as const } : {}) };
+  track(data.user.id, "thread_action", { thread_id: input.data.threadId, action: "forget", from_status: null, to_status: null, surface: "detail" });
+  if (res.sourceDeleted) track(data.user.id, "source_deleted", { cascade: false });
+  return { ok: true };
 }

@@ -240,3 +240,18 @@ test("375 px: the sheet is a bottom sheet with 44 px targets, no horizontal scro
   await page.keyboard.press("Escape");
   await page.setViewportSize({ width: 1280, height: 800 });
 });
+
+test("limits count characters like the server (code points): 300 emoji fit the decision, 2,000 the reason; no pair is split", async () => {
+  await page.goto(threadUrl);
+  await page.getByRole("button", { name: "Resolve…" }).click();
+  await sheet().getByRole("radio", { name: "Decided" }).check();
+  const choice = sheet().getByLabel("What did you decide?");
+  const reason = sheet().getByLabel("Want me to remember why?");
+  await choice.fill("\u{1F332}".repeat(301));
+  expect(await choice.inputValue()).toBe("\u{1F332}".repeat(300));
+  await reason.fill("\u{1F332}".repeat(2001));
+  expect([...(await reason.inputValue())]).toHaveLength(2000);
+  expect(await reason.inputValue()).toBe("\u{1F332}".repeat(2000));
+  await sheet().getByRole("button", { name: "Cancel" }).click();
+  await expect(sheet()).toBeHidden();
+});

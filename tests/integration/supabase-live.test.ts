@@ -482,6 +482,7 @@ describe.skipIf(!env)("real local Supabase: RLS, rate limit, deletion", () => {
     const broken = {
       storage: { from: () => ({ list: async () => ({ data: null, error: { message: "down" } }), remove: async () => ({ data: null, error: null }) }) },
       auth: admin.auth,
+      rpc: admin.rpc.bind(admin),
     } as unknown as AccountAdminClient;
     const r = await deleteAccount(broken, L.id);
     expect(r).toMatchObject({ ok: false, error: { code: "save_failed", retryable: true } });
