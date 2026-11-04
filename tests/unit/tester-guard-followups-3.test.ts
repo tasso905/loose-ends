@@ -55,6 +55,14 @@ describe("courtesy mask", () => {
   }
 });
 
+describe("courtesy mask after T-G17", () => {
+  // OPEN DEFECT (T-G19; REGRESSION from 0e65c60; c7c1f2c capped these): "no" now counts as a determiner before
+  // every courtesy noun, so a real condition is masked and the conditional promise stays High.
+  for (const q of ["If you have no time, I'll cover it Friday.", "If you have no trouble with the lift, I'll bring it Friday."]) {
+    it.fails(`"no" before a noun that is not an opt-out is a condition: ${q}`, () => capped(q));
+  }
+});
+
 describe("waiting on someone", () => {
   it.each(["I'll send it Friday, once I have approval.", "I'll send it Friday, once we have the go-ahead.", "I'll send it Friday, once I've got final approval."])("caps: %s", capped);
 
@@ -90,6 +98,10 @@ describe("known limits for docs/AI_BEHAVIOR.md", () => {
     "I'll send it Friday, once I've cleaned up, and the client approves.",
     "I'll call at 9 am. Friday if the venue confirms.",
     "I'll send it Monday. If they let me go early.",
+    // T-G18's participle check (0e65c60): a participle straight after "have" reads as the speaker's own work.
+    "I'll send it Friday, once I have signed approval.",
+    "I'll send it Friday, once I have written approval.",
+    "I'll send it Friday, once I have written confirmation.",
   ])("under-cap, stays High on a dated promise: %s", notCapped);
 
   it.each([
@@ -103,6 +115,11 @@ describe("known limits for docs/AI_BEHAVIOR.md", () => {
     "I'll call you Friday. If it rains we stay in.",
     "I'll send it Friday, once I've finished the deck and the client notes.",
     "I'll send it Friday, once I've cleaned up and the kids are in bed.",
+    // T-G18 (0e65c60): any received word in a "have" step caps, unless the verb is on PARTICIPLE.
+    "I'll send it Friday, once I have a draft response.",
+    "I'll send it Friday, once I have a word with Sam.",
+    "I'll send it Friday, once I've spent the money.",
+    "I'll send it Friday, once I've come up with an answer.",
   ])("over-cap, Low on a firm dated promise: %s", capped);
 });
 
