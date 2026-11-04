@@ -34,6 +34,7 @@
       "title": "Call Sam",
       "owner": "user",
       "quote": "I'll call you Friday. If it's urgent call Priya instead.",
+      "alt_quotes": ["I'll call you Friday."],
       "date_text": "Friday",
       "due_date": "2026-10-16",
       "due_certainty": "explicit",
@@ -41,7 +42,7 @@
       "counterparty": "Sam",
       "amount_text": null,
       "band": "high",
-      "note": "The 'if' is its own instruction in the next sentence."
+      "note": "The 'if' is its own instruction in the next sentence. Live, the model quoted only the first sentence (same item, High), so that span is an alternate."
     },
     {
       "type": "commitment",
