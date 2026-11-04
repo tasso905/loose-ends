@@ -424,3 +424,21 @@ describe("findCondition(): the 'if you have' courtesy is only about offering hel
     "If you want, I'll pick you up on Friday.",
   ])("a courtesy does not cap: %s", (q) => expect(findCondition(q, true)).toBeNull());
 });
+
+describe("findCondition(): 'have' as the main verb looks at the whole step (T-G18)", () => {
+  it.each([
+    "I'll send it Friday, once I have final approval.",
+    "I'll send it Friday, once we have board approval.",
+    "I'll send it Friday, once we have the client's written permission.",
+    "I'll send it Friday, once I have the final go-ahead from Sam.",
+  ])("caps: %s", (q) => expect(findCondition(q, true)).not.toBeNull());
+
+  it.each([
+    "I'll send it Friday, once I've paid the deposit.",
+    "I'll send it Friday, once I've sent the reply.",
+    "I'll send it Friday, once I've written the response.",
+    "I'll send it Friday, once we have moved the funds.",
+    "I'll send it Friday, once I have a minute.",
+    "I'll send it Friday, once I've had a chance.",
+  ])("the speaker's own work stays exempt: %s", (q) => expect(findCondition(q, true)).toBeNull());
+});

@@ -43,7 +43,7 @@ describe("courtesy mask", () => {
     notCapped,
   );
 
-  // OPEN BLOCKER (T-G17; REGRESSION from the "if you have" narrowing in cd2c98f; 5ea08d6 got all of these
+  // REGRESSION GUARD (T-G17, fixed in fix/guard-followups-4; REGRESSION from the "if you have" narrowing in cd2c98f; 5ea08d6 got all of these
   // right). D64(c) names opt-outs as exempt, and "a moment" is on GET_OWN_TIME but not on this list.
   for (const q of [
     "If you have no objections, I'll send it Friday.",
@@ -51,17 +51,17 @@ describe("courtesy mask", () => {
     "If you have a moment, I'll walk you through it Friday.",
     "If you have an issue, I'll fix it by Friday.",
   ]) {
-    it.fails(`opt-out or courtesy after "if you have" is not a condition: ${q}`, () => notCapped(q));
+    it(`opt-out or courtesy after "if you have" is not a condition: ${q}`, () => notCapped(q));
   }
 });
 
 describe("waiting on someone", () => {
   it.each(["I'll send it Friday, once I have approval.", "I'll send it Friday, once we have the go-ahead.", "I'll send it Friday, once I've got final approval."])("caps: %s", capped);
 
-  // OPEN BLOCKER (T-G18; a common wording, not a regression): the RECEIVED check reads only the first word
+  // REGRESSION GUARD (T-G18, fixed in fix/guard-followups-4; a common wording, not a regression): the RECEIVED check reads only the first word
   // after determiners, so a word in front of "approval" reads as the speaker's own step and stays High.
   for (const q of ["I'll send it Friday, once I have final approval.", "I'll send it Friday, once we have board approval."]) {
-    it.fails(`an adjective before what is received still caps: ${q}`, () => capped(q));
+    it(`an adjective before what is received still caps: ${q}`, () => capped(q));
   }
 });
 

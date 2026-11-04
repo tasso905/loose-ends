@@ -45,7 +45,7 @@ const NOT_CONDITIONS: RegExp[] = [
   /\bif\s+there\s+are\s+no\s+objections\b[^,.;!?]*/giu,
   // Courtesies.
   // "have" only with what a courtesy is about: "If you have the contract signed by Thursday" is a real condition.
-  /\bif\s+(?:you|u)\s+have\s+(?:(?:any|a|some|more|further|other)\s+)*(?:questions?|issues?|concerns?|problems?|trouble|comments?|thoughts?|feedback|time|minute|sec|second|chance)\b[^,.;!?]*/giu,
+  /\bif\s+(?:you|u)\s+have\s+(?:(?:any|a|an|no|some|more|further|other)\s+)*(?:questions?|issues?|concerns?|problems?|trouble|comments?|thoughts?|objections?|feedback|time|minute|moment|sec|second|chance)\b[^,.;!?]*/giu,
   /\bif\s+(?:you|u)(?:['’]d\s+(?:like|prefer)|\s+(?:need|want|wish|would\s+like|get\s+stuck|run\s+into|prefer|like|don['’]t\s+mind))\b[^,.;!?]*/giu,
   /\bif\s+(?:needed|possible|necessary|so|not|any|anything)\b/giu,
   // Only as a courtesy to the reader: "if that's fine with the board" is a real condition.
@@ -98,7 +98,8 @@ const RECEIVED = new Set([
   "approval", "go-ahead", "ok", "okay", "sign-off", "signoff", "permission", "funds", "money", "deposit", "payment",
   "confirmation", "clearance", "authorization", "authorisation", "answer", "reply", "response", "word", "access", "green",
 ]);
-const DETERMINER = new Set(["a", "an", "the", "my", "our", "their", "your", "his", "her", "some", "any"]);
+/** "have" + this is the auxiliary ("I've paid the deposit"), so what follows is the speaker's own work. */
+const PARTICIPLE = /(?:ed|^(?:paid|sent|done|made|written|given|taken|seen|read|told|got|gotten|had|built|put|set|met|won|drawn|shown|chosen|spoken|brought|bought|left|held|kept|found|run))$/u;
 const GET = new Set(["get", "gets", "got", "gotten", "getting"]);
 /**
  * "get" is the speaker's own doing or own time only in these wordings (coordinator, T-G9); any other
@@ -144,7 +145,8 @@ function isOwnStep(rest: string): boolean {
   if ((verb === "find" || verb === "found") && words[i + 1] === "out") return false;
   if (passive && DONE_TO.has(verb)) return false;
   if (GET.has(verb)) return isOwnGet(words.slice(i + 1));
-  if (have && RECEIVED.has(words.slice(i).find((w) => !DETERMINER.has(w)) ?? "")) return false;
+  // "have" as the main verb: any word of the step can be what is received ("have final approval"; T-G18).
+  if (have && !PARTICIPLE.test(verb) && words.slice(i).some((w) => RECEIVED.has(w))) return false;
   return true;
 }
 
