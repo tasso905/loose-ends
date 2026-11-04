@@ -20,6 +20,9 @@ export const buttonVariants = cva(
         secondary:
           "border border-le-border-strong bg-le-surface text-le-text hover:enabled:bg-le-surface-sunken active:enabled:bg-le-border",
         ghost: "text-le-text-secondary hover:enabled:bg-le-surface-sunken hover:enabled:text-le-text active:enabled:bg-le-border",
+        // Inside confirmation dialogs only (DESIGN_STANDARD "Destructive button").
+        destructive:
+          "bg-le-danger-fg text-le-text-on-accent hover:enabled:bg-(--le-danger-hover) active:enabled:bg-(--le-danger-pressed)",
       },
       size: {
         default: "h-10 px-4 max-md:h-11",

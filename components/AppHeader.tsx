@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Layers, Plus, Scale, Sun } from "lucide-react";
+import { Layers, Plus, Scale, Settings, Sun } from "lucide-react";
 import { SignOutButton } from "@/components/auth/SignOutButton";
 import { buttonVariants } from "@/components/ui/button";
 import { Wordmark } from "@/components/Wordmark";
@@ -16,7 +16,8 @@ const ITEMS = [
 /**
  * Minimal app shell (SITE_CONTRACT §1.1, D1) so the core loop is reachable by clicking: Today,
  * Threads, Decisions (S9) and the global Add. The account menu, the review chip and the mobile bottom
- * navigation arrive with their features; Sign out stays a button until the account menu exists.
+ * navigation arrive with their features; until the account menu exists, Settings is a link and Sign out
+ * a button beside it.
  */
 export function AppHeader({ current }: { current: NavItem }) {
   return (
@@ -48,7 +49,16 @@ export function AppHeader({ current }: { current: NavItem }) {
           Add
         </Link>
       </nav>
-      <SignOutButton />
+      <div className="flex items-center gap-1">
+        <Link
+          href="/settings"
+          className="focus-ring inline-flex h-9 items-center gap-2 rounded-control px-3 text-body-strong text-le-text-secondary hover:bg-le-surface-sunken hover:text-le-text max-md:h-11"
+        >
+          <Settings aria-hidden strokeWidth={1.75} className="size-4" />
+          Settings
+        </Link>
+        <SignOutButton />
+      </div>
     </header>
   );
 }

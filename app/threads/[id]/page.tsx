@@ -8,6 +8,7 @@ import { ErrorBanner } from "@/components/Notice";
 import { EXPLAIN_COPY, ExplainBrief, NotSureList, parseBrief } from "@/components/review/ExplainBrief";
 import { ConfidenceLabel } from "@/components/review/ReviewTray";
 import { DecisionReason } from "@/components/threads/DecisionReason";
+import { ForgetThread } from "@/components/threads/ForgetThread";
 import { ThreadActions } from "@/components/threads/ThreadActions";
 import { DueChip, StatusChip } from "@/components/threads/ThreadBits";
 import { WhyLink } from "@/components/threads/WhySheet";
@@ -114,8 +115,11 @@ function Thread({ detail, timezone, openResolve, openWhy }: { detail: ThreadDeta
         </section>
       ) : null}
 
-      <div className="mt-6">
-        <ThreadActions threadId={t.id} title={t.title} status={t.status} kind={t.kind} openResolve={openResolve} />
+      <div className="mt-6 flex items-start gap-2">
+        <div className="min-w-0 flex-1">
+          <ThreadActions threadId={t.id} title={t.title} status={t.status} kind={t.kind} openResolve={openResolve} />
+        </div>
+        <ForgetThread threadId={t.id} hasSource={t.primary_source_id !== null} />
       </div>
 
       {decision ? <DecisionBlock decision={decision} title={t.title} timezone={timezone} /> : null}
