@@ -111,19 +111,19 @@ describe("withBudget() over the real functions", () => {
         return {
           content: [{ type: "text", text: '{"ok":true}' }],
           finishReason: { unified: "stop", raw: "stop" },
-          // 10,000 input tokens at the configured price: $0.01 a call.
+          // 10,000 input tokens at the configured price: $0.015 a call.
           usage: { inputTokens: { total: 10_000, noCache: undefined, cacheRead: undefined, cacheWrite: undefined }, outputTokens: { total: 0, text: undefined, reasoning: undefined } },
           warnings: [],
         };
       },
     });
-    const budgeted = withBudget(model, rpcAs(db, A), { feature: "extract", env: { AI_PROVIDER: "google", DAILY_AI_BUDGET_USD: "0.02" }, logger: () => {} });
+    const budgeted = withBudget(model, rpcAs(db, A), { feature: "extract", env: { AI_PROVIDER: "google", DAILY_AI_BUDGET_USD: "0.03" }, logger: () => {} });
     const ask = () => generateObject({ model: budgeted, schema: z.object({ ok: z.boolean() }), prompt: "Synthetic", maxRetries: 0 });
     await ask();
     await ask();
     expect(calls).toBe(2);
     await expect(ask()).rejects.toBeInstanceOf(AiBudgetError);
     expect(calls).toBe(2);
-    expect(await spend()).toEqual([{ cost_micros: "20000", calls: 2 }]);
+    expect(await spend()).toEqual([{ cost_micros: "30000", calls: 2 }]);
   });
 });

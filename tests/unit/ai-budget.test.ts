@@ -70,7 +70,8 @@ describe("costMicros()", () => {
     expect(costMicros(10_000, 0)).toBe(PRICE_USD_PER_MTOK.input * 10_000);
     expect(costMicros(0, 10_000)).toBe(PRICE_USD_PER_MTOK.output * 10_000);
     expect(costMicros(10_000, 10_000)).toBe((PRICE_USD_PER_MTOK.input + PRICE_USD_PER_MTOK.output) * 10_000);
-    expect(costMicros(1, 0)).toBe(1);
+    expect(costMicros(1, 0)).toBe(2); // 1.5 micros, rounded up
+    expect(PRICE_USD_PER_MTOK).toEqual({ input: 1.5, output: 7.5 });
     expect(costMicros(0, 0)).toBe(0);
   });
   it("a missing usage report is charged the per-call maximum; nothing is charged above it", () => {

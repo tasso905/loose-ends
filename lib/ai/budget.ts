@@ -22,12 +22,12 @@ import { log as defaultLog, type Logger } from "@/lib/log";
  */
 
 /**
- * Estimated price in US dollars per million tokens, meant to err towards stopping early. PROPOSED
- * values, pending the user's decision. Google's list for gemini-3.6-flash, read Nov 3, 2026, is
- * $0.75 / $3.75 through Dec 31, 2026 and $1.50 / $7.50 from Jan 1, 2027: above the first, below the
- * second, so from that date these would undercount spend unless they are raised.
+ * Estimated price in US dollars per million tokens: Google's Jan 1, 2027 paid-tier rate for
+ * gemini-3.6-flash (https://aistudio.google.com/docs/pricing, read Nov 3, 2026; output includes
+ * thinking). Until Dec 31, 2026 the list is $0.75 / $3.75, so the estimate errs towards stopping early.
+ * Re-check when AI_MODEL or Google's list changes.
  */
-export const PRICE_USD_PER_MTOK = { input: 1.0, output: 6.0 } as const;
+export const PRICE_USD_PER_MTOK = { input: 1.5, output: 7.5 } as const;
 
 /** Mirrors private.ai_max_call_cost_micros() in the migration; a call with no usage report is charged this. */
 export const MAX_CALL_COST_MICROS = 200_000;
