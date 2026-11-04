@@ -100,6 +100,8 @@ export function NoReason({ decisionId, onAdded }: { decisionId: string; onAdded:
         onAdded(res.reason);
       } catch {
         setError(apiError(typeof navigator !== "undefined" && !navigator.onLine ? "offline" : "save_failed").error.message);
+        // Save is disabled while pending, so focus has fallen to <body>; the text is still in the field.
+        fieldRef.current?.focus();
       }
     });
   }
