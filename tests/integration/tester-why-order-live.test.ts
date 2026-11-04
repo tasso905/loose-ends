@@ -1,11 +1,14 @@
 /**
- * Lead-tester (fix/s9b-s10-thread-reason, migration 20261027125534_evidence_items_created_at):
- *  - ties on created_at break by id, in the Why panel (loadWhy) and Thread detail (getThreadDetail),
- *    and both pick the same first quote on every load;
+ * Lead-tester (fix/s9b-s10-thread-reason, migration 20261027125534_evidence_items_created_at;
+ * updated for fix/evidence-source-order):
+ *  - evidence orders by (created_at, start_offset NULLS LAST, id) and extraction_items by
+ *    (created_at, item_index, id), in the Why panel (loadWhy) and Thread detail (getThreadDetail),
+ *    and both pick the same first quote and proposal on every load;
  *  - the new columns default to now() and are NOT NULL;
  *  - RLS is unaffected: another user sees none of the rows (ordered by created_at or not), and an
  *    owner cannot rewrite created_at (the write model keeps evidence and proposals server-written);
- *  - rows written together by the extraction save share one created_at, so the id tie-break decides.
+ *  - rows written together by the extraction save share one created_at, so source position
+ *    (start_offset / item_index) decides, and id only when that ties too.
  * Real local Supabase; skipped unless LE_SUPABASE_LIVE=1 (`pnpm test:supabase`). Synthetic data only.
  */
 import { execSync } from "node:child_process";
@@ -88,7 +91,7 @@ describe.skipIf(!live)("tester: (created_at, id) ordering, defaults and RLS for 
       created_at: SAME,
       payload: { item: { type: "commitment", title: "Book the cabin" }, label: { word: band === "high" ? "Likely" : "Maybe", reason: "synthetic" } },
     });
-    // Same created_at; the id starting "1" must win although it was inserted second and is item 1.
+    // Same created_at: item_index 0 (medium) must win although its id ("9…") sorts after item 1's ("1…").
     const items = await admin.from("extraction_items").insert([item(0, idStarting("9"), "medium"), item(1, idStarting("1"), "high")]);
     expect(items.error).toBeNull();
 
@@ -96,7 +99,7 @@ describe.skipIf(!live)("tester: (created_at, id) ordering, defaults and RLS for 
       ev[key] = id;
       return { id, user_id: a.id, source_id: sourceId, thread_id: threadId, quote, start_offset: TEXT.indexOf(quote), end_offset: TEXT.indexOf(quote) + quote.length, match_kind: "exact", created_at: createdAt };
     };
-    // Inserted in source order; ids chosen so the id order is three, one, two among the tied rows.
+    // Same created_at; ids chosen so the id order (three, one, two) disagrees with source order (one, two, three).
     const ins = await admin.from("evidence").insert([
       evidence("one", idStarting("a"), "I will book the cabin."),
       evidence("two", idStarting("e"), "Ana pays the deposit."),
@@ -109,7 +112,7 @@ describe.skipIf(!live)("tester: (created_at, id) ordering, defaults and RLS for 
     for (const u of users) await admin.auth.admin.deleteUser(u.id);
   });
 
-  it("ties on created_at break by id: the Why panel and Thread detail show the same first quote and proposal on every load", async () => {
+  it("ties on created_at break by source position (start_offset, item_index), not id: Why panel and Thread detail agree on every load", async () => {
     const a = users[0]!;
     const seen = new Set<string>();
     for (let i = 0; i < 5; i++) {
@@ -120,33 +123,102 @@ describe.skipIf(!live)("tester: (created_at, id) ordering, defaults and RLS for 
       const detail = await getThreadDetail(a.client, threadId);
       expect(detail.ok).toBe(true);
       if (!detail.ok) return;
-      expect(detail.detail.evidence.map((e) => e.quote)).toEqual(["we leave on the 30th.", "I will book the cabin.", "Ana pays the deposit."]);
+      expect(detail.detail.evidence.map((e) => e.quote)).toEqual(["I will book the cabin.", "Ana pays the deposit.", "we leave on the 30th."]);
       expect(detail.detail.evidence[0]!.quote).toBe(why.view.quote?.quote);
-      expect(detail.detail.origin?.band).toBe("high");
+      expect(detail.detail.origin?.band).toBe("medium");
     }
-    expect([...seen]).toEqual(["we leave on the 30th.|high"]);
+    expect([...seen]).toEqual(["I will book the cabin.|medium"]);
   });
 
-  it("an earlier created_at beats a smaller id", async () => {
+  /** Inserts one evidence row on the thread; returns a cleanup. */
+  async function addEvidence(row: { id: string; quote: string; start_offset: number | null; created_at?: string }) {
     const a = users[0]!;
-    const quote = "Line one:";
-    const early = await admin.from("evidence").insert({
-      id: idStarting("f"),
+    const off = row.start_offset;
+    const ins = await admin.from("evidence").insert({
+      id: row.id,
       user_id: a.id,
       source_id: sourceId,
       thread_id: threadId,
-      quote,
-      start_offset: 0,
-      end_offset: quote.length,
+      quote: row.quote,
+      start_offset: off,
+      end_offset: off === null ? null : off + row.quote.length,
       match_kind: "exact",
-      created_at: "2026-10-21T08:59:59Z",
+      created_at: row.created_at ?? SAME,
     });
-    expect(early.error).toBeNull();
+    expect(ins.error).toBeNull();
+    return () => admin.from("evidence").delete().eq("id", row.id);
+  }
+  async function firstQuotes() {
+    const a = users[0]!;
     const why = await loadWhy(a.client, threadId, "UTC", new Date());
-    expect(why.ok && why.view.quote?.quote).toBe(quote);
     const detail = await getThreadDetail(a.client, threadId);
-    expect(detail.ok && detail.detail.evidence[0]!.quote).toBe(quote);
-    await admin.from("evidence").delete().eq("quote", quote).eq("thread_id", threadId);
+    expect(why.ok && detail.ok).toBe(true);
+    if (!why.ok || !detail.ok) throw new Error("load failed");
+    return { why: why.view.quote?.quote, detail: detail.detail.evidence.map((e) => e.quote) };
+  }
+
+  it("an earlier created_at beats a smaller start_offset and a smaller id", async () => {
+    const quote = "we leave on the 30th.";
+    const undo = await addEvidence({ id: idStarting("f"), quote, start_offset: TEXT.indexOf(quote), created_at: "2026-10-21T08:59:59Z" });
+    const r = await firstQuotes();
+    expect(r.why).toBe(quote);
+    expect(r.detail[0]).toBe(quote);
+    await undo();
+  });
+
+  it("equal created_at and start_offset fall back to id", async () => {
+    // Same position as "I will book the cabin." (id "a…"); a "0…" id must now come first.
+    const quote = "I will book the cabin.";
+    const undo = await addEvidence({ id: idStarting("0"), quote, start_offset: TEXT.indexOf(quote) });
+    const a = users[0]!;
+    const detail = await getThreadDetail(a.client, threadId);
+    expect(detail.ok).toBe(true);
+    if (!detail.ok) return;
+    const ids = detail.detail.evidence.filter((e) => e.quote === quote).map((e) => (e as { id: string }).id);
+    expect(ids).toHaveLength(2);
+    expect(ids[0]!.startsWith("0")).toBe(true);
+    expect(ids[1]).toBe(ev.one);
+    for (let i = 0; i < 3; i++) expect((await firstQuotes()).detail).toEqual((await firstQuotes()).detail);
+    await undo();
+  });
+
+  it("a NULL start_offset sorts last among rows with the same created_at, even with the smallest id", async () => {
+    const quote = "Line one:";
+    const undo = await addEvidence({ id: idStarting("0"), quote, start_offset: null });
+    const r = await firstQuotes();
+    expect(r.why).toBe("I will book the cabin.");
+    expect(r.detail).toEqual(["I will book the cabin.", "Ana pays the deposit.", "we leave on the 30th.", quote]);
+    await undo();
+  });
+
+  it("proposals tied on created_at and item_index (two extractions) fall back to id", async () => {
+    const a = users[0]!;
+    const ex2 = await admin
+      .from("extractions")
+      .insert({ user_id: a.id, source_id: sourceId, status: "succeeded", model: "fake:recorded", prompt_version: "extract.v1", schema_version: "extraction.v1" })
+      .select("id")
+      .single();
+    expect(ex2.error).toBeNull();
+    // item_index 0 like the "9…" medium row, same created_at, smaller id "0…", band low.
+    const ins = await admin.from("extraction_items").insert({
+      id: idStarting("0"),
+      item_index: 0,
+      user_id: a.id,
+      extraction_id: ex2.data!.id,
+      band: "low",
+      confidence: 0.2,
+      review_status: "accepted",
+      thread_id: threadId,
+      created_at: SAME,
+      payload: { item: { type: "commitment", title: "Book the cabin" }, label: { word: "Also noticed", reason: "synthetic" } },
+    });
+    expect(ins.error).toBeNull();
+    const why = await loadWhy(a.client, threadId, "UTC", new Date());
+    const detail = await getThreadDetail(a.client, threadId);
+    expect(why.ok && why.view.origin?.band).toBe("low");
+    expect(detail.ok && detail.detail.origin?.band).toBe("low");
+    await admin.from("extraction_items").delete().eq("extraction_id", ex2.data!.id);
+    await admin.from("extractions").delete().eq("id", ex2.data!.id);
   });
 
   it("created_at defaults to now() and is NOT NULL on both tables", async () => {

@@ -515,11 +515,10 @@ test("the refresh fails at the network: Next reloads the document and the reason
 });
 
 for (const surface of ["Thread detail", "Ask why"] as const) {
-  // OPEN DEFECT (T-F1, a11y WCAG 2.4.3, low-medium; pre-existing): NoReason's `catch` sets the error but moves
-  // no focus, unlike its `!res.ok` branch and the Resolve sheet. Save is disabled while pending, so focus
-  // falls to <body> and stays there; the keyboard user restarts from the top of the page.
+  // REGRESSION GUARD (T-F1, a11y WCAG 2.4.3, fixed in fix/reason-save-failure-focus): NoReason's `catch` moves
+  // focus to the field, like its `!res.ok` branch and the Resolve sheet. Save is disabled while pending, so
+  // without this focus falls to <body> and the keyboard user restarts from the top of the page.
   test(`${surface}: a reason save that fails at the network leaves focus in the form, on the field, not <body>`, async () => {
-    test.fail(true, "T-F1: NoReason's catch branch does not move focus");
     const { threadId: t } = surface === "Ask why" ? await seedDecision("Choose a gym", DEC) : await seedDecision("Choose a route, save fails");
     const scope = surface === "Ask why" ? await askCard() : page.locator("main");
     if (surface === "Thread detail") await page.goto(`/threads/${t}`);
