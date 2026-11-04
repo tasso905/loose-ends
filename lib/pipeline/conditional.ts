@@ -45,7 +45,7 @@ const NOT_CONDITIONS: RegExp[] = [
   /\bif\s+there\s+are\s+no\s+objections\b[^,.;!?]*/giu,
   // Courtesies.
   // "have" only with what a courtesy is about: "If you have the contract signed by Thursday" is a real condition.
-  /\bif\s+(?:you|u)\s+have\s+(?:(?:any|a|an|no|some|more|further|other)\s+)*(?:questions?|issues?|concerns?|problems?|trouble|comments?|thoughts?|objections?|feedback|time|minute|moment|sec|second|chance)\b[^,.;!?]*/giu,
+  /\bif\s+(?:you|u)\s+have\s+(?:no\s+(?:(?:more|further|other)\s+)*(?:objections?|questions?|issues?|concerns?|problems?)|(?:(?:any|a|an|some|more|further|other)\s+)*(?:questions?|issues?|concerns?|problems?|trouble|comments?|thoughts?|objections?|feedback|time|minute|moment|sec|second|chance))\b[^,.;!?]*/giu,
   /\bif\s+(?:you|u)(?:['’]d\s+(?:like|prefer)|\s+(?:need|want|wish|would\s+like|get\s+stuck|run\s+into|prefer|like|don['’]t\s+mind))\b[^,.;!?]*/giu,
   /\bif\s+(?:needed|possible|necessary|so|not|any|anything)\b/giu,
   // Only as a courtesy to the reader: "if that's fine with the board" is a real condition.

@@ -59,7 +59,7 @@ describe("courtesy mask after T-G17", () => {
   // OPEN DEFECT (T-G19; REGRESSION from 0e65c60; c7c1f2c capped these): "no" now counts as a determiner before
   // every courtesy noun, so a real condition is masked and the conditional promise stays High.
   for (const q of ["If you have no time, I'll cover it Friday.", "If you have no trouble with the lift, I'll bring it Friday."]) {
-    it.fails(`"no" before a noun that is not an opt-out is a condition: ${q}`, () => capped(q));
+    it(`"no" before a noun that is not an opt-out is a condition: ${q}`, () => capped(q));
   }
 });
 
