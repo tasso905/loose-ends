@@ -209,6 +209,21 @@ const POSSESSIVE_DATE = new RegExp(
     `jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|june?|july?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)['’]s\\b`,
   "iu",
 );
+/**
+ * Months that are also common first names (T-D5): "June's", "May's" are far more often a person
+ * than a month, so their possessive is a date only when a day number or a noun a person doesn't own
+ * follows ("June's 15th", "May's rent", "April's board meeting"). "June's report", "May's order" and
+ * "June's review" are a person's (T-D8). Otherwise: no date (rule 3).
+ */
+const NAME_MONTH = /^(?:may|june|april|august)$/iu;
+const MONTH_WORD = /^(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)/iu;
+const DATE_OWNED =
+  /^\s+(?:the\s+)?(?:\d{1,2}(?:st|nd|rd|th)?\b|(?:rent|payroll|deadlines?|due\s+dates?|board\s+meeting|newsletter|issue|edition|close|closing|release|conference|cohort|intake|retreat|offsite)\b)/iu;
+/**
+ * A bare number then a word is a count, not a day: "May's 3 kids", "June's 15 minutes" (T-D7, rule 3).
+ * "June's 15 at noon" stays a day.
+ */
+const POSSESSIVE_COUNT = /^\s+\d{1,3}\s+(?!(?:at|by|on|in|to|for|or|and|from|before|after|until|till)\b)\p{L}/iu;
 /** Words that may lead a possessive date phrase ("to Saturday's party", "for tomorrow's call"). */
 const POSSESSIVE_LEAD = /^\s*(?:(?:to|for|at|on|by|before|until|till|in|from|during|after)\s+)+/iu;
 
@@ -221,7 +236,13 @@ const POSSESSIVE_LEAD = /^\s*(?:(?:to|for|at|on|by|before|until|till|in|from|dur
 export function possessiveDatePhrase(text: string): string | null {
   const m = POSSESSIVE_DATE.exec(text);
   if (!m) return null;
-  return text.slice(0, m.index + m[1]!.length).replace(POSSESSIVE_LEAD, "").trim();
+  const after = text.slice(m.index + m[0].length);
+  if (MONTH_WORD.test(m[1]!) && POSSESSIVE_COUNT.test(after)) return null;
+  if (NAME_MONTH.test(m[1]!) && !DATE_OWNED.test(after)) return null;
+  const owner = text.slice(0, m.index + m[1]!.length).replace(POSSESSIVE_LEAD, "").trim();
+  // A day number after a possessive month is the day: "June's 15th" is Jun 15, not Jun 1 (T-D6).
+  const day = MONTH_WORD.test(m[1]!) ? /^\s+(?:the\s+)?(\d{1,2}(?:st|nd|rd|th)?)\b/iu.exec(after) : null;
+  return day ? `${owner} ${day[1]}` : owner;
 }
 
 function chronoResolve(fullText: string, ctx: DateContext, possessive = false): ChronoReading {

@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
 /** Versioned prompt files in /prompts. The version recorded on each extraction is the file stem. */
-export const EXTRACT_PROMPT_VERSION = "extract.v3";
+export const EXTRACT_PROMPT_VERSION = "extract.v4";
 export const ASK_WHY_PROMPT_VERSION = "ask-why.v3";
 
 const cache = new Map<string, string>();

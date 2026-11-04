@@ -6,7 +6,7 @@ Loose Ends turns messages and documents the user pastes in into a short list of 
 
 Read the relevant document before changing behaviour, copy or visuals. When they conflict, the order below wins, and the conflict is raised with the lead-program-manager agent rather than resolved silently.
 
-1. `docs/PRD.md` (v1.1) — product, scope, schema, API, AI behaviour. Its **Decisions Log (D1–D64)** overrides older text anywhere. Entries marked *Proposed* take effect only after the user confirms them.
+1. `docs/PRD.md` (v1.1) — product, scope, schema, API, AI behaviour. Its **Decisions Log (D1–D74)** overrides older text anywhere. Entries marked *Proposed* take effect only after the user confirms them.
 2. `docs/SITE_CONTRACT.md` (v1.1) — pages, routes, states, error copy, behaviour.
 3. `docs/CONTENT_MODEL.md` (v1.1) — fields, constraints, user-facing glossary.
 4. `docs/DESIGN_STANDARD.md` — visual standard: tokens, type, spacing, components, motion, microcopy.
@@ -70,7 +70,7 @@ These encode the product's trust model. Breaking one is a bug even if tests pass
 - All time logic calls `getNow()` from `lib/time.ts`; never `new Date()` or `Date.now()` in app logic.
 - All status changes go through `transition(thread, action)`; the PRD lifecycle transition table is the spec, and anything else returns `invalid_transition`.
 - Every thread mutation appends a `thread_events` row with before/after values; history is never rewritten.
-- RLS on every table (`user_id = auth.uid()`). Use the service role only in `cron/daily`, account deletion and inbound email.
+- RLS on every table (`user_id = auth.uid()`). Use the service role only in `cron/daily`, account deletion, inbound email and the AI budget functions (narrowly scoped, D72).
 - Validate every input with Zod. Error responses use `{error: {code, message, retryable}}` and the copy in SITE_CONTRACT §2.13.
 - Changing a prompt, model or schema requires running `pnpm eval` and recording the result; bump the prompt version.
 - Prefer additive migrations; dropping or renaming a column needs a recorded decision (the Oct 31 additive-only rule is retired, D62).

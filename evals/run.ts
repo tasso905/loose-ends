@@ -15,6 +15,9 @@
  * do not overwrite evals/SCORECARD.md unless EVAL_WRITE_SCORECARD=1, so replayed recordings are
  * never published as a model's score.
  *
+ * Provider outages: cases still `unavailable` are tried again in up to 4 extra rounds, after 15, 30, 60
+ * and 120 s (harness.ts DEFAULT_UNAVAILABLE_RETRY). The reports and the scorecard state the extra attempts.
+ *
  * Exit codes: 0 pass; 1 fail (a gate missed, any non-quota extraction failure, no fixtures, or a
  * crash); 3 incomplete because only provider quota failed (not a pass, not judged).
  *
@@ -33,7 +36,7 @@ import { getNow } from "@/lib/time";
 import { runAskWhyEval } from "./ask-why/harness";
 import { pgliteRetriever } from "./ask-why/retrieve";
 import { loadAskWhySet } from "./ask-why/set";
-import { createThrottle, EvalRpmError, evalRpm, NO_THROTTLE, renderScorecard, runEval } from "./harness";
+import { createThrottle, DEFAULT_UNAVAILABLE_RETRY, EvalRpmError, evalRpm, NO_THROTTLE, renderScorecard, runEval } from "./harness";
 
 /** Fills unset variables from .env.local; returns how many were filled (names and values stay unprinted). */
 function loadEnvLocal(path = join(process.cwd(), ".env.local")): number {
@@ -69,10 +72,11 @@ async function main() {
     modelLabel: resolved.label,
     throttle,
     runAt,
+    unavailableRetry: DEFAULT_UNAVAILABLE_RETRY,
   });
   const askSet = loadAskWhySet();
   const retriever = await pgliteRetriever(askSet);
-  const ask = await runAskWhyEval({ set: askSet, retrieve: retriever.retrieve, model: resolved.model, modelLabel: resolved.label, throttle }).finally(
+  const ask = await runAskWhyEval({ set: askSet, retrieve: retriever.retrieve, model: resolved.model, modelLabel: resolved.label, throttle, unavailableRetry: DEFAULT_UNAVAILABLE_RETRY }).finally(
     () => retriever.close(),
   );
   if (report.fixtures === 0) {
