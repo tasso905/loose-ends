@@ -19,6 +19,7 @@ This is the unsafe direction.
   - a comma comes first: "once I've cleaned up, and the client approves"
 - "am" without inner dots reads as a sentence end: "I'll call at 9 am. Friday if the venue confirms."
 - A participle straight after "have" reads as the speaker's own work: "once I have signed approval", "once I have written approval", "once I have written confirmation", "once I have confirmed funding".
+- "if you have any..." with a courtesy noun reads as a courtesy: "If you have any objections, I'll rework it Friday."
 
 ## Over-caps: a firm promise with a date drops to Low
 
@@ -31,6 +32,7 @@ This is the safe direction, and these trade-offs were accepted.
 - A "get" outside the exempt set: "once I get a few minutes".
 - Both sentences hold a promise verb: "I'll call you back. If I can't, I'll send a text."
 - With "have" as the main verb, a listed word anywhere in the step caps: "once I have a draft response", "once I have a word with Sam", "once I have a quick word with Sam", "once I have the payment details", "once I have the reply drafted".
+- "no" counts as an opt-out only before objections, questions, issues, concerns and problems: "If you have no comments, I'll send it Friday."
 - An irregular participle off the list reads as main-verb "have": "once I've spent the money", "once I've come up with an answer".
 
 ## Possessive dates
