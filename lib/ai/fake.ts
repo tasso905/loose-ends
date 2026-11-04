@@ -44,14 +44,18 @@ export class NoRecordingError extends Error {
 
 export const sha256 = (s: string) => createHash("sha256").update(s).digest("hex");
 
-export function loadRecordings(dir = process.env.AI_RECORDINGS_DIR || join(process.cwd(), "tests", "fixtures", "llm")): Recording[] {
+// The recordings are read from disk at run time (tests, E2E against `next start`), never bundled:
+// `turbopackIgnore` stops the bundler tracing these dynamic paths, which otherwise pulls the whole
+// project into the server output. A deployment that replays recordings (DEMO_REPLAY) must ship the
+// directory explicitly, e.g. with outputFileTracingIncludes.
+export function loadRecordings(dir = process.env.AI_RECORDINGS_DIR || join(/* turbopackIgnore: true */ process.cwd(), "tests", "fixtures", "llm")): Recording[] {
   let files: string[];
   try {
-    files = readdirSync(dir).filter((f) => f.endsWith(".json"));
+    files = readdirSync(/* turbopackIgnore: true */ dir).filter((f) => f.endsWith(".json"));
   } catch {
     return [];
   }
-  return files.map((f) => Recording.parse(JSON.parse(readFileSync(join(dir, f), "utf8"))));
+  return files.map((f) => Recording.parse(JSON.parse(readFileSync(/* turbopackIgnore: true */ join(dir, f), "utf8"))));
 }
 
 type PromptMessage = { role: string; content: unknown };

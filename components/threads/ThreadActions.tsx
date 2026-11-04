@@ -138,8 +138,17 @@ export function ThreadActions({
       const res = await undoAction(threadId, eventId);
       if (!res.ok) return undoFailed(res.error);
       // Done comes back after the refresh; until then focus waits on the status line, never <body>.
-      focusDoneOnReturn.current = true;
-      document.getElementById(focusTargetId)?.focus();
+      // If Undo came before the action's own refresh landed, Done never left the page: that refresh
+      // is superseded by this one and `showResolve` does not change. Done can take focus now, unless
+      // its own action is still pending (a disabled button cannot be focused): then the effect below
+      // moves focus once it is enabled again.
+      const back = doneRef.current ?? resolveRef.current;
+      if (back && !back.disabled) {
+        back.focus();
+      } else {
+        focusDoneOnReturn.current = true;
+        document.getElementById(focusTargetId)?.focus();
+      }
       router.refresh();
     } catch {
       undoFailed(failure("save_failed"));
@@ -156,12 +165,13 @@ export function ThreadActions({
   const showResolve = canResolve({ status });
   useEffect(() => {
     // After an Undo the first action comes back: Done, or Resolve… on a decision thread.
+    // It waits until the button is enabled: Done is disabled while its own action is pending.
     const target = doneRef.current ?? resolveRef.current;
-    if (focusDoneOnReturn.current && showResolve && target) {
+    if (focusDoneOnReturn.current && showResolve && target && !target.disabled) {
       focusDoneOnReturn.current = false;
       target.focus();
     }
-  }, [showResolve]);
+  }, [showResolve, pending]);
 
   return (
     <div>

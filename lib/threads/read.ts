@@ -113,9 +113,9 @@ export async function getThreadDetail(client: SupabaseClient, id: string): Promi
   if (!thread.success) return fail("thread_parse");
 
   const [ev, events, items, dec] = await Promise.all([
-    client.from("evidence").select("id, quote, page, source_id, extraction_item_id").eq("thread_id", id).order("created_at").order("id"),
+    client.from("evidence").select("id, quote, page, source_id, extraction_item_id").eq("thread_id", id).order("created_at").order("start_offset", { nullsFirst: false }).order("id"),
     client.from("thread_events").select("id, type, actor, before, after, created_at").eq("thread_id", id).order("id"),
-    client.from("extraction_items").select("band, extraction_id, payload").eq("thread_id", id).order("created_at").order("id").limit(1),
+    client.from("extraction_items").select("band, extraction_id, payload").eq("thread_id", id).order("created_at").order("item_index").order("id").limit(1),
     client.from("decisions").select("id, choice, reason_user, decided_at").eq("thread_id", id).order("decided_at", { ascending: false }).limit(1),
   ]);
   if (ev.error || events.error || items.error || dec.error) return fail("related");
