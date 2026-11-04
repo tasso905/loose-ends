@@ -69,7 +69,7 @@ Once extraction ships, pasted text, and later the decisions and quotes used to a
 - Put `SUPABASE_AUTH_EXTERNAL_GOOGLE_ENABLED`, `SUPABASE_AUTH_EXTERNAL_GOOGLE_CLIENT_ID` and `SUPABASE_AUTH_EXTERNAL_GOOGLE_SECRET` in `supabase/.env` (gitignored), then restart Supabase.
 - Set `NEXT_PUBLIC_AUTH_GOOGLE_ENABLED=true` in `.env.local`.
 
-**Gemini.** Set `AI_PROVIDER=google`, `AI_MODEL=gemini-3.5-flash` and `AI_API_KEY` (a key from Google AI Studio) in `.env.local`. Live calls may count against your quota.
+**Gemini.** Set `AI_PROVIDER=google`, `AI_MODEL=gemini-3.6-flash` and `AI_API_KEY` (a key from Google AI Studio) in `.env.local`. Live calls may count against your quota.
 
 ## Commands
 

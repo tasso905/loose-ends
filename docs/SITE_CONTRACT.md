@@ -50,7 +50,7 @@
 | `/threads/[id]` | Thread detail | Signed in | `?panel=why` opens the Why panel; `?sheet=resolve` opens Resolve |
 | `/sources/[id]` | Source viewer | Signed in | `?evidence=[evidenceId]` highlights and scrolls to that quote |
 | `/decisions` | Decisions / Ask Why | Signed in | `?q=` prefills the Ask box but never asks automatically, because every ask is a model call and counts toward the daily limit (D57). *Was:* "holds the last question so answers can be deep-linked" |
-| `/settings` | Settings | Signed in | Anchors `#profile` and `#data`. Renders the not-found page (404) until analytics can actually run, so it never shows a toggle with no effect (D57, rule 9) |
+| `/settings` | Settings | Signed in | Anchors `#profile` and `#data`. Returns 200 with the analytics gate off; the analytics toggle and its notice stay hidden until analytics can actually run, so it never shows a toggle with no effect (D66, rule 9). *Was (D57(d)):* the not-found page (404) until then |
 
 **Signed-out access (D38):** a signed-out visit to any Signed in route redirects to `/sign-in?next={path}`, where the path includes its query string. After sign-in, `/auth/callback` sends the user to `next`. On first sign-in, onboarding comes first and then `next`. Only same-site relative paths are honoured as `next`; anything else falls back to `/today`.
 
