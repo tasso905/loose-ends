@@ -2,10 +2,11 @@ import { generateObject } from "ai";
 import { MockLanguageModelV4 } from "ai/test";
 import { describe, expect, it, vi } from "vitest";
 import { z } from "zod";
-import { AiBudgetError, budgetConfig, costMicros, MAX_CALL_COST_MICROS, PRICE_USD_PER_MTOK, withBudget } from "@/lib/ai/budget";
+import { AiBudgetError, budgetConfig, budgetRefusal, costMicros, MAX_CALL_COST_MICROS, PRICE_USD_PER_MTOK, withBudget } from "@/lib/ai/budget";
 import { classifyAiError } from "@/lib/ai/errors";
 import { extract, ExtractionFailedError } from "@/lib/ai/extract";
 import { askQuestion } from "@/lib/decisions/ask";
+import { retryExtraction, startExtraction, startUploadExtraction } from "@/lib/extraction/service";
 
 /** DAILY_AI_BUDGET_USD (lib/ai/budget.ts): config, cost estimate, and the check/record around every call. No network. */
 
@@ -203,9 +204,80 @@ describe("extract() and askQuestion() under the budget", () => {
       context_facts: [],
     };
     const d = db(false, { extra: { consume_usage: true, search_decisions: [decision] } });
-    const res = await askQuestion(d, "Why did I renew?", { model: m.model, logger: () => {}, env: CAP });
+    const res = await askQuestion(d, "Why did I renew?", { model: m.model, logger: () => {}, env: CAP, budgetDb: d });
     expect(res.ok).toBe(false);
     if (!res.ok) expect(res.error.error.code).toBe("ask_failed");
+    expect(m.calls()).toBe(0);
+    // Refused before it was counted.
+    expect(d.calls.map((c) => c.fn)).not.toContain("consume_usage");
+  });
+
+  it("spent, no matching decision: still answers, and that answer is counted", async () => {
+    const m = model(["{}"]);
+    const d = db(false, { extra: { consume_usage: true, search_decisions: [] } });
+    const res = await askQuestion(d, "Why did I renew?", { model: m.model, logger: () => {}, env: CAP, budgetDb: d });
+    expect(res.ok && res.view.message).toBe("I don't have a recorded decision about that.");
+    expect(d.calls.map((c) => c.fn)).toContain("consume_usage");
+    expect(m.calls()).toBe(0);
+  });
+
+  it("spent, retrieval fails: ask_failed, not counted", async () => {
+    const d = db(false);
+    const res = await askQuestion(d, "Why did I renew?", { logger: () => {}, env: CAP, budgetDb: d });
+    expect(!res.ok && res.error.error.code).toBe("ask_failed");
+    expect(d.calls.map((c) => c.fn)).not.toContain("consume_usage");
+  });
+});
+
+describe("the check before anything is used up", () => {
+  const paste = { text: "Synthetic.", title: null, writtenOn: "2026-11-04" };
+  const upload = { sourceId: "s-1", text: "Synthetic.", title: null, writtenOn: null, mimeType: "text/plain" as const, pageOffsets: null };
+  const now = new Date("2026-11-04T12:00:00Z");
+  const logger = () => {};
+  const OPENED = { source_id: "s-1", extraction_id: "e-1" };
+
+  it.each([
+    ["startExtraction", (d: ReturnType<typeof db>) => startExtraction(d, paste, { now, logger, env: CAP, budgetDb: d })],
+    ["startUploadExtraction", (d: ReturnType<typeof db>) => startUploadExtraction(d, upload, { now, logger, env: CAP, budgetDb: d })],
+    ["retryExtraction", (d: ReturnType<typeof db>) => retryExtraction(d, "e-1", { logger, env: CAP, budgetDb: d })],
+  ] as const)("%s, spent: save_failed, and the only call is the check", async (_n, run) => {
+    const d = db(false);
+    const res = await run(d);
+    expect(!res.ok && res.error.error.code).toBe("save_failed");
+    expect(d.calls.map((c) => c.fn)).toEqual(["ai_budget_open"]);
+  });
+
+  it.each([
+    ["startExtraction", "start_source_extraction", (d: ReturnType<typeof db>) => startExtraction(d, paste, { now, logger, env: CAP, budgetDb: d })],
+    ["startUploadExtraction", "start_upload_extraction", (d: ReturnType<typeof db>) => startUploadExtraction(d, upload, { now, logger, env: CAP, budgetDb: d })],
+  ] as const)("%s, open: checks first, then starts", async (_n, fn, run) => {
+    const d = db(true, { extra: { [fn]: OPENED } });
+    expect((await run(d)).ok).toBe(true);
+    expect(d.calls.map((c) => c.fn)).toEqual(["ai_budget_open", fn]);
+  });
+
+  it("no budget client with a configured cap: refused, and nothing is called", async () => {
+    const d = db(true);
+    const res = await startExtraction(d, paste, { now, logger, env: CAP });
+    expect(!res.ok && res.error.error.code).toBe("save_failed");
+    expect(d.rpc).not.toHaveBeenCalled();
+    const m = model(['{"ok":true}']);
+    await expect(call(withBudget(m.model, undefined, { feature: "extract", env: CAP, logger }))).rejects.toMatchObject({ reason: "check_failed" });
+    expect(m.calls()).toBe(0);
+  });
+
+  it("the fake provider with no cap needs no client", async () => {
+    const d = db(true, { extra: { start_source_extraction: OPENED } });
+    expect((await startExtraction(d, paste, { now, logger, env: { AI_PROVIDER: "fake" } })).ok).toBe(true);
+    expect(d.calls.map((c) => c.fn)).toEqual(["start_source_extraction"]);
+  });
+
+  it("no race past the cap: an open first check does not let a call through once the cap is reached", async () => {
+    const answers = [true, false];
+    const d = { rpc: vi.fn(async () => ({ data: answers.shift(), error: null })) };
+    expect(await budgetRefusal(d, { feature: "extract", env: CAP, logger })).toBeNull();
+    const m = model(['{"ok":true}']);
+    await expect(call(withBudget(m.model, d, { feature: "extract", env: CAP, logger }))).rejects.toMatchObject({ reason: "exhausted" });
     expect(m.calls()).toBe(0);
   });
 });

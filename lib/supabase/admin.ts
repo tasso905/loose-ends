@@ -3,7 +3,8 @@ import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
 /**
  * Service-role client. Server only, and only for cron/daily, account deletion and inbound email
- * (CLAUDE.md). Never import this from a client component.
+ * (CLAUDE.md), plus the two budget functions through lib/ai/budgetDb.ts (user-approved Nov 4).
+ * Never import this from a client component.
  */
 export function createAdminClient(): SupabaseClient {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;

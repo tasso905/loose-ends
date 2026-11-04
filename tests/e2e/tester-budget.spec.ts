@@ -20,7 +20,7 @@ const MIKE = "Thanks Mike — I'll send you the revised proposal Friday. We shou
 const FAB_Q = "Why did I hire Quillfeather for the kitchen?";
 const ZERO_Q = "Why did I choose the zzyzx plan?";
 const NO_RECORD = "I don't have a recorded decision about that.";
-const EXTRACTION_FAILED = "Something went wrong reading this. Your text is saved.";
+const SAVE_FAILED = "That didn't save. Try again.";
 const ASK_FAILED = "I couldn't answer that just now. Try asking again.";
 const DEC = "7e57a9a0-0000-4000-8000-000000000001"; // the decision tester-s9-fabricated.ask-why.json cites
 
@@ -37,13 +37,9 @@ function admin() {
   const sb = localSupabase();
   return createClient(sb.url, sb.serviceRoleKey, { auth: { persistSession: false, autoRefreshToken: false } });
 }
-async function latestExtraction() {
-  const { data } = await admin().from("extractions").select("status, error, input_tokens, output_tokens").eq("user_id", uid).order("created_at", { ascending: false }).limit(1).single();
-  return data as { status: string; error: string | null; input_tokens: number | null; output_tokens: number | null };
-}
 async function usage() {
-  const { data } = await admin().from("usage_counters").select("extractions, asks, ai_calls, ai_cost_micros").eq("user_id", uid).maybeSingle();
-  return data as { extractions: number; asks: number; ai_calls: number; ai_cost_micros: number } | null;
+  const { data } = await admin().from("usage_counters").select("extractions, asks").eq("user_id", uid).maybeSingle();
+  return data ? (data as { extractions: number; asks: number }) : { extractions: 0, asks: 0 };
 }
 async function paste(text: string) {
   await page.goto("/add?mode=paste");
@@ -80,37 +76,46 @@ test.afterAll(async () => {
 test.describe("cap 0", () => {
   test.skip(MODE !== "0");
 
-  test("paste with a recording: extraction_failed, never rate_limited, no model call, Try again offered", async () => {
+  test("paste with a recording: save_failed, never rate_limited, no model call, nothing saved or counted, text kept", async () => {
     await paste(MIKE);
-    await expect(page.getByText(EXTRACTION_FAILED)).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByText(SAVE_FAILED)).toBeVisible({ timeout: 20_000 });
     await expect(page.getByText(/reached today's limit/)).toHaveCount(0);
     await expect(page.getByText(/budget|spend|cap\b/i)).toHaveCount(0);
-    expect(await latestExtraction()).toEqual({ status: "failed", error: "ai_budget", input_tokens: null, output_tokens: null });
+    await expect(page.getByLabel("Paste a message or document")).toHaveValue(MIKE);
+    await expect(page).toHaveURL(/\/add/);
+    expect((await admin().from("sources").select("id").eq("user_id", uid)).data).toEqual([]);
     expect(spendRow()).toBe("");
-    expect(await usage()).toMatchObject({ extractions: 1, ai_calls: 0, ai_cost_micros: 0 });
-    await expect(page.getByRole("button", { name: "Try again" })).toBeVisible();
+    expect(await usage()).toMatchObject({ extractions: 0 });
   });
 
-  test("Try again is refused the same way, and is not counted again", async () => {
-    const firstUrl = page.url();
+  test("Try again on a failed source is refused, starts no attempt and uses none of the 3", async () => {
+    const db = admin();
+    const s = await db.from("sources").insert({ user_id: uid, kind: "paste", text_content: MIKE, reference_date: "2026-11-04", reference_date_source: "user", pipeline_attempts: 1 }).select("id").single();
+    expect(s.error).toBeNull();
+    const e = await db.from("extractions").insert({ user_id: uid, source_id: s.data!.id, status: "failed", error: "ai_budget", model: "recorded", prompt_version: "t", schema_version: "t" }).select("id").single();
+    expect(e.error).toBeNull();
+    await page.goto(`/review/${e.data!.id}`);
     await page.getByRole("button", { name: "Try again" }).click();
-    await expect(page).not.toHaveURL(firstUrl, { timeout: 20_000 });
-    await expect(page.getByText(EXTRACTION_FAILED)).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByText(SAVE_FAILED)).toBeVisible({ timeout: 20_000 });
     await expect(page.getByText(/reached today's limit/)).toHaveCount(0);
-    await expect.poll(async () => (await admin().from("extractions").select("error").eq("user_id", uid).eq("error", "ai_budget")).data?.length).toBe(2);
+    await expect(page).toHaveURL(new RegExp(e.data!.id));
+    await expect(page.getByRole("button", { name: "Try again" })).toBeVisible();
+    expect((await db.from("extractions").select("id").eq("source_id", s.data!.id)).data).toHaveLength(1);
+    expect((await db.from("sources").select("pipeline_attempts").eq("id", s.data!.id).single()).data?.pipeline_attempts).toBe(1);
     expect(spendRow()).toBe("");
-    expect(await usage()).toMatchObject({ extractions: 1, ai_calls: 0 });
+    await db.from("sources").delete().eq("id", s.data!.id);
   });
 
-  test("upload with a recording: extraction_failed, never rate_limited, no model call", async () => {
+  test("upload with a recording: save_failed, never rate_limited, no model call, nothing kept or counted", async () => {
     await page.goto("/add?mode=upload");
     await page.locator("#file").setInputFiles({ name: "Mike email.txt", mimeType: "text/plain", buffer: Buffer.from(MIKE) });
     await page.getByRole("button", { name: "Review source" }).click();
-    await expect(page.getByText(EXTRACTION_FAILED)).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByText(SAVE_FAILED)).toBeVisible({ timeout: 20_000 });
     await expect(page.getByText(/reached today's limit/)).toHaveCount(0);
-    expect(await latestExtraction()).toEqual({ status: "failed", error: "ai_budget", input_tokens: null, output_tokens: null });
+    expect((await admin().from("sources").select("id").eq("user_id", uid)).data).toEqual([]);
+    await expect.poll(async () => (await admin().storage.from("sources").list(uid)).data?.length ?? 0).toBe(0);
     expect(spendRow()).toBe("");
-    expect(await usage()).toMatchObject({ extractions: 2, ai_calls: 0 });
+    expect(await usage()).toMatchObject({ extractions: 0 });
   });
 
   test("Ask why with a recording: ask_failed, never rate_limited, no model call", async () => {
@@ -121,7 +126,7 @@ test.describe("cap 0", () => {
     await expect(page.getByText(/reached today's limit/)).toHaveCount(0);
     await expect(page.getByRole("article")).toHaveCount(0);
     expect(spendRow()).toBe("");
-    expect(await usage()).toMatchObject({ asks: 1, ai_calls: 0 });
+    expect(await usage()).toMatchObject({ asks: 0 });
   });
 
   test("zero-match Ask why still answers, with no model call", async () => {
@@ -131,20 +136,18 @@ test.describe("cap 0", () => {
     await expect(page.getByText(NO_RECORD)).toBeVisible({ timeout: 20_000 });
     await expect(page.getByText(ASK_FAILED)).toHaveCount(0);
     expect(spendRow()).toBe("");
-    expect(await usage()).toMatchObject({ asks: 2, ai_calls: 0 });
+    expect(await usage()).toMatchObject({ asks: 1 });
   });
 });
 
 test.describe("a valid cap on the fake provider", () => {
   test.skip(MODE !== "cap");
 
-  test("paste succeeds and its cost is recorded in the day's spend and the user's share", async () => {
+  test("paste succeeds and its cost is recorded in the day's spend", async () => {
     await paste(MIKE);
     await expect(page.getByRole("heading", { level: 1, name: /I found/ })).toBeVisible({ timeout: 20_000 });
-    const row = spendRow();
-    expect(row).toMatch(/^\d+\/1$/);
-    const u = await usage();
-    expect(`${u?.ai_cost_micros}/${u?.ai_calls}`).toBe(row);
+    expect(spendRow()).toMatch(/^\d+\/1$/);
+    expect(await usage()).toMatchObject({ extractions: 1 });
   });
 
   test("Ask why succeeds and is recorded as a second call", async () => {
@@ -155,13 +158,12 @@ test.describe("a valid cap on the fake provider", () => {
     expect(spendRow()).toMatch(/^\d+\/2$/);
   });
 
-  test("export carries the user's own share, with no global spend", async () => {
-    const u = await usage();
+  test("export carries no global spend", async () => {
     const res = await context.request.get("/api/export");
     if (!res.ok()) test.skip(true, `export route answered ${res.status()}`);
     const body = (await res.json()) as { tables: { usage_counters: Array<Record<string, unknown>> } };
     expect(body.tables.usage_counters).toHaveLength(1);
-    expect(body.tables.usage_counters[0]).toMatchObject({ user_id: uid, ai_calls: u!.ai_calls });
+    expect(body.tables.usage_counters[0]).toMatchObject({ user_id: uid, extractions: 1, asks: 1 });
     expect(JSON.stringify(body)).not.toContain("ai_spend_daily");
   });
 });

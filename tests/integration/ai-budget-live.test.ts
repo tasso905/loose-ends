@@ -1,9 +1,9 @@
 /**
- * DAILY_AI_BUDGET_USD against REAL local Supabase (PostgREST, Auth, grants): a signed-in user can
- * check the budget and record a call's cost through RPC; the anon key can do neither; the global
- * spend table is not reachable through the API. Records 1 micro-dollar per call so a developer's
- * local spend is barely touched. Skipped unless LE_SUPABASE_LIVE=1 (`pnpm test:supabase`).
- * Throwaway users, no model. Never resets the database.
+ * DAILY_AI_BUDGET_USD against REAL local Supabase (PostgREST, Auth, grants): the service role can
+ * check the budget and record a call's cost through RPC; a signed-in user and the anon key can do
+ * neither; the global spend table is not reachable through the API. Records 1 micro-dollar per call
+ * so a developer's local spend is barely touched. Skipped unless LE_SUPABASE_LIVE=1
+ * (`pnpm test:supabase`). Throwaway users, no model. Never resets the database.
  */
 import { execSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
@@ -46,19 +46,21 @@ describe.skipIf(!live)("AI budget functions on real local Supabase", () => {
     if (userId) await admin.auth.admin.deleteUser(userId).catch(() => undefined);
   });
 
-  it("a signed-in user records a call only after counted usage, and the budget check reads the global spend", async () => {
-    expect((await user.rpc("record_ai_cost", { p_cost_micros: 1 })).data).toBe(false);
-    expect((await user.rpc("consume_usage", { p_kind: "ask" })).data).toBe(true);
-    expect((await user.rpc("record_ai_cost", { p_cost_micros: 1 })).data).toBe(true);
-    expect((await user.rpc("ai_budget_open", { p_budget_micros: 0 })).data).toBe(false);
-    expect((await user.rpc("ai_budget_open", { p_budget_micros: 1_000_000_000_000 })).data).toBe(true);
-    const own = await user.from("usage_counters").select("ai_calls, ai_cost_micros");
-    expect(own.data).toEqual([{ ai_calls: 1, ai_cost_micros: 1 }]);
+  it("the service role records a call, and the budget check reads the global spend", async () => {
+    expect((await admin.rpc("record_ai_cost", { p_cost_micros: 1 })).data).toBe(true);
+    expect((await admin.rpc("ai_budget_open", { p_budget_micros: 0 })).data).toBe(false);
+    expect((await admin.rpc("ai_budget_open", { p_budget_micros: 1_000_000_000_000 })).data).toBe(true);
   });
 
   it("refuses a negative cost", async () => {
-    const { error } = await user.rpc("record_ai_cost", { p_cost_micros: -1 });
+    const { error } = await admin.rpc("record_ai_cost", { p_cost_micros: -1 });
     expect(error?.code).toBe("22023");
+  });
+
+  it("a signed-in user can neither check nor record, even with counted usage", async () => {
+    expect((await user.rpc("consume_usage", { p_kind: "ask" })).data).toBe(true);
+    expect((await user.rpc("ai_budget_open", { p_budget_micros: 1 })).error?.code).toBe("42501");
+    expect((await user.rpc("record_ai_cost", { p_cost_micros: 1 })).error?.code).toBe("42501");
   });
 
   it("the anon key can neither check nor record", async () => {

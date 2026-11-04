@@ -1,5 +1,6 @@
 "use server";
 import { after } from "next/server";
+import { serviceBudgetDb as budgetDb } from "@/lib/ai/budgetDb";
 import { readDocument } from "@/lib/capture/document";
 import { parsePasteForm, type PasteInputError } from "@/lib/capture/pasteInput";
 import { parseUploadForm, SOURCES_BUCKET, uploadFailure, type UploadField } from "@/lib/capture/uploadInput";
@@ -54,12 +55,12 @@ export async function submitPaste(formData: FormData): Promise<SubmitPasteResult
   }
 
   const db = rpcDb(supabase);
-  const started = await startExtraction(db, parsed.data, { now: getNow({ demoNow }) });
+  const started = await startExtraction(db, parsed.data, { now: getNow({ demoNow }), budgetDb });
   if (!started.ok) return { ok: false, error: started.error.error };
 
   trackSourceSubmitted(auth.user.id, parsed.data.text.length);
   const onComplete = extractionCompletedTracker(auth.user.id);
-  after(() => runExtraction(db, started.extractionId, { onComplete }).then(() => undefined));
+  after(() => runExtraction(db, started.extractionId, { onComplete, budgetDb }).then(() => undefined));
   return { ok: true, extractionId: started.extractionId };
 }
 
@@ -144,7 +145,7 @@ export async function submitUpload(formData: FormData): Promise<SubmitUploadResu
       mimeType: read.mimeType,
       pageOffsets: read.pageOffsets,
     },
-    { now: getNow({ demoNow }) },
+    { now: getNow({ demoNow }), budgetDb },
   );
   if (!started.ok) {
     await discard("start");
@@ -154,6 +155,6 @@ export async function submitUpload(formData: FormData): Promise<SubmitUploadResu
   const fileType = read.mimeType === "application/pdf" ? "pdf" : read.mimeType === "text/markdown" ? "md" : "txt";
   trackUploadSubmitted(auth.user.id, read.text.length, fileType);
   const onComplete = extractionCompletedTracker(auth.user.id);
-  after(() => runExtraction(db, started.extractionId, { onComplete }).then(() => undefined));
+  after(() => runExtraction(db, started.extractionId, { onComplete, budgetDb }).then(() => undefined));
   return { ok: true, extractionId: started.extractionId };
 }

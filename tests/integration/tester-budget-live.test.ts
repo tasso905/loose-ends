@@ -2,7 +2,8 @@
  * Lead-tester: DAILY_AI_BUDGET_USD against a REAL local Supabase and the REAL Google provider code,
  * with `fetch` stubbed, so nothing reaches a model and "no request was made" is counted at the HTTP
  * layer. Needs an ISOLATED stack: this file clears private.ai_spend_daily, so it only runs when
- * LE_S11_DB_CONTAINER names a container that is not the shared stack's. Open defects use it.fails.
+ * LE_S11_DB_CONTAINER names a container that is not the shared stack's. The app calls the two budget
+ * functions with the service role, so `budget()` stands in for lib/ai/budgetDb.ts here.
  */
 import { execFileSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
@@ -13,7 +14,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { z } from "zod";
 import { budgetConfig, costMicros, withBudget } from "@/lib/ai/budget";
 import { askQuestion } from "@/lib/decisions/ask";
-import { retryExtraction, runExtraction, startExtraction, type RpcDb } from "@/lib/extraction/service";
+import { retryExtraction, runExtraction, startExtraction, startUploadExtraction, type RpcDb } from "@/lib/extraction/service";
 
 const container = process.env.LE_S11_DB_CONTAINER ?? "";
 const live = process.env.LE_SUPABASE_LIVE === "1" && container !== "" && container !== "supabase_db_loose-ends";
@@ -71,6 +72,7 @@ function google(reply: (n: number) => Reply | Promise<Reply>): { model: Language
 describe.skipIf(!live)("DAILY_AI_BUDGET_USD, attacked live", () => {
   let admin: SupabaseClient;
   const created: string[] = [];
+  const budget = () => admin as unknown as RpcDb;
 
   async function user(): Promise<{ id: string; db: SupabaseClient }> {
     const email = `le-test-budgett-${randomUUID().slice(0, 8)}@example.com`;
@@ -97,7 +99,7 @@ describe.skipIf(!live)("DAILY_AI_BUDGET_USD, attacked live", () => {
   }
   const extractionError = async (id: string) => (await admin.from("extractions").select("status, error").eq("id", id).single()).data as { status: string; error: string | null };
   const counters = async (id: string) =>
-    (await admin.from("usage_counters").select("day, extractions, asks, ai_calls, ai_cost_micros").eq("user_id", id).order("day")).data ?? [];
+    (await admin.from("usage_counters").select("day, extractions, asks").eq("user_id", id).order("day")).data ?? [];
 
   beforeAll(() => {
     admin = createClient(url, service, opts);
@@ -111,17 +113,15 @@ describe.skipIf(!live)("DAILY_AI_BUDGET_USD, attacked live", () => {
   });
 
   describe("one user and the global budget", () => {
-    it("MEASURE: direct calls alone reach the bound of 340 calls and $68, and no model is involved", async () => {
+    it("a signed-in user can call neither function, with or without counted usage, and spend stays empty", async () => {
       const a = await user();
       for (let i = 0; i < 30; i++) expect((await a.db.rpc("consume_usage", { p_kind: "extraction" })).data).toBe(true);
-      for (let i = 0; i < 50; i++) expect((await a.db.rpc("consume_usage", { p_kind: "ask" })).data).toBe(true);
-      expect((await a.db.rpc("consume_usage", { p_kind: "ask" })).data).toBe(false);
-      for (let i = 0; i < 340; i++) expect((await a.db.rpc("record_ai_cost", { p_cost_micros: 999_999_999 })).data).toBe(true);
-      expect((await a.db.rpc("record_ai_cost", { p_cost_micros: 1 })).data).toBe(false);
-      expect(spend()).toEqual({ cost: 68_000_000, calls: 340 });
-    }, 120_000);
+      expect((await a.db.rpc("record_ai_cost", { p_cost_micros: 200_000 })).error?.code).toBe("42501");
+      expect((await a.db.rpc("ai_budget_open", { p_budget_micros: 1 })).error?.code).toBe("42501");
+      expect(spend()).toEqual({ cost: 0, calls: 0 });
+    });
 
-    it.fails("OPEN DEFECT: a free account cannot close the $2.50 budget for everyone else with direct calls", async () => {
+    it("a free account cannot close the $2.50 budget for everyone else with direct calls", async () => {
       const attacker = await user();
       const victim = await user();
       // Two counted extractions allow 16 records; 13 at the $0.20 clamp pass $2.50.
@@ -130,26 +130,12 @@ describe.skipIf(!live)("DAILY_AI_BUDGET_USD, attacked live", () => {
       for (let i = 0; i < 13; i++) await attacker.db.rpc("record_ai_cost", { p_cost_micros: 200_000 });
       const g = google(() => ({ body: EMPTY_EXTRACTION }));
       const id = await paste(victim.db);
-      const outcome = await runExtraction(victim.db as unknown as RpcDb, id, { model: g.model, modelLabel: "t", logger: quiet, env: CAP });
+      const outcome = await runExtraction(victim.db as unknown as RpcDb, id, { model: g.model, modelLabel: "t", logger: quiet, budgetDb: budget(), env: CAP });
       expect(outcome).toBe("succeeded");
       expect(g.requests()).toBeGreaterThan(0);
     });
 
-    it("MEASURE: that attack: the victim's paste fails, no request reaches the model, the attacker spent nothing", async () => {
-      const attacker = await user();
-      const victim = await user();
-      await attacker.db.rpc("consume_usage", { p_kind: "extraction" });
-      await attacker.db.rpc("consume_usage", { p_kind: "extraction" });
-      for (let i = 0; i < 13; i++) await attacker.db.rpc("record_ai_cost", { p_cost_micros: 200_000 });
-      expect(spend().cost).toBe(2_600_000);
-      const g = google(() => ({ body: EMPTY_EXTRACTION }));
-      const id = await paste(victim.db);
-      expect(await runExtraction(victim.db as unknown as RpcDb, id, { model: g.model, modelLabel: "t", logger: quiet, env: CAP })).toBe("failed");
-      expect(g.requests()).toBe(0);
-      expect((await extractionError(id)).error).toBe("ai_budget");
-    });
-
-    it.fails("OPEN DEFECT: a user cannot make their own real calls go unrecorded by using up their allowance at zero cost", async () => {
+    it("a user cannot make their own real calls go unrecorded by using up their allowance at zero cost", async () => {
       const a = await user();
       const g = google(async () => {
         // While the model is working (seconds in production), the same signed-in user uses up the
@@ -158,24 +144,26 @@ describe.skipIf(!live)("DAILY_AI_BUDGET_USD, attacked live", () => {
         return { body: EMPTY_EXTRACTION };
       });
       const id = await paste(a.db);
-      expect(await runExtraction(a.db as unknown as RpcDb, id, { model: g.model, modelLabel: "t", logger: quiet, env: CAP })).toBe("succeeded");
+      expect(await runExtraction(a.db as unknown as RpcDb, id, { model: g.model, modelLabel: "t", logger: quiet, budgetDb: budget(), env: CAP })).toBe("succeeded");
       expect(g.requests()).toBe(1);
       expect(spend().cost).toBeGreaterThanOrEqual(REAL_COST);
     });
 
-    it("MEASURE: the same bypass with a cap far below one call's cost: repeated real calls never close it", async () => {
+    it("the same attempt with a cap below one call's cost: the first real call closes it", async () => {
       const a = await user();
       const low = { AI_PROVIDER: "google", DAILY_AI_BUDGET_USD: "0.01" };
       const g = google(async () => {
         for (let i = 0; i < 8; i++) await a.db.rpc("record_ai_cost", { p_cost_micros: 0 });
         return { body: EMPTY_EXTRACTION };
       });
+      const outcomes: string[] = [];
       for (let i = 0; i < 5; i++) {
         const id = await paste(a.db);
-        expect(await runExtraction(a.db as unknown as RpcDb, id, { model: g.model, modelLabel: "t", logger: quiet, env: low })).toBe("succeeded");
+        outcomes.push(await runExtraction(a.db as unknown as RpcDb, id, { model: g.model, modelLabel: "t", logger: quiet, budgetDb: budget(), env: low }));
       }
-      expect(g.requests()).toBe(5);
-      expect(spend().cost).toBe(0);
+      expect(outcomes).toEqual(["succeeded", "failed", "failed", "failed", "failed"]);
+      expect(g.requests()).toBe(1);
+      expect(spend()).toEqual({ cost: REAL_COST, calls: 1 });
     });
   });
 
@@ -188,10 +176,10 @@ describe.skipIf(!live)("DAILY_AI_BUDGET_USD, attacked live", () => {
       const before = { a: await counters(a.id), b: await counters(b.id) };
       const day = before.a[0]!.day as string;
       const ins = await a.db.from("usage_counters").insert({ user_id: a.id, day: "2026-01-01", extractions: 0, asks: 0 });
-      const upd = await a.db.from("usage_counters").update({ extractions: 30, asks: 50, ai_calls: 0, ai_cost_micros: 0 }).eq("user_id", a.id).select();
+      const upd = await a.db.from("usage_counters").update({ extractions: 30, asks: 50 }).eq("user_id", a.id).select();
       const ups = await a.db.from("usage_counters").upsert({ user_id: a.id, day, extractions: 9999, asks: 9999 }).select();
       const del = await a.db.from("usage_counters").delete().eq("user_id", a.id).select();
-      const other = await a.db.from("usage_counters").update({ ai_calls: 999 }).eq("user_id", b.id).select();
+      const other = await a.db.from("usage_counters").update({ extractions: 999 }).eq("user_id", b.id).select();
       // The API roles keep Supabase's default table grants; RLS is what refuses: one SELECT policy and
       // no write policy. Refused writes either raise 42501 or match no rows.
       expect(ins.error?.code).toBe("42501");
@@ -205,10 +193,10 @@ describe.skipIf(!live)("DAILY_AI_BUDGET_USD, attacked live", () => {
   });
 
   describe("probing global spend through ai_budget_open's argument", () => {
-    it.fails("OPEN DEFECT: any user cannot read the exact global spend", async () => {
+    it("any user cannot read the exact global spend", async () => {
       const spender = await user();
       await spender.db.rpc("consume_usage", { p_kind: "ask" });
-      await spender.db.rpc("record_ai_cost", { p_cost_micros: 123_457 });
+      await admin.rpc("record_ai_cost", { p_cost_micros: 123_457 });
       const probe = await user();
       let lo = 0;
       let hi = 2 ** 40;
@@ -224,78 +212,113 @@ describe.skipIf(!live)("DAILY_AI_BUDGET_USD, attacked live", () => {
       expect(lo).not.toBe(123_457);
     });
 
-    it("the argument cannot change the budget the server applies, and is refused when negative or null", async () => {
+    it("a user's argument changes nothing; the server's cap applies; a negative or null cap is refused", async () => {
       const a = await user();
-      await a.db.rpc("consume_usage", { p_kind: "ask" });
-      await a.db.rpc("record_ai_cost", { p_cost_micros: 100 });
-      expect((await a.db.rpc("ai_budget_open", { p_budget_micros: 2 ** 40 })).data).toBe(true);
+      await admin.rpc("record_ai_cost", { p_cost_micros: 100 });
+      expect((await a.db.rpc("ai_budget_open", { p_budget_micros: 2 ** 40 })).error?.code).toBe("42501");
       const g = google(() => ({ body: EMPTY_EXTRACTION }));
       const id = await paste(a.db);
-      expect(await runExtraction(a.db as unknown as RpcDb, id, { model: g.model, modelLabel: "t", logger: quiet, env: { AI_PROVIDER: "google", DAILY_AI_BUDGET_USD: "0.0001" } })).toBe("failed");
+      expect(await runExtraction(a.db as unknown as RpcDb, id, { model: g.model, modelLabel: "t", logger: quiet, budgetDb: budget(), env: { AI_PROVIDER: "google", DAILY_AI_BUDGET_USD: "0.0001" } })).toBe("failed");
       expect(g.requests()).toBe(0);
-      expect((await a.db.rpc("ai_budget_open", { p_budget_micros: -1 })).error?.code).toBe("22023");
-      expect((await a.db.rpc("ai_budget_open", { p_budget_micros: null })).error?.code).toBe("22023");
+      expect((await admin.rpc("ai_budget_open", { p_budget_micros: -1 })).error?.code).toBe("22023");
+      expect((await admin.rpc("ai_budget_open", { p_budget_micros: null })).error?.code).toBe("22023");
     });
   });
 
   describe("what a refused call uses up", () => {
     const ZERO = { AI_PROVIDER: "google", DAILY_AI_BUDGET_USD: "0" };
 
-    it("MEASURE: a refused paste counts one of 30, and each Try again uses one of 3, with no request", async () => {
+    const saved = async (id: string) => (await admin.from("sources").select("id").eq("user_id", id)).data ?? [];
+    const attempts = async (extractionId: string) => {
+      const e = (await admin.from("extractions").select("source_id").eq("id", extractionId).single()).data as { source_id: string };
+      return (await admin.from("sources").select("pipeline_attempts").eq("id", e.source_id).single()).data?.pipeline_attempts as number;
+    };
+    const SYNTHETIC_PASTE = { text: "Synthetic.", title: null, writtenOn: "2026-11-04" };
+
+    it("a refused paste saves nothing, counts nothing, says save_failed, and logs the refusal", async () => {
       const a = await user();
-      const g = google(() => ({ body: EMPTY_EXTRACTION }));
-      let id = await paste(a.db);
       const logs: Array<[string, unknown]> = [];
-      const logger = (e: string, p?: unknown) => void logs.push([e, p]);
-      expect(await runExtraction(a.db as unknown as RpcDb, id, { model: g.model, modelLabel: "t", logger, env: ZERO })).toBe("failed");
+      const s = await startExtraction(a.db as unknown as RpcDb, SYNTHETIC_PASTE, { now: now(), logger: (e, p) => void logs.push([e, p]), budgetDb: budget(), env: ZERO });
+      expect(s.ok).toBe(false);
+      expect((s as { error: { error: { code: string } } }).error.error.code).toBe("save_failed");
+      expect(await counters(a.id)).toEqual([]);
+      expect(await saved(a.id)).toEqual([]);
+      expect(logs).toEqual([["ai_budget_refused", { feature: "extract", reason: "exhausted" }]]);
+    });
+
+    it("a refused upload saves nothing and counts nothing", async () => {
+      const a = await user();
+      const s = await startUploadExtraction(a.db as unknown as RpcDb, { sourceId: randomUUID(), text: "Synthetic.", title: null, writtenOn: null, mimeType: "text/plain", pageOffsets: null }, { now: now(), logger: quiet, budgetDb: budget(), env: ZERO });
+      expect(s.ok).toBe(false);
+      expect((s as { error: { error: { code: string } } }).error.error.code).toBe("save_failed");
+      expect(await counters(a.id)).toEqual([]);
+      expect(await saved(a.id)).toEqual([]);
+    });
+
+    it("40 refused pastes use none of the day: the next paste with the budget open is accepted", async () => {
+      const a = await user();
+      for (let i = 0; i < 40; i++) {
+        const s = await startExtraction(a.db as unknown as RpcDb, SYNTHETIC_PASTE, { now: now(), logger: quiet, budgetDb: budget(), env: ZERO });
+        expect(s.ok).toBe(false);
+      }
+      expect(await counters(a.id)).toEqual([]);
+      const open = await startExtraction(a.db as unknown as RpcDb, SYNTHETIC_PASTE, { now: now(), logger: quiet, budgetDb: budget(), env: CAP });
+      expect(open.ok).toBe(true);
+      expect((await counters(a.id))[0]).toMatchObject({ extractions: 1 });
+    }, 120_000);
+
+    it("a refused Try again starts no attempt and uses none of the 3; all 3 still work once the budget is open", async () => {
+      const a = await user();
+      const failing = google(() => ({ status: 400 }));
+      let id = await paste(a.db);
+      expect(await runExtraction(a.db as unknown as RpcDb, id, { model: failing.model, modelLabel: "t", logger: quiet, budgetDb: budget(), env: CAP })).toBe("failed");
+      for (let i = 0; i < 5; i++) {
+        const r = await retryExtraction(a.db as unknown as RpcDb, id, { logger: quiet, budgetDb: budget(), env: ZERO });
+        expect(r.ok).toBe(false);
+        expect((r as { error: { error: { code: string } } }).error.error.code).toBe("save_failed");
+      }
+      expect(await attempts(id)).toBe(1);
+      expect((await admin.from("extractions").select("id").eq("user_id", a.id)).data).toHaveLength(1);
       for (let i = 0; i < 3; i++) {
-        const r = await retryExtraction(a.db as unknown as RpcDb, id, { logger: quiet });
+        const r = await retryExtraction(a.db as unknown as RpcDb, id, { logger: quiet, budgetDb: budget(), env: CAP });
         expect(r.ok).toBe(true);
         id = (r as { extractionId: string }).extractionId;
-        expect(await runExtraction(a.db as unknown as RpcDb, id, { model: g.model, modelLabel: "t", logger, env: ZERO })).toBe("failed");
+        expect(await runExtraction(a.db as unknown as RpcDb, id, { model: failing.model, modelLabel: "t", logger: quiet, budgetDb: budget(), env: CAP })).toBe("failed");
       }
-      const last = await retryExtraction(a.db as unknown as RpcDb, id, { logger: quiet });
-      expect(last.ok).toBe(false);
+      const last = await retryExtraction(a.db as unknown as RpcDb, id, { logger: quiet, budgetDb: budget(), env: CAP });
       expect((last as { error: { error: { code: string } } }).error.error.code).toBe("retry_limit");
+    });
+
+    it("MEASURE: the cap reached between the first check and the call: no request, and that one attempt stays counted", async () => {
+      const a = await user();
+      const g = google(() => ({ body: EMPTY_EXTRACTION }));
+      const id = await paste(a.db); // counted while the budget was open
+      expect(await runExtraction(a.db as unknown as RpcDb, id, { model: g.model, modelLabel: "t", logger: quiet, budgetDb: budget(), env: ZERO })).toBe("failed");
       expect(g.requests()).toBe(0);
-      const [row] = await counters(a.id);
-      expect(row).toMatchObject({ extractions: 1, ai_calls: 0, ai_cost_micros: 0 });
-      expect(logs.filter(([e]) => e === "ai_budget_refused")).toHaveLength(4);
-      expect(logs.filter(([e]) => e === "extraction_retry")).toHaveLength(0);
+      expect((await extractionError(id)).error).toBe("ai_budget");
+      expect((await counters(a.id))[0]).toMatchObject({ extractions: 1 });
       expect(spend()).toEqual({ cost: 0, calls: 0 });
     });
 
-    it("MEASURE: 30 refused pastes use the whole day, and the next paste says rate_limited", async () => {
-      const a = await user();
-      const g = google(() => ({ body: EMPTY_EXTRACTION }));
-      for (let i = 0; i < 30; i++) {
-        const id = await paste(a.db);
-        await runExtraction(a.db as unknown as RpcDb, id, { model: g.model, modelLabel: "t", logger: quiet, env: ZERO });
-      }
-      const s = await startExtraction(a.db as unknown as RpcDb, { text: "Synthetic.", title: null, writtenOn: "2026-11-04" }, { now: now(), logger: quiet });
-      expect(s.ok).toBe(false);
-      expect((s as { error: { error: { code: string } } }).error.error.code).toBe("rate_limited");
-      expect(g.requests()).toBe(0);
-    }, 120_000);
-
-    it("MEASURE: a refused ask counts one of 50 and returns ask_failed with no request", async () => {
+    it("a refused ask is not counted and returns ask_failed with no request", async () => {
       const a = await user();
       await withDecision(a.id, "Quillfeather");
       const g = google(() => ({ body: EMPTY_ANSWER }));
-      const r = await askQuestion(a.db as unknown as RpcDb, "Why did I choose Quillfeather?", { model: g.model, modelLabel: "t", logger: quiet, env: ZERO });
+      const r = await askQuestion(a.db as unknown as RpcDb, "Why did I choose Quillfeather?", { model: g.model, modelLabel: "t", logger: quiet, budgetDb: budget(), env: ZERO });
       expect(r.ok).toBe(false);
       expect((r as { error: { error: { code: string } } }).error.error.code).toBe("ask_failed");
       expect(g.requests()).toBe(0);
-      expect((await counters(a.id))[0]).toMatchObject({ asks: 1, ai_calls: 0 });
+      expect(await counters(a.id)).toEqual([]);
     });
 
     it("a zero-match ask answers with no check, no request and no record, even at cap 0", async () => {
       const a = await user();
       const g = google(() => ({ body: EMPTY_ANSWER }));
-      const r = await askQuestion(a.db as unknown as RpcDb, "Why did I choose Zzyzx?", { model: g.model, modelLabel: "t", logger: quiet, env: ZERO });
+      const r = await askQuestion(a.db as unknown as RpcDb, "Why did I choose Zzyzx?", { model: g.model, modelLabel: "t", logger: quiet, budgetDb: budget(), env: ZERO });
       expect(r.ok && r.view.message).toBe("I don't have a recorded decision about that.");
       expect(g.requests()).toBe(0);
       expect(spend()).toEqual({ cost: 0, calls: 0 });
+      expect((await counters(a.id))[0]).toMatchObject({ asks: 1 });
     });
   });
 
@@ -304,32 +327,32 @@ describe.skipIf(!live)("DAILY_AI_BUDGET_USD, attacked live", () => {
     // midnight: yesterday's usage, and no row for today.
     const pastMidnight = (id: string) => sql(`update public.usage_counters set day = day - 1 where user_id = '${id}'`);
 
-    it.fails("OPEN DEFECT: a call that was checked before midnight and returns after it is still recorded", async () => {
+    it("a call that was checked before midnight and returns after it is still recorded", async () => {
       const a = await user();
       const g = google(() => {
         pastMidnight(a.id);
         return { body: EMPTY_EXTRACTION };
       });
       const id = await paste(a.db);
-      expect(await runExtraction(a.db as unknown as RpcDb, id, { model: g.model, modelLabel: "t", logger: quiet, env: CAP })).toBe("succeeded");
+      expect(await runExtraction(a.db as unknown as RpcDb, id, { model: g.model, modelLabel: "t", logger: quiet, budgetDb: budget(), env: CAP })).toBe("succeeded");
       expect(spend().cost).toBe(REAL_COST);
     });
 
-    it.fails("OPEN DEFECT: Try again the next day, on a source counted the day before, is still recorded", async () => {
+    it("Try again the next day, on a source counted the day before, is still recorded", async () => {
       const a = await user();
       const failing = google(() => ({ status: 400 }));
       const first = await paste(a.db);
-      expect(await runExtraction(a.db as unknown as RpcDb, first, { model: failing.model, modelLabel: "t", logger: quiet, env: CAP })).toBe("failed");
+      expect(await runExtraction(a.db as unknown as RpcDb, first, { model: failing.model, modelLabel: "t", logger: quiet, budgetDb: budget(), env: CAP })).toBe("failed");
       pastMidnight(a.id);
       const r = await retryExtraction(a.db as unknown as RpcDb, first, { logger: quiet });
       expect(r.ok).toBe(true);
       const g = google(() => ({ body: EMPTY_EXTRACTION }));
-      expect(await runExtraction(a.db as unknown as RpcDb, (r as { extractionId: string }).extractionId, { model: g.model, modelLabel: "t", logger: quiet, env: CAP })).toBe("succeeded");
+      expect(await runExtraction(a.db as unknown as RpcDb, (r as { extractionId: string }).extractionId, { model: g.model, modelLabel: "t", logger: quiet, budgetDb: budget(), env: CAP })).toBe("succeeded");
       expect(g.requests()).toBe(1);
       expect(spend().cost).toBe(REAL_COST);
     });
 
-    it("the unrecorded call is at least logged, content-free", async () => {
+    it("a call spanning midnight logs no failed record", async () => {
       const a = await user();
       const logs: Array<[string, unknown]> = [];
       const g = google(() => {
@@ -337,17 +360,15 @@ describe.skipIf(!live)("DAILY_AI_BUDGET_USD, attacked live", () => {
         return { body: EMPTY_EXTRACTION };
       });
       const id = await paste(a.db);
-      await runExtraction(a.db as unknown as RpcDb, id, { model: g.model, modelLabel: "t", logger: (e, p) => void logs.push([e, p]), env: CAP });
-      expect(logs).toContainEqual(["ai_budget_record_failed", { feature: "extract", reason: "refused" }]);
+      await runExtraction(a.db as unknown as RpcDb, id, { model: g.model, modelLabel: "t", logger: (e, p) => void logs.push([e, p]), budgetDb: budget(), env: CAP });
+      expect(logs.filter(([e]) => e === "ai_budget_record_failed")).toEqual([]);
     });
 
     it("yesterday's spend does not hold today's budget closed", async () => {
-      const a = await user();
-      await a.db.rpc("consume_usage", { p_kind: "ask" });
-      await a.db.rpc("record_ai_cost", { p_cost_micros: 200_000 });
-      expect((await a.db.rpc("ai_budget_open", { p_budget_micros: 200_000 })).data).toBe(false);
+      await admin.rpc("record_ai_cost", { p_cost_micros: 200_000 });
+      expect((await admin.rpc("ai_budget_open", { p_budget_micros: 200_000 })).data).toBe(false);
       sql("update private.ai_spend_daily set day = day - 1");
-      expect((await a.db.rpc("ai_budget_open", { p_budget_micros: 200_000 })).data).toBe(true);
+      expect((await admin.rpc("ai_budget_open", { p_budget_micros: 200_000 })).data).toBe(true);
     });
   });
 
@@ -369,7 +390,7 @@ describe.skipIf(!live)("DAILY_AI_BUDGET_USD, attacked live", () => {
         return n === 1 ? { status: 503 } : { body: EMPTY_EXTRACTION };
       });
       const id = await paste(a.db);
-      expect(await runExtraction(traced(a.db, trace), id, { model: g.model, modelLabel: "t", logger: quiet, env: CAP })).toBe("succeeded");
+      expect(await runExtraction(a.db as unknown as RpcDb, id, { model: g.model, modelLabel: "t", logger: quiet, budgetDb: traced(admin, trace), env: CAP })).toBe("succeeded");
       expect(trace).toEqual(["ai_budget_open", "request", "ai_budget_open", "request", "record_ai_cost"]);
       expect(spend()).toEqual({ cost: REAL_COST, calls: 1 });
     });
@@ -382,7 +403,7 @@ describe.skipIf(!live)("DAILY_AI_BUDGET_USD, attacked live", () => {
         return n === 1 ? { body: "not json" } : { body: EMPTY_EXTRACTION };
       });
       const id = await paste(a.db);
-      expect(await runExtraction(traced(a.db, trace), id, { model: g.model, modelLabel: "t", logger: quiet, env: CAP })).toBe("succeeded");
+      expect(await runExtraction(a.db as unknown as RpcDb, id, { model: g.model, modelLabel: "t", logger: quiet, budgetDb: traced(admin, trace), env: CAP })).toBe("succeeded");
       expect(trace).toEqual(["ai_budget_open", "request", "record_ai_cost", "ai_budget_open", "request", "record_ai_cost"]);
       expect(spend()).toEqual({ cost: 2 * REAL_COST, calls: 2 });
     });
@@ -392,7 +413,7 @@ describe.skipIf(!live)("DAILY_AI_BUDGET_USD, attacked live", () => {
       const g = google(() => ({ body: "not json" }));
       const id = await paste(a.db);
       const env = { AI_PROVIDER: "google", DAILY_AI_BUDGET_USD: "0.02" }; // below one call's $0.02025
-      expect(await runExtraction(a.db as unknown as RpcDb, id, { model: g.model, modelLabel: "t", logger: quiet, env })).toBe("failed");
+      expect(await runExtraction(a.db as unknown as RpcDb, id, { model: g.model, modelLabel: "t", logger: quiet, budgetDb: budget(), env })).toBe("failed");
       expect(g.requests()).toBe(1);
       expect((await extractionError(id)).error).toBe("ai_budget");
       expect(spend()).toEqual({ cost: REAL_COST, calls: 1 });
@@ -406,9 +427,10 @@ describe.skipIf(!live)("DAILY_AI_BUDGET_USD, attacked live", () => {
         trace.push("request");
         return n === 1 ? { status: 503 } : { body: EMPTY_ANSWER };
       });
-      const r = await askQuestion(traced(a.db, trace), "Why did I choose Quillfeather?", { model: g.model, modelLabel: "t", logger: quiet, env: CAP });
+      const r = await askQuestion(a.db as unknown as RpcDb, "Why did I choose Quillfeather?", { model: g.model, modelLabel: "t", logger: quiet, budgetDb: traced(admin, trace), env: CAP });
       expect(r.ok).toBe(true);
-      expect(trace).toEqual(["ai_budget_open", "request", "ai_budget_open", "request", "record_ai_cost"]);
+      // The first check is the one before the ask is counted; each request still has its own.
+      expect(trace).toEqual(["ai_budget_open", "ai_budget_open", "request", "ai_budget_open", "request", "record_ai_cost"]);
       expect(spend()).toEqual({ cost: REAL_COST, calls: 1 });
     });
 
@@ -416,7 +438,7 @@ describe.skipIf(!live)("DAILY_AI_BUDGET_USD, attacked live", () => {
       const a = await user();
       const missing = google(() => ({ body: EMPTY_EXTRACTION, usage: null }));
       const id = await paste(a.db);
-      expect(await runExtraction(a.db as unknown as RpcDb, id, { model: missing.model, modelLabel: "t", logger: quiet, env: CAP })).toBe("succeeded");
+      expect(await runExtraction(a.db as unknown as RpcDb, id, { model: missing.model, modelLabel: "t", logger: quiet, budgetDb: budget(), env: CAP })).toBe("succeeded");
       expect(spend()).toEqual({ cost: 200_000, calls: 1 });
     });
 
@@ -424,7 +446,7 @@ describe.skipIf(!live)("DAILY_AI_BUDGET_USD, attacked live", () => {
       const a = await user();
       const g = google(() => ({ status: 503 }));
       const id = await paste(a.db);
-      expect(await runExtraction(a.db as unknown as RpcDb, id, { model: g.model, modelLabel: "t", logger: quiet, env: CAP })).toBe("failed");
+      expect(await runExtraction(a.db as unknown as RpcDb, id, { model: g.model, modelLabel: "t", logger: quiet, budgetDb: budget(), env: CAP })).toBe("failed");
       expect(g.requests()).toBe(2);
       expect(spend()).toEqual({ cost: 0, calls: 0 });
     });
@@ -436,9 +458,9 @@ describe.skipIf(!live)("DAILY_AI_BUDGET_USD, attacked live", () => {
       await withDecision(a.id, "Quillfeather");
       const ex = google(() => ({ body: EMPTY_EXTRACTION }));
       const id = await paste(a.db);
-      const extractOutcome = await runExtraction(a.db as unknown as RpcDb, id, { model: ex.model, modelLabel: "t", logger: quiet, env });
+      const extractOutcome = await runExtraction(a.db as unknown as RpcDb, id, { model: ex.model, modelLabel: "t", logger: quiet, budgetDb: budget(), env });
       const ask = google(() => ({ body: EMPTY_ANSWER }));
-      const asked = await askQuestion(a.db as unknown as RpcDb, "Why did I choose Quillfeather?", { model: ask.model, modelLabel: "t", logger: quiet, env });
+      const asked = await askQuestion(a.db as unknown as RpcDb, "Why did I choose Quillfeather?", { model: ask.model, modelLabel: "t", logger: quiet, budgetDb: budget(), env });
       return { extractOutcome, askOk: asked.ok, askCode: asked.ok ? null : asked.error.error.code, requests: ex.requests() + ask.requests(), err: (await extractionError(id)).error, spend: spend() };
     };
 
@@ -469,10 +491,13 @@ describe.skipIf(!live)("DAILY_AI_BUDGET_USD, attacked live", () => {
       expect(r).toMatchObject({ extractOutcome: "succeeded", askOk: true, requests: 2, spend: { cost: 2 * REAL_COST, calls: 2 } });
     });
 
+    let signedIn: SupabaseClient | undefined;
     it.each([
       ["database unreachable", () => createClient("http://127.0.0.1:9", anon, opts)],
       ["signed out (the anon key is refused)", () => createClient(url, anon, opts)],
+      ["a signed-in user's client (not the service role)", () => signedIn!],
     ] as Array<[string, () => SupabaseClient]>)("%s: the check fails, so no request", async (_n, mk) => {
+      signedIn = (await user()).db;
       const g = google(() => ({ body: { ok: true } }));
       const logs: Array<[string, unknown]> = [];
       const model = withBudget(g.model, mk() as unknown as RpcDb, { feature: "extract", env: CAP, logger: (e, p) => void logs.push([e, p]) });
@@ -482,11 +507,10 @@ describe.skipIf(!live)("DAILY_AI_BUDGET_USD, attacked live", () => {
     });
 
     it("the record step failing does not lose the user's answer, and is logged", async () => {
-      const a = await user();
       const g = google(() => ({ body: { ok: true } }));
       const logs: Array<[string, unknown]> = [];
       const db: RpcDb = {
-        rpc: (fn, args) => (fn === "record_ai_cost" ? Promise.resolve({ data: null, error: { code: "XX000" } }) : (a.db.rpc(fn, args) as unknown as PromiseLike<{ data: unknown; error: unknown }>)),
+        rpc: (fn, args) => (fn === "record_ai_cost" ? Promise.resolve({ data: null, error: { code: "XX000" } }) : (admin.rpc(fn, args) as unknown as PromiseLike<{ data: unknown; error: unknown }>)),
       };
       const model = withBudget(g.model, db, { feature: "ask", env: CAP, logger: (e, p) => void logs.push([e, p]) });
       const r = await generateObject({ model, schema: z.object({ ok: z.boolean() }), prompt: "Synthetic", maxRetries: 0 });
@@ -509,34 +533,20 @@ describe.skipIf(!live)("DAILY_AI_BUDGET_USD, attacked live", () => {
   });
 
   describe("record_ai_cost limits, RLS and definer", () => {
-    it("forged records: over the limit is clamped; negative, null, fractional, text and overflow are refused", async () => {
-      const a = await user();
-      await a.db.rpc("consume_usage", { p_kind: "ask" });
-      expect((await a.db.rpc("record_ai_cost", { p_cost_micros: 200_001 })).data).toBe(true);
+    it("a record over the limit is clamped; negative, null, fractional, text and overflow are refused", async () => {
+      expect((await admin.rpc("record_ai_cost", { p_cost_micros: 200_001 })).data).toBe(true);
       expect(spend()).toEqual({ cost: 200_000, calls: 1 });
       for (const v of [-1, null, 1.5, "abc", "9".repeat(40)]) {
-        const r = await a.db.rpc("record_ai_cost", { p_cost_micros: v });
+        const r = await admin.rpc("record_ai_cost", { p_cost_micros: v });
         expect(r.error, String(v)).not.toBeNull();
       }
       expect(spend()).toEqual({ cost: 200_000, calls: 1 });
-      expect((await counters(a.id))[0]).toMatchObject({ ai_calls: 1, ai_cost_micros: 200_000 });
     });
 
-    it("no counted usage, no record; another user's usage does not help", async () => {
-      const a = await user();
-      const b = await user();
-      await b.db.rpc("consume_usage", { p_kind: "extraction" });
-      expect((await a.db.rpc("record_ai_cost", { p_cost_micros: 1 })).data).toBe(false);
-      expect(spend()).toEqual({ cost: 0, calls: 0 });
-    });
-
-    it("40 concurrent records against an allowance of 16: exactly 16 land, and the total is exact", async () => {
-      const a = await user();
-      await a.db.rpc("consume_usage", { p_kind: "extraction" });
-      await a.db.rpc("consume_usage", { p_kind: "extraction" });
-      const out = await Promise.all(Array.from({ length: 40 }, () => a.db.rpc("record_ai_cost", { p_cost_micros: 1000 })));
-      expect(out.filter((r) => r.data === true)).toHaveLength(16);
-      expect(spend()).toEqual({ cost: 16_000, calls: 16 });
+    it("40 concurrent records: all land, and the total is exact", async () => {
+      const out = await Promise.all(Array.from({ length: 40 }, () => admin.rpc("record_ai_cost", { p_cost_micros: 1000 })));
+      expect(out.filter((r) => r.data === true)).toHaveLength(40);
+      expect(spend()).toEqual({ cost: 40_000, calls: 40 });
     });
 
     it("the private table and clamp function are out of reach; anon can call neither function", async () => {
@@ -549,6 +559,7 @@ describe.skipIf(!live)("DAILY_AI_BUDGET_USD, attacked live", () => {
       expect((await a.db.from("ai_spend_daily").select("*")).error).not.toBeNull();
       expect(sql("select has_table_privilege('authenticated','private.ai_spend_daily','SELECT'), has_table_privilege('anon','private.ai_spend_daily','SELECT'), has_table_privilege('service_role','private.ai_spend_daily','SELECT')")).toBe("f|f|f");
       expect(sql("select has_function_privilege('anon','public.record_ai_cost(bigint)','EXECUTE'), has_function_privilege('anon','public.ai_budget_open(bigint)','EXECUTE'), has_function_privilege('public','public.record_ai_cost(bigint)','EXECUTE'), has_function_privilege('public','public.ai_budget_open(bigint)','EXECUTE'), has_function_privilege('authenticated','private.ai_max_call_cost_micros()','EXECUTE')")).toBe("f|f|f|f|f");
+      expect(sql("select has_function_privilege('authenticated','public.record_ai_cost(bigint)','EXECUTE'), has_function_privilege('authenticated','public.ai_budget_open(bigint)','EXECUTE'), has_function_privilege('service_role','public.record_ai_cost(bigint)','EXECUTE'), has_function_privilege('service_role','public.ai_budget_open(bigint)','EXECUTE')")).toBe("f|f|t|t");
     });
 
     it("both functions are security definer with an empty search_path", () => {
@@ -561,13 +572,13 @@ describe.skipIf(!live)("DAILY_AI_BUDGET_USD, attacked live", () => {
     it("spend survives deleting the account; the user's own counters go; deleting and re-registering cannot reopen the budget", async () => {
       const a = await user();
       await a.db.rpc("consume_usage", { p_kind: "ask" });
-      await a.db.rpc("record_ai_cost", { p_cost_micros: 150_000 });
+      await admin.rpc("record_ai_cost", { p_cost_micros: 150_000 });
       const { error } = await admin.auth.admin.deleteUser(a.id);
       expect(error).toBeNull();
       expect(await counters(a.id)).toEqual([]);
       expect(spend()).toEqual({ cost: 150_000, calls: 1 });
-      const b = await user();
-      expect((await b.db.rpc("ai_budget_open", { p_budget_micros: 150_000 })).data).toBe(false);
+      await user();
+      expect((await admin.rpc("ai_budget_open", { p_budget_micros: 150_000 })).data).toBe(false);
     });
 
     it("the table holds a day, a number and a count, with no user id or content", () => {

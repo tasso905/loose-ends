@@ -1,6 +1,6 @@
 import type { LanguageModel } from "ai";
 import { z } from "zod";
-import { withBudget } from "@/lib/ai/budget";
+import { budgetRefusal, withBudget, type BudgetDb } from "@/lib/ai/budget";
 import { askWhy, NO_RECORD_MESSAGE, type AskWhyAnswer, type RetrievedDecision } from "@/lib/ai/askWhy";
 import { apiError, type ApiError } from "@/lib/errors";
 import type { RpcDb } from "@/lib/extraction/service";
@@ -14,8 +14,10 @@ export { ASK_MAX, AskInput, type AnswerDecision, type AskView } from "./view";
 /**
  * F12 Ask why, server side (PRD F12 and "Decision Memory", SITE_CONTRACT §2.11, rule 7, D33, D54).
  *
- * 1. Counts one ask (consume_usage('ask'), 50 per UTC day) before anything else; over the limit,
- *    or if the counter cannot be read, the answer is `rate_limited` and nothing is retrieved.
+ * 0. With the budget closed (lib/ai/budget.ts) a question that would reach the model is `ask_failed`
+ *    without being counted. A question with no matching decision needs no model, so it goes on.
+ * 1. Counts one ask (consume_usage('ask'), 50 per UTC day); over the limit, or if the counter cannot
+ *    be read, the answer is `rate_limited` and nothing is retrieved.
  * 2. Retrieves the caller's top 5 decisions (public.search_decisions, RLS applies; lexemes OR'd).
  * 3. askWhy() answers only from those: zero retrieved means NO_RECORD_MESSAGE with no model call;
  *    IDs outside the retrieved set are dropped; user_reason / source_fact parts carry the whole
@@ -32,6 +34,8 @@ export interface AskDeps {
   model?: LanguageModel;
   modelLabel?: string;
   logger?: Logger;
+  /** The budget's own client (lib/ai/budgetDb.ts). Without it, a configured cap refuses every call. */
+  budgetDb?: BudgetDb;
   /** Environment for the budget configuration (tests); process.env otherwise. */
   env?: Record<string, string | undefined>;
 }
@@ -109,6 +113,13 @@ function countParts(v: AskView): Partial<Record<AnswerPartKind, number>> {
 
 export async function askQuestion(db: RpcDb, question: string, deps: AskDeps = {}): Promise<AskResult> {
   const logger = deps.logger ?? defaultLog;
+  if (await budgetRefusal(deps.budgetDb, { feature: "ask", logger, env: deps.env })) {
+    const matches = await retrieveDecisions(db, question);
+    if (matches === null || matches.length > 0) {
+      logger("ask_failed", { step: "budget" });
+      return { ok: false, error: apiError("ask_failed") };
+    }
+  }
   if (!(await consumeUsage(db, "ask"))) {
     return { ok: false, error: apiError("rate_limited", { limit: DAILY_LIMITS.ask, kind: "questions", timezone: RATE_LIMIT_TIMEZONE }) };
   }
@@ -126,7 +137,7 @@ export async function askQuestion(db: RpcDb, question: string, deps: AskDeps = {
       modelLabel: deps.modelLabel,
       logger,
       // Every model call is checked against, and counted in, DAILY_AI_BUDGET_USD (lib/ai/budget.ts).
-      wrapModel: (m) => withBudget(m, db, { feature: "ask", logger, env: deps.env }),
+      wrapModel: (m) => withBudget(m, deps.budgetDb, { feature: "ask", logger, env: deps.env }),
     });
   } catch {
     // askWhy() has already logged the failure kind (rule 9: no content); every kind is ask_failed (D54).

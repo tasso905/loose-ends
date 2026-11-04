@@ -1,6 +1,7 @@
 "use server";
 import { after } from "next/server";
 import { z } from "zod";
+import { serviceBudgetDb as budgetDb } from "@/lib/ai/budgetDb";
 import { apiError, type ApiError } from "@/lib/errors";
 import { extractionCompletedTracker } from "@/lib/extraction/analytics";
 import { readExtraction, retryExtraction, runExtraction } from "@/lib/extraction/service";
@@ -24,12 +25,12 @@ export async function retryExtractionAction(extractionId: string): Promise<Retry
   if (!auth.user) return { ok: false, error: apiError("unauthenticated").error };
 
   const db = rpcDb(supabase);
-  const res = await retryExtraction(db, extractionId);
+  const res = await retryExtraction(db, extractionId, { budgetDb });
   if (!res.ok) return { ok: false, error: res.notFound ? apiError("not_found").error : res.error.error };
   // Another click already started this attempt: show it, never run it twice (S2-2).
   if (res.alreadyStarted) return { ok: true, extractionId: res.extractionId };
   const onComplete = extractionCompletedTracker(auth.user.id);
-  after(() => runExtraction(db, res.extractionId, { onComplete }).then(() => undefined));
+  after(() => runExtraction(db, res.extractionId, { onComplete, budgetDb }).then(() => undefined));
   return { ok: true, extractionId: res.extractionId };
 }
 
