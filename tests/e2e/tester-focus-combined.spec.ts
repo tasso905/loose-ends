@@ -282,7 +282,7 @@ test("a server refusal (the thread changed elsewhere): focus is on the error, wh
   await reopen();
 });
 
-test("field errors focus their field: blank decision (client), over-long decision and over-long reason (server)", async () => {
+test("field errors focus their field: blank decision; over-long decision and reason are held at the limit", async () => {
   await openDecided();
   const choice = sheet().getByLabel("What did you decide?");
   const reason = sheet().getByLabel(LABEL);
@@ -290,17 +290,14 @@ test("field errors focus their field: blank decision (client), over-long decisio
   await sheet().getByRole("button", { name: "Save" }).click();
   await expect(choice).toHaveAttribute("aria-invalid", "true");
   await expect(choice).toBeFocused();
-  // Past the client's maxLength, so only the server can refuse it.
-  await page.evaluate(() => document.querySelectorAll("dialog[open] [maxlength]").forEach((e) => e.removeAttribute("maxlength")));
+  // S11's clampChars replaced maxLength on these fields, so the UI can no longer send an over-long value:
+  // removing the attribute no longer reaches the server's refusal. The field holds the limit instead; the
+  // server's refusal and its copy stay covered at the action level.
   await choice.fill("x".repeat(5000));
-  await sheet().getByRole("button", { name: "Save" }).click();
-  await expect(choice).toHaveAttribute("aria-invalid", "true");
-  await expect(choice).toBeFocused();
+  await expect(choice).toHaveValue("x".repeat(300));
   await choice.fill("Synthetic decision K3");
   await reason.fill("y".repeat(5000));
-  await sheet().getByRole("button", { name: "Save" }).click();
-  await expect(reason).toHaveAttribute("aria-invalid", "true");
-  await expect(reason).toBeFocused();
+  await expect(reason).toHaveValue("y".repeat(2000));
   await expect(sheet()).toBeVisible();
   await expect(statusLine()).toHaveText("Open");
 });
