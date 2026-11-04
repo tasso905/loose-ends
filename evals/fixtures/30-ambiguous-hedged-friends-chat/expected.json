@@ -44,7 +44,7 @@
       "note": "'try' + 'soon': speculative, no date ('soon' is never a date). 0.30 + 0.05 + 0.05 modal = 0.40, Also noticed."
     },
     {
-      "type": "commitment",
+      "type": "waiting_on",
       "title": "Noor to book the cabin",
       "owner": "other",
       "quote": "also, I'll book the cabin for the March trip on Monday",
@@ -55,7 +55,7 @@
       "counterparty": "Noor",
       "amount_text": null,
       "band": "high",
-      "note": "Control: explicit dated commitment by Noor. 0.95. Must not score Low (F19)."
+      "note": "Control: explicit dated promise by Noor to the user. 0.80 + 0.05 + 0.05 = 0.90. Must not score Low. D63: another person's promise to the user is waiting_on (no first-person-modal bonus)."
     },
     {
       "type": "commitment",

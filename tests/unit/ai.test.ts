@@ -3,7 +3,7 @@ import { askWhy, NO_RECORD_MESSAGE, type RetrievedDecision } from "@/lib/ai/askW
 import { extract, ExtractionFailedError, type ExtractInput } from "@/lib/ai/extract";
 import { createRecordedModel, NoRecordingError } from "@/lib/ai/fake";
 import { AiConfigError, getModel } from "@/lib/ai/provider";
-import { loadPrompt } from "@/lib/ai/prompts";
+import { ASK_WHY_PROMPT_VERSION, EXTRACT_PROMPT_VERSION, loadPrompt, promptSha } from "@/lib/ai/prompts";
 import { processExtraction } from "@/lib/pipeline/proposals";
 
 const input = (sourceText: string, over: Partial<ExtractInput> = {}): ExtractInput => ({
@@ -33,12 +33,36 @@ describe("prompts", () => {
     expect(loadPrompt("extract.v1")).toMatch(/^You read one message/);
     expect(loadPrompt("ask-why.v1")).toMatch(/^You answer a user's question/);
   });
+
+  it("the current versions load and older versions stay in the repo (eval gate, Oct 27)", () => {
+    expect(EXTRACT_PROMPT_VERSION).toBe("extract.v3");
+    expect(ASK_WHY_PROMPT_VERSION).toBe("ask-why.v3");
+    expect(loadPrompt("extract.v2")).toMatch(/^You read one message/);
+    expect(loadPrompt("extract.v2")).not.toContain("prompt: extract.v2");
+    expect(loadPrompt("ask-why.v3")).toMatch(/^You answer a user's question/);
+    expect(loadPrompt("ask-why.v2")).toMatch(/^You answer a user's question/);
+  });
+
+  it("extract.v3 is extract.v2 plus the group-promise rule (Nov 2), and v2 is unchanged", () => {
+    const v2 = loadPrompt("extract.v2");
+    const v3 = loadPrompt("extract.v3");
+    expect(v3).not.toContain("prompt: extract.v3");
+    expect(v2).not.toContain("A promise made to a group the user belongs to");
+    expect(v3).toContain("A promise made to a group the user belongs to is also `waiting_on`");
+    expect(v3.replace(/ A promise made to a group the user belongs to[^\n]*?\("Ilse: collect the raffle prizes"\)\./, "")).toBe(v2);
+  });
+
+  it("promptSha is a stable 12-hex hash of the whole file, so a header or body edit changes it", () => {
+    expect(promptSha("extract.v3")).toMatch(/^[0-9a-f]{12}$/);
+    expect(promptSha("extract.v3")).toBe(promptSha("extract.v3"));
+    expect(promptSha("extract.v3")).not.toBe(promptSha("extract.v2"));
+  });
 });
 
 describe("extract() with the recorded fake model", () => {
   it("returns validated output and the trace fields an extractions row needs (F5)", async () => {
     const run = await extract(input(MIKE), { model: createRecordedModel(), modelLabel: "fake:recorded", logger: () => {} });
-    expect(run).toMatchObject({ model: "fake:recorded", promptVersion: "extract.v1", schemaVersion: "extraction.v1", attempts: 1 });
+    expect(run).toMatchObject({ model: "fake:recorded", promptVersion: "extract.v3", schemaVersion: "extraction.v1", attempts: 1 });
     expect(run.inputTokens).toBeGreaterThan(0);
     expect(run.outputTokens).toBeGreaterThan(0);
     expect(run.latencyMs).toBeGreaterThanOrEqual(0);

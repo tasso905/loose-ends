@@ -1,0 +1,45 @@
+{
+  "items": [
+    {
+      "type": "request",
+      "title": "Return the signed field trip form",
+      "owner": "user",
+      "quote": "Please return the signed field trip form by Friday, October 23.",
+      "date_text": "by Friday, October 23",
+      "due_date": "2026-10-23",
+      "due_certainty": "explicit",
+      "certainty": "explicit",
+      "counterparty": "Riverside Elementary",
+      "amount_text": null,
+      "band": "high",
+      "note": "0.80 + 0.05 + 0.05 = 0.90, Likely. Oct 23, 2026 is a Friday."
+    },
+    {
+      "type": "deadline",
+      "title": "Pay the $12 trip fee",
+      "owner": "user",
+      "quote": "The trip fee of $12 is due with the form.",
+      "date_text": null,
+      "due_date": null,
+      "due_certainty": "none",
+      "certainty": "explicit",
+      "counterparty": null,
+      "amount_text": "$12",
+      "band": "high",
+      "note": "'due with the form' names no date: no due date (a model that copies Oct 23 from the previous sentence gets a date error). Deadline: no owner penalty. 0.80 + 0.05 = 0.85, Likely."
+    },
+    {
+      "type": "request",
+      "title": "Wear closed-toe shoes",
+      "owner": "user",
+      "quote": "Students must wear closed-toe shoes on all trips.",
+      "date_text": null,
+      "due_date": null,
+      "due_certainty": "none",
+      "counterparty": null,
+      "amount_text": null,
+      "band": "ignore",
+      "note": "Standing rule, not a loop. Pass if left out or scored Ignore."
+    }
+  ]
+}

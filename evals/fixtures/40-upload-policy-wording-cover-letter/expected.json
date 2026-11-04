@@ -21,6 +21,9 @@
       "title": "Upload a photo of the water heater label",
       "owner": "user",
       "quote": "We also need a recent photo of your water heater's label to confirm its age.",
+      "alt_quotes": [
+        "Please upload it to your account before the policy starts."
+      ],
       "date_text": null,
       "due_date": null,
       "due_certainty": "none",
@@ -29,7 +32,7 @@
       "amount_text": null,
       "band": "high",
       "page": 1,
-      "note": "'before the policy starts' (next sentence) names no date in itself; a model that dates it Nov 1 from another sentence gets a date miss. 0.85."
+      "note": "'before the policy starts' (next sentence) names no date in itself; a model that dates it Nov 1 from another sentence gets a date miss. 0.85. Alternate: the next sentence carries the action for the same loop."
     },
     {
       "type": "request",

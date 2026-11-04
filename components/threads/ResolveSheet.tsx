@@ -67,6 +67,12 @@ export function ResolveSheet({
   const [reasonError, setReasonError] = useState<string | null>(null);
   const [error, setError] = useState<ApiError["error"] | null>(null);
   const [pending, startTransition] = useTransition();
+  // Save is disabled while pending, so focus falls to <body> during a save; when it fails, focus
+  // moves to the error once it renders (WCAG 2.4.3), as Thread detail's banner does.
+  const errorRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (error) errorRef.current?.focus();
+  }, [error]);
   // Set when the user picks Decided: focus moves to its first field once it renders (§3.2).
   const focusDecided = useRef(false);
 
@@ -81,15 +87,7 @@ export function ResolveSheet({
       else d.querySelector<HTMLInputElement>("input[type=radio]:checked")?.focus();
     } else if (!open && d.open) {
       d.close();
-      // Reset on close, not on the next open: resetting on open rendered one frame of the previous
-      // state (e.g. Decided with a field error) in the open dialog, and a click on a radio that was
-      // already checked in that frame fired no change, so the sheet fell back to the initial choice.
-      setResolution(initial);
-      setChoice("");
-      setReason("");
-      setChoiceError(null);
-      setReasonError(null);
-      setError(null);
+      resetForm();
     }
     // `initial` depends only on the thread kind, which does not change while the page is open.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -101,6 +99,18 @@ export function ResolveSheet({
     // The reason field (§3.2) once a decision is written; until then the decision itself.
     (choiceRef.current?.value.trim() ? reasonRef.current : choiceRef.current)?.focus();
   }, [resolution]);
+
+  // Reset on close, not on the next open: resetting on open rendered one frame of the previous
+  // state (e.g. Decided with a field error) in the open dialog, and a click on a radio that was
+  // already checked in that frame fired no change, so the sheet fell back to the initial choice.
+  function resetForm() {
+    setResolution(initial);
+    setChoice("");
+    setReason("");
+    setChoiceError(null);
+    setReasonError(null);
+    setError(null);
+  }
 
   function close() {
     if (!pending) onClose();
@@ -146,9 +156,25 @@ export function ResolveSheet({
     <dialog
       ref={dialogRef}
       aria-labelledby={titleId}
+      // While a save is in flight nothing closes the sheet before the server answers (rule 10).
+      // Chrome lets a page cancel only one Escape without user activation, so preventDefault alone
+      // is not enough: `closedby="none"` stops close requests natively while pending.
+      closedby={pending ? "none" : "closerequest"}
       onCancel={(e) => {
         e.preventDefault();
         close();
+      }}
+      onClose={() => {
+        // A close the sheet did not ask for (the parent still has it open). Browsers without
+        // `closedby` can still close the dialog natively: while pending it opens again so the
+        // answer, or the error, shows in it; otherwise the parent is told so Resolve… opens it again.
+        if (!open) return;
+        if (pending) {
+          dialogRef.current?.showModal();
+        } else {
+          resetForm();
+          onClose();
+        }
       }}
       onClick={(e) => {
         // A click on the scrim (outside the panel) closes the sheet.
@@ -178,7 +204,7 @@ export function ResolveSheet({
         </div>
 
         {error ? (
-          <div className="mt-4">
+          <div ref={errorRef} tabIndex={-1} className="focus-ring mt-4 rounded-card">
             <ErrorBanner
               action={
                 error.code === "invalid_transition" ? (

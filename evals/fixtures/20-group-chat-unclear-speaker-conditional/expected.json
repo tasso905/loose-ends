@@ -16,7 +16,7 @@
       "note": "No speaker label: it could be Hannah continuing, or anyone, including the user. 0.80 + 0.05 exact - 0.25 owner unknown + 0.05 first-person modal = 0.65, Maybe. Owner 'other' or 'user' is an owner error."
     },
     {
-      "type": "commitment",
+      "type": "waiting_on",
       "title": "Ruth to pick up the next book if the library has a copy",
       "owner": "other",
       "quote": "if the library has a spare copy I'll pick up the next book for whoever needs one",
@@ -27,7 +27,7 @@
       "counterparty": "Ruth",
       "amount_text": null,
       "band": "low",
-      "note": "Conditional promise by someone else: 0.30 + 0.05 exact + 0.05 first-person modal = 0.40, Also noticed. Could be typed waiting_on (0.35, still Low)."
+      "note": "Conditional promise by Ruth to the book club: 0.30 + 0.05 exact = 0.35, Also noticed (no first-person-modal bonus outside commitment). Promise to a group the user belongs to: waiting_on (user decision, Nov 2)."
     },
     {
       "type": "request",

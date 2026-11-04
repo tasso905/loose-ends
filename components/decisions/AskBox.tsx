@@ -3,7 +3,7 @@ import { useId, useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import { PenLine, Quote } from "lucide-react";
 import { askAction } from "@/app/decisions/actions";
-import { NoReason } from "@/components/decisions/NoReason";
+import { NoReason, useFocusOnMount } from "@/components/decisions/NoReason";
 import { Spinner } from "@/components/auth/Spinner";
 import { FieldError } from "@/components/Notice";
 import { Button } from "@/components/ui/button";
@@ -109,6 +109,7 @@ export function AskBox({ initialQuestion, timezone }: { initialQuestion: string;
 function AnswerCard({ view, timezone }: { view: AskView; timezone: string }) {
   // Reasons added here after the server confirmed them (rule 10), by decision id.
   const [added, setAdded] = useState<Record<string, string>>({});
+  const focus = useFocusOnMount();
   if (!view.found) {
     return (
       <div className="mt-6 rounded-card border border-le-border bg-le-surface p-5">
@@ -130,7 +131,7 @@ function AnswerCard({ view, timezone }: { view: AskView; timezone: string }) {
               <p className="mt-1 text-body-strong whitespace-pre-wrap text-le-text">{d.choice}</p>
             </div>
             {reason !== null ? (
-              <figure id={`reason-${d.id}`} tabIndex={-1} className="focus-ring rounded-r-control border-l-2 border-le-border-strong pl-4">
+              <figure ref={focus.ref(d.id)} id={`reason-${d.id}`} tabIndex={-1} className="focus-ring rounded-r-control border-l-2 border-le-border-strong pl-4">
                 <figcaption className="flex items-center gap-1 text-label text-le-text-secondary">
                   <PenLine aria-hidden strokeWidth={1.75} className="size-3.5" />
                   {D.youWrote}
@@ -142,7 +143,13 @@ function AnswerCard({ view, timezone }: { view: AskView; timezone: string }) {
                 </blockquote>
               </figure>
             ) : (
-              <NoReason decisionId={d.id} onAdded={(text) => setAdded((a) => ({ ...a, [d.id]: text }))} />
+              <NoReason
+                decisionId={d.id}
+                onAdded={(text) => {
+                  focus.request(d.id);
+                  setAdded((a) => ({ ...a, [d.id]: text }));
+                }}
+              />
             )}
             {d.facts.map((f) => (
               <figure key={f} className="rounded-r-control border-l-2 border-(--le-evidence-rule) bg-(--le-evidence-bg) px-4 py-3">
