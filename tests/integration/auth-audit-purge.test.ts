@@ -108,4 +108,42 @@ describe("auth_audit_purge", () => {
     expect(await left()).toEqual(["kept_login", "recent_login"]);
     expect((await pendingRows()).map((r) => r.user_id)).toEqual([RECENT]);
   });
+
+  describe("account_file_purges", () => {
+    const fileRows = async () => (await db.query<{ user_id: string }>("select user_id from private.account_file_purges order by user_id")).rows.map((r) => r.user_id);
+    const pending = async () => (await db.query<{ r: string[] }>("select public.account_file_purges_pending() as r")).rows[0]!.r;
+    const clear = async (id: string) => (await db.query<{ r: boolean }>("select public.account_file_purge_clear($1::uuid) as r", [id])).rows[0]!.r;
+
+    it("prepare records the row; it is pending only once the user is gone", async () => {
+      await db.query("insert into auth.users (id, email) values ($1, $2)", [GONE, EMAIL]);
+      await db.query("select public.auth_audit_purge_prepare($1::uuid, $2)", [GONE, EMAIL]);
+      expect(await fileRows()).toEqual([GONE]);
+      expect(await pending()).toEqual([]);
+      await expect(clear(GONE)).rejects.toThrow("user still exists");
+      await db.query("delete from auth.users where id = $1", [GONE]);
+      expect(await pending()).toEqual([GONE]);
+    });
+
+    it("clears only when nothing is left under that prefix; another user's files and other buckets don't count", async () => {
+      await db.query("insert into private.account_file_purges (user_id) values ($1)", [GONE]);
+      await db.query("insert into storage.objects (bucket_id, name) values ('sources', $1), ('sources', $2), ('other', $3)", [`${GONE}/race`, `${OTHER}/keep`, `${GONE}/x`]);
+      expect(await clear(GONE)).toBe(false);
+      expect(await fileRows()).toEqual([GONE]);
+      await db.query("delete from storage.objects where bucket_id = 'sources' and name = $1", [`${GONE}/race`]);
+      expect(await clear(GONE)).toBe(true);
+      expect(await fileRows()).toEqual([]);
+    });
+
+    it("a user still there after a day kept their account: their row goes, and nothing about them is listed", async () => {
+      await db.query("insert into auth.users (id, email) values ($1, $2)", [OTHER, "kept@example.com"]);
+      await db.query("insert into private.account_file_purges (user_id, created_at) values ($1, now() - interval '2 days')", [OTHER]);
+      expect(await pending()).toEqual([]);
+      expect(await fileRows()).toEqual([]);
+    });
+
+    it("refuses the nil id and a bad limit", async () => {
+      await expect(clear(NIL)).rejects.toThrow("invalid user");
+      await expect(db.query("select public.account_file_purges_pending(0)")).rejects.toThrow("invalid limit");
+    });
+  });
 });

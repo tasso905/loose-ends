@@ -10,8 +10,8 @@ vi.mock("@/lib/supabase/admin", () => ({
 }));
 
 import { GET, POST } from "@/app/api/cron/daily/route";
-import { storageCall, STORAGE_TIMEOUT_CODE } from "@/lib/account/deleteAccount";
-import { sweepStorageDeletions, type SweepClient } from "@/lib/account/sweep";
+import { storageCall, STORAGE_TIMEOUT_CODE, type AccountAdminClient } from "@/lib/account/deleteAccount";
+import { sweepDeletedAccounts, sweepStorageDeletions, type SweepClient } from "@/lib/account/sweep";
 
 /** cron/daily's Storage sweep (S11-D3, rule 8) and the Storage time limit. No network. */
 
@@ -24,6 +24,7 @@ function client(
   const c: SweepClient = {
     rpc: async (fn) => {
       if (fn === "auth_audit_purge_pending") return audit;
+      if (fn === "account_file_purges_pending") return { data: [], error: null };
       expect(fn).toBe("storage_deletions_sweep");
       return { data: sweeps.shift() ?? [], error: null };
     },
@@ -76,6 +77,74 @@ describe("sweepStorageDeletions()", () => {
   });
 });
 
+describe("sweepDeletedAccounts()", () => {
+  const A = "aaaaaaaa-0000-4000-8000-000000000001";
+  const B = "bbbbbbbb-0000-4000-8000-000000000002";
+
+  /** Storage holds `files`; `list` can fail per prefix, `clear` answers what the database would. */
+  function fake(ids: unknown, files: string[], o: { listError?: (prefix: string) => unknown; clear?: (id: string) => boolean } = {}) {
+    const store = new Set(files);
+    const cleared: string[] = [];
+    const c: Pick<AccountAdminClient, "storage" | "rpc"> = {
+      rpc: async (fn, args) => {
+        if (fn === "account_file_purges_pending") return { data: ids, error: null };
+        const id = args!.p_user_id as string;
+        const yes = o.clear ? o.clear(id) : true;
+        if (yes) cleared.push(id);
+        return { data: yes, error: null };
+      },
+      storage: {
+        from: () => ({
+          list: async (prefix) => {
+            const error = o.listError?.(prefix);
+            if (error) return { data: null, error };
+            return { data: [...store].filter((p) => p.startsWith(`${prefix}/`)).map((p) => ({ name: p.slice(prefix.length + 1), id: "x" })), error: null };
+          },
+          remove: async (ps) => {
+            for (const p of ps) store.delete(p);
+            return { data: [], error: null };
+          },
+        }),
+      },
+    };
+    return { c, store, cleared };
+  }
+
+  it("removes everything under each user's prefix and only then clears the row; others' files stay", async () => {
+    const f = fake([A, B], [`${A}/1`, `${A}/race`, `${B}/1`, "someone-else/z"]);
+    expect(await sweepDeletedAccounts(f.c, vi.fn())).toEqual({ ok: true, cleared: 2, pending: 0 });
+    expect([...f.store]).toEqual(["someone-else/z"]);
+    expect(f.cleared).toEqual([A, B]);
+  });
+
+  it("the database refusing to clear (a file arrived) keeps it pending", async () => {
+    const logger = vi.fn();
+    const f = fake([A], [`${A}/1`], { clear: () => false });
+    expect(await sweepDeletedAccounts(f.c, logger)).toEqual({ ok: false, cleared: 0, pending: 1 });
+    expect(logger).toHaveBeenCalledWith("cron_sweep_failed", { step: "account_files", found: 1, remaining: 1 });
+    expect(JSON.stringify(logger.mock.calls)).not.toContain(A);
+  });
+
+  it("one account's failure doesn't stop the next, and neither row clears without its sweep", async () => {
+    const f = fake([A, B], [`${A}/1`, `${B}/1`], { listError: (p) => (p === A ? { code: "x" } : null) });
+    expect(await sweepDeletedAccounts(f.c, vi.fn())).toEqual({ ok: false, cleared: 1, pending: 1 });
+    expect(f.cleared).toEqual([B]);
+    expect([...f.store]).toEqual([`${A}/1`]);
+  });
+
+  it("Storage timing out stops the run: the others would only wait too, and they stay pending", async () => {
+    const f = fake([A, B], [`${A}/1`, `${B}/1`], { listError: () => ({ code: STORAGE_TIMEOUT_CODE }) });
+    const listed = vi.spyOn(f.c.storage, "from");
+    expect(await sweepDeletedAccounts(f.c, vi.fn())).toEqual({ ok: false, cleared: 0, pending: 2 });
+    expect(listed).toHaveBeenCalledTimes(1);
+  });
+
+  it("a failing list call is reported", async () => {
+    const f = fake(null, []);
+    expect(await sweepDeletedAccounts(f.c, vi.fn())).toEqual({ ok: false, cleared: 0, pending: null });
+  });
+});
+
 describe("storageCall()", () => {
   it("passes a result through", async () => {
     expect(await storageCall(Promise.resolve({ data: 1, error: null }), 50)).toEqual({ data: 1, error: null });
@@ -115,7 +184,7 @@ describe("/api/cron/daily", () => {
       admin.client = client([["u/1"], []]).c;
       const res = await h(req("Bearer s3cret"));
       expect(res.status).toBe(200);
-      expect(await res.json()).toEqual({ ok: true, files_found: 1, files_remaining: 0, audit_purged: 0, audit_pending: 0 });
+      expect(await res.json()).toEqual({ ok: true, files_found: 1, files_remaining: 0, audit_purged: 0, audit_pending: 0, accounts_cleared: 0, accounts_pending: 0 });
     }
   });
 

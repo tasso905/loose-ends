@@ -47,6 +47,7 @@ function fakeClient(
       calls.push(fn);
       rpcArgs.push(args);
       if (fn === "auth_audit_purge_prepare") return fail.prepare ? { data: null, error: { code: "42501" } } : { data: null, error: null };
+      if (fn === "account_file_purge_clear") return { data: true, error: null };
       if (fail.purge === "throws") throw new Error("network");
       if (fail.purge === "error") return { data: null, error: { code: "XX000", message: "secret@example.com" } };
       return { data: { deleted: 3, remaining: fail.purge === "left" ? 2 : 0 }, error: null };
@@ -105,15 +106,28 @@ describe("deleteAccount(): storage first, then the auth user", () => {
     expect(logger).toHaveBeenCalledWith("account_delete_late_objects", { user_id: UID, objects: 1 });
   });
 
-  it("final sweep failure after the user is gone: logged and reported as a failure, never success", async () => {
+  it("final sweep failure after the user is gone: no retry is possible, so the result says files remain; the row stays for cron", async () => {
     const logger = vi.fn();
     const f = fakeClient([`${UID}/a.txt`], {}, (store, fail) => {
       store.add(`${UID}/late.txt`);
       fail.list = true;
     });
     const r = await deleteAccount(f.client, UID, { logger });
-    expect(r).toMatchObject({ ok: false, error: { code: "save_failed", retryable: true } });
+    expect(r).toEqual({ ok: true, objectsRemoved: 1, filesRemain: true });
     expect(logger).toHaveBeenCalledWith("account_delete_sweep_failed", { user_id: UID });
+    expect(f.calls).not.toContain("account_file_purge_clear");
+  });
+
+  it("a clean final sweep clears the pending row, and a failure to clear it isn't a failure to delete", async () => {
+    const f = fakeClient([]);
+    await deleteAccount(f.client, UID);
+    expect(f.calls.at(-1)).toBe("account_file_purge_clear");
+    const rpc = f.client.rpc;
+    f.client.rpc = async (fn, args) => {
+      if (fn === "account_file_purge_clear") throw new Error("network");
+      return rpc(fn, args);
+    };
+    expect(await deleteAccount(f.client, UID)).toEqual({ ok: true, objectsRemoved: 0 });
   });
 
   it("a retry when the auth user is already gone treats it as deleted and sweeps", async () => {
@@ -133,6 +147,7 @@ describe("deleteAccount(): the auth audit log", () => {
     expect(f.rpcArgs).toEqual([
       { p_user_id: UID, p_email: EMAIL },
       { p_user_id: UID, p_email: EMAIL },
+      { p_user_id: UID },
     ]);
   });
 
@@ -167,7 +182,7 @@ describe("deleteAccount(): the auth audit log", () => {
     const f = fakeClient([], {}, (_store, fail) => {
       fail.list = true;
     });
-    expect((await deleteAccount(f.client, UID, { email: EMAIL, logger: vi.fn() })).ok).toBe(false);
+    expect(await deleteAccount(f.client, UID, { email: EMAIL, logger: vi.fn() })).toEqual({ ok: true, objectsRemoved: 0, filesRemain: true });
     expect(f.calls).toContain("auth_audit_purge");
   });
 });

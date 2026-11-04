@@ -13,8 +13,9 @@ import { log as defaultLog, type Logger } from "@/lib/log";
  *
  * A still-valid session could race the deletion, so the folder is swept once more after the user is
  * deleted (the storage insert policy also refuses uploads once the profile row is gone). If that
- * sweep fails, the failure is logged (IDs only) and returned; a retry finds the user already gone
- * (treated as deleted) and sweeps again.
+ * sweep fails, no retry is possible: the session is dead. The failure is logged (IDs only), the result
+ * says files remain (rules 9, 10), and cron/daily finishes the folder from the row prepared up front
+ * (migration 20261104110000).
  *
  * The user's auth.audit_log_entries go too (migration 20261104100000). The purge is recorded before
  * anything is deleted, and refusing there stops the deletion. It runs after the auth user is deleted,
@@ -65,8 +66,8 @@ export interface AccountAdminClient {
   rpc(fn: string, args?: Record<string, unknown>): PromiseLike<{ data: unknown; error: unknown }>;
 }
 
-/** `signInRecordsRemain`: the account is gone but its audit log entries are not, yet. */
-export type DeleteAccountResult = { ok: true; objectsRemoved: number; signInRecordsRemain?: true } | ({ ok: false } & ApiError);
+/** ok means the account is gone. The flags say what isn't, yet; cron/daily finishes both. */
+export type DeleteAccountResult = { ok: true; objectsRemoved: number; signInRecordsRemain?: true; filesRemain?: true } | ({ ok: false } & ApiError);
 
 export interface DeleteAccountOptions {
   /** The session's email, to find audit log entries that name it. Without it, the one on the auth user. */
@@ -78,15 +79,29 @@ export interface DeleteAccountOptions {
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-class StorageStepError extends Error {}
+class StorageStepError extends Error {
+  constructor(
+    message: string,
+    readonly timedOut = false,
+  ) {
+    super(message);
+  }
+}
 
-async function listAll(client: AccountAdminClient, prefix: string, pageSize: number, depth = 0): Promise<string[]> {
+const stepError = (message: string, error: unknown) => new StorageStepError(message, (error as { code?: unknown } | null)?.code === STORAGE_TIMEOUT_CODE);
+
+/** Storage isn't answering: anything else that needs it would only wait out the limit too. */
+export const isStorageTimeout = (e: unknown) => e instanceof StorageStepError && e.timedOut;
+
+type FolderClient = Pick<AccountAdminClient, "storage">;
+
+async function listAll(client: FolderClient, prefix: string, pageSize: number, depth = 0): Promise<string[]> {
   if (depth > 10) throw new StorageStepError("folder nesting too deep");
   const bucket = client.storage.from(SOURCES_BUCKET);
   const paths: string[] = [];
   for (let offset = 0; ; offset += pageSize) {
     const { data, error } = await storageCall(bucket.list(prefix, { limit: pageSize, offset }));
-    if (error || !data) throw new StorageStepError("list failed");
+    if (error || !data) throw stepError("list failed", error);
     for (const o of data) {
       const path = `${prefix}/${o.name}`;
       if (o.id === null) paths.push(...(await listAll(client, path, pageSize, depth + 1)));
@@ -97,11 +112,12 @@ async function listAll(client: AccountAdminClient, prefix: string, pageSize: num
   return paths;
 }
 
-async function sweep(client: AccountAdminClient, userId: string, pageSize: number): Promise<number> {
+/** Removes everything under the user's prefix and proves it is empty, or throws. Returns the count. */
+export async function sweepUserFolder(client: FolderClient, userId: string, pageSize = 1000): Promise<number> {
   const paths = await listAll(client, userId, pageSize);
   for (let i = 0; i < paths.length; i += pageSize) {
     const { error } = await storageCall(client.storage.from(SOURCES_BUCKET).remove(paths.slice(i, i + pageSize)));
-    if (error) throw new StorageStepError("remove failed");
+    if (error) throw stepError("remove failed", error);
   }
   // Prove the folder is empty.
   if ((await listAll(client, userId, pageSize)).length > 0) throw new StorageStepError("objects remain");
@@ -143,7 +159,7 @@ export async function deleteAccount(client: AccountAdminClient, userId: string, 
   }
 
   try {
-    removed = await sweep(client, userId, pageSize);
+    removed = await sweepUserFolder(client, userId, pageSize);
   } catch {
     return { ok: false, ...apiError("save_failed") };
   }
@@ -159,13 +175,21 @@ export async function deleteAccount(client: AccountAdminClient, userId: string, 
   const auditPurged = await purgeAuditLog(client, userId, email, logger);
 
   // Final sweep for anything uploaded between the check and the user deletion.
+  let filesGone = true;
   try {
-    const late = await sweep(client, userId, pageSize);
+    const late = await sweepUserFolder(client, userId, pageSize);
     if (late > 0) logger("account_delete_late_objects", { user_id: userId, objects: late });
     removed += late;
   } catch {
+    filesGone = false;
     logger("account_delete_sweep_failed", { user_id: userId });
-    return { ok: false, ...apiError("save_failed") };
   }
-  return auditPurged ? { ok: true, objectsRemoved: removed } : { ok: true, objectsRemoved: removed, signInRecordsRemain: true };
+  // The folder is empty, so nothing is pending. If this call fails, cron/daily clears the row instead.
+  if (filesGone) await Promise.resolve(client.rpc("account_file_purge_clear", { p_user_id: userId })).catch(() => undefined);
+  return {
+    ok: true,
+    objectsRemoved: removed,
+    ...(auditPurged ? {} : { signInRecordsRemain: true as const }),
+    ...(filesGone ? {} : { filesRemain: true as const }),
+  };
 }

@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createServerClient } from "@supabase/ssr";
-import { ACCOUNT_DELETED_COOKIE, ACCOUNT_DELETED_FULLY, ACCOUNT_DELETED_HEADER, ACCOUNT_DELETED_RECORDS_REMAIN } from "@/lib/account/copy";
+import { ACCOUNT_DELETED_COOKIE, ACCOUNT_DELETED_HEADER, accountDeletedNotice } from "@/lib/account/copy";
 import { decideRoute, isPublicPath } from "@/lib/auth/routing";
 import { redirectResponse } from "@/lib/auth/signIn";
 import { supabasePublicEnv } from "@/lib/supabase/env";
@@ -15,12 +15,12 @@ export async function proxy(request: NextRequest) {
   // a request header here and is cleared on the response. Only a document load counts, so a prefetch
   // can't use it up; a header sent by the client is never trusted.
   request.headers.delete(ACCOUNT_DELETED_HEADER);
-  const accountDeletedNotice = request.cookies.get(ACCOUNT_DELETED_COOKIE)?.value;
+  const deletedCookie = request.cookies.get(ACCOUNT_DELETED_COOKIE)?.value;
   const showAccountDeleted =
     request.nextUrl.pathname === "/sign-in" &&
-    (accountDeletedNotice === ACCOUNT_DELETED_FULLY || accountDeletedNotice === ACCOUNT_DELETED_RECORDS_REMAIN) &&
+    accountDeletedNotice(deletedCookie) !== null &&
     (request.headers.get("accept") ?? "").includes("text/html");
-  if (showAccountDeleted) request.headers.set(ACCOUNT_DELETED_HEADER, accountDeletedNotice);
+  if (showAccountDeleted) request.headers.set(ACCOUNT_DELETED_HEADER, deletedCookie!);
 
   let response = NextResponse.next({ request });
   let cacheHeaders: Record<string, string> = {};

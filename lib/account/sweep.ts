@@ -1,5 +1,5 @@
 import { log as defaultLog, type Logger } from "@/lib/log";
-import { SOURCES_BUCKET, storageCall, STORAGE_TIMEOUT_CODE } from "./deleteAccount";
+import { isStorageTimeout, SOURCES_BUCKET, storageCall, STORAGE_TIMEOUT_CODE, sweepUserFolder, type AccountAdminClient } from "./deleteAccount";
 
 /**
  * The owner-independent finisher of the Storage deletion queue (rule 8, S11-D3), run by cron/daily
@@ -33,6 +33,33 @@ export async function purgePendingAuditLogs(client: Pick<SweepClient, "rpc">, lo
   }
   if (counts.pending > 0) logger("cron_sweep_failed", { step: "audit_log", found: counts.purged + counts.pending, remaining: counts.pending });
   return { ok: counts.pending === 0, purged: counts.purged, pending: counts.pending };
+}
+
+/**
+ * Finishes account deletions whose final sweep failed (migration 20261104110000): removes everything
+ * still under each deleted user's prefix, then lets the database clear the row, which it does only
+ * when the prefix is empty. Whatever isn't finished stays listed for the next run. Counts only.
+ */
+export async function sweepDeletedAccounts(client: Pick<AccountAdminClient, "storage" | "rpc">, logger: Logger = defaultLog): Promise<{ ok: boolean; cleared: number; pending: number | null }> {
+  const first = await client.rpc("account_file_purges_pending");
+  const ids = paths(first.data);
+  if (first.error || !ids) {
+    logger("cron_sweep_failed", { step: "account_files", found: null, remaining: null });
+    return { ok: false, cleared: 0, pending: null };
+  }
+  let cleared = 0;
+  for (const id of ids) {
+    try {
+      await sweepUserFolder(client, id);
+      const { data, error } = await client.rpc("account_file_purge_clear", { p_user_id: id });
+      if (!error && data === true) cleared += 1;
+    } catch (e) {
+      if (isStorageTimeout(e)) break;
+    }
+  }
+  const pending = ids.length - cleared;
+  if (pending > 0) logger("cron_sweep_failed", { step: "account_files", found: ids.length, remaining: pending });
+  return { ok: pending === 0, cleared, pending };
 }
 
 export async function sweepStorageDeletions(client: SweepClient, logger: Logger = defaultLog): Promise<SweepResult> {

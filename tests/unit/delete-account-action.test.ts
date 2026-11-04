@@ -25,6 +25,7 @@ vi.mock("@/lib/account/deleteAccount", () => ({
 }));
 
 import { deleteAccountAction } from "@/app/settings/data-actions";
+import { accountDeletedNotice } from "@/lib/account/copy";
 
 /** What the sign-in page is told after account deletion: never more than happened (rules 9, 10). */
 describe("deleteAccountAction: the notice", () => {
@@ -52,6 +53,23 @@ describe("deleteAccountAction: the notice", () => {
     expect(await deleteAccountAction("delete")).toEqual({ ok: true });
     expect(s.cookies).toEqual([{ name: "le_account_deleted", value: "2" }]);
     expect(s.events).toEqual(["account_deleted"]);
+  });
+
+  it.each([
+    ["files", { filesRemain: true }, "3"],
+    ["both", { filesRemain: true, signInRecordsRemain: true }, "4"],
+  ])("account gone, %s not: the notice that says so", async (_, remain, value) => {
+    s.result = { ok: true, objectsRemoved: 0, ...remain };
+    expect(await deleteAccountAction("delete")).toEqual({ ok: true });
+    expect(s.cookies).toEqual([{ name: "le_account_deleted", value }]);
+  });
+
+  it("every value has its own line, the partial ones say what remains, and anything else shows nothing", () => {
+    expect(accountDeletedNotice("1")).toBe("Your account and everything in it were deleted.");
+    expect(accountDeletedNotice("2")).toMatch(/Sign-in records/);
+    expect(accountDeletedNotice("3")).toMatch(/files .*removed automatically/);
+    expect(accountDeletedNotice("4")).toMatch(/files and sign-in records/);
+    for (const bad of ["0", "5", "", null, undefined, "__proto__"]) expect(accountDeletedNotice(bad)).toBeNull();
   });
 
   it("a failed deletion sets no notice", async () => {

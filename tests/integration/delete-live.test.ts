@@ -20,6 +20,24 @@ vi.mock("@/lib/supabase/server", () => ({ createClient: async () => current.clie
 vi.mock("next/headers", () => ({
   cookies: async () => ({ set: (name: string, value: string) => void jar.set.push({ name, value }), get: () => undefined }),
 }));
+// Lets a test act just after the real auth user delete: a race upload, or Storage going down.
+const adminHook = vi.hoisted(() => ({ afterDeleteUser: null as null | (() => Promise<void>) }));
+vi.mock("@/lib/supabase/admin", async (original) => {
+  const actual = await original<typeof import("@/lib/supabase/admin")>();
+  return {
+    ...actual,
+    createAdminClient: () => {
+      const c = actual.createAdminClient();
+      const del = c.auth.admin.deleteUser.bind(c.auth.admin);
+      c.auth.admin.deleteUser = async (...args: Parameters<typeof del>) => {
+        const res = await del(...args);
+        await adminHook.afterDeleteUser?.();
+        return res;
+      };
+      return c;
+    },
+  };
+});
 vi.mock("@/lib/analytics/track", () => ({
   track: (_u: string, name: string, props: unknown) => void tracked.events.push({ name, props }),
   createTracker: () => ({ track: (_u: string, name: string, props: unknown) => void tracked.events.push({ name, props }) }),
@@ -48,6 +66,8 @@ function env() {
 
 type User = { id: string; email: string; client: SupabaseClient };
 const DB = process.env.LE_S11_DB_CONTAINER;
+/** Set on an isolated stack only, with one worker: its test stops this container. */
+const STORAGE = process.env.LE_S11_STORAGE_CONTAINER;
 const psql = (sql: string) => execFileSync("docker", ["exec", DB!, "psql", "-U", "postgres", "-d", "postgres", "-tAc", sql], { encoding: "utf8" }).trim();
 /** Every audit log entry that mentions this text anywhere: wider than the purge's own match, on purpose. */
 const auditMentions = (text: string) => Number(psql(`select count(*) from auth.audit_log_entries where payload::text ilike '%${text}%'`));
@@ -360,6 +380,76 @@ describe.skipIf(!live)("S11 deletion and export on real local Supabase", () => {
       expect(psql(`select count(*) from private.auth_audit_purges where user_id='${A.id}'`)).toBe("0");
       expect(auditMentions(B.id)).toBe(others.id);
       expect(auditMentions(B.email)).toBe(others.email);
+    });
+
+    it.skipIf(!DB || !STORAGE)(
+      "Storage down during the final sweep: the user is told the truth, cron keeps the row while it's down, then drains it, a race upload too",
+      async () => {
+        const A = await makeUser("s11v");
+        const B = await makeUser("s11w");
+        const s = await seed(A);
+        const bFile = (await seed(B)).path;
+        const objects = () => psql(`select count(*) from storage.objects where bucket_id='sources' and name like '${A.id}/%'`);
+        const row = () => psql(`select count(*) from private.account_file_purges where user_id='${A.id}'`);
+        const race = `${A.id}/${randomUUID()}`;
+        const cron = async () => {
+          vi.stubEnv("CRON_SECRET", "live-secret");
+          vi.stubEnv("NEXT_PUBLIC_SUPABASE_URL", e.url);
+          vi.stubEnv("SUPABASE_SERVICE_ROLE_KEY", e.service);
+          try {
+            return await cronRoute(new Request("http://x/api/cron/daily", { headers: { authorization: "Bearer live-secret" } }));
+          } finally {
+            vi.unstubAllEnvs();
+          }
+        };
+        adminHook.afterDeleteUser = async () => {
+          adminHook.afterDeleteUser = null;
+          const up = await admin.storage.from("sources").upload(race, new Blob(["race"]), { contentType: "text/plain" });
+          if (up.error) throw up.error;
+          execFileSync("docker", ["stop", "-t", "1", STORAGE!], { encoding: "utf8" });
+        };
+        current.client = A.client;
+        jar.set.length = 0;
+        try {
+          expect(await deleteAccountAction("delete")).toEqual({ ok: true });
+          // The account is gone, and the notice says files remain instead of asking for a retry.
+          expect((await admin.auth.admin.getUserById(A.id)).data.user).toBeNull();
+          expect(jar.set).toEqual([{ name: "le_account_deleted", value: "3" }]);
+          expect(objects()).toBe("1");
+          expect(row()).toBe("1");
+          expect(auditMentions(A.id)).toBe(0);
+
+          const down = await cron();
+          expect(down.status).toBe(500);
+          expect(await down.json()).toMatchObject({ accounts_cleared: 0, accounts_pending: 1 });
+          expect(row()).toBe("1");
+          expect(objects()).toBe("1");
+        } finally {
+          adminHook.afterDeleteUser = null;
+          execFileSync("docker", ["start", STORAGE!], { encoding: "utf8" });
+          await vi.waitFor(async () => expect((await admin.storage.from("sources").list("x")).error).toBeNull(), { timeout: 60_000, interval: 1_000 });
+        }
+
+        const up = await cron();
+        expect(await up.json()).toMatchObject({ accounts_pending: 0 });
+        expect(up.status).toBe(200);
+        expect(objects()).toBe("0");
+        expect(row()).toBe("0");
+        expect(await fileExists(race)).toBe(false);
+        expect(await fileExists(s.path)).toBe(false);
+        expect(await fileExists(bFile)).toBe(true);
+      },
+      180_000,
+    );
+
+    it("only the service role can read or clear the pending accounts", async () => {
+      const A = await makeUser("s11x");
+      const anon = createClient(e.url, e.anon, opts);
+      for (const c of [A.client, anon]) {
+        expect((await c.rpc("account_file_purges_pending")).error).not.toBeNull();
+        expect((await c.rpc("account_file_purge_clear", { p_user_id: randomUUID() })).error).not.toBeNull();
+      }
+      expect((await admin.rpc("account_file_purges_pending")).error).toBeNull();
     });
 
     it.skipIf(!DB)("a purge that failed at deletion is finished by cron/daily, which then holds nothing about the user", async () => {

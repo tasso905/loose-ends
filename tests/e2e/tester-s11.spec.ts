@@ -107,7 +107,7 @@ async function expectFocusOnError(page: Page, dialogName: string) {
         return {
           body: a === document.body,
           inDialog: !!d && !!a && d.contains(a),
-          holdsError: !!a?.textContent?.includes("didn't save") || !!a?.textContent?.includes("offline"),
+          holdsError: !!a?.textContent?.includes("didn't save") || !!a?.textContent?.includes("offline") || !!a?.textContent?.includes("hasn't been removed"),
           dialog: name,
         };
       }, dialogName),
@@ -534,7 +534,7 @@ test.describe("a real Storage outage", () => {
     stop();
     try {
       await d.getByRole("button", { name: "Forget permanently" }).click();
-      await expect(d.getByText("That didn't save. Try again.")).toBeVisible({ timeout: 280_000 });
+      await expect(d.getByText("This thread was forgotten, but a file hasn't been removed yet.")).toBeVisible({ timeout: 280_000 });
       await expectFocusOnError(page, "forget outage");
       expect(page.url()).toContain(s.threadId);
     } finally {
@@ -553,7 +553,7 @@ test.describe("a real Storage outage", () => {
     try {
       const t0 = Date.now();
       await d.getByRole("button", { name: "Forget permanently" }).click();
-      await expect(d.getByText("That didn't save. Try again.")).toBeVisible({ timeout: 280_000 });
+      await expect(d.getByText("This thread was forgotten, but a file hasn't been removed yet.")).toBeVisible({ timeout: 280_000 });
       console.log(`outage: forget error after ${Date.now() - t0} ms`);
     } finally {
       await start();
@@ -574,7 +574,7 @@ test.describe("a real Storage outage", () => {
     try {
       const t0 = Date.now();
       await d.getByRole("button", { name: "Delete source only" }).click();
-      await expect(d.getByText("That didn't save. Try again.")).toBeVisible({ timeout: 280_000 });
+      await expect(d.getByText("Your source was deleted, but its file hasn't been removed yet.")).toBeVisible({ timeout: 280_000 });
       console.log(`outage: source delete error after ${Date.now() - t0} ms`);
       await expect(page.getByText("Source deleted.")).toHaveCount(0);
     } finally {

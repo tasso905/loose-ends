@@ -12,9 +12,20 @@ export const ACCOUNT_DELETE_WORD = "delete";
 
 /** Set only by a successful account deletion; the sign-in page reads it once. */
 export const ACCOUNT_DELETED_COOKIE = "le_account_deleted";
-/** Its values: everything is gone, or the account is gone but its audit log entries are not, yet. */
-export const ACCOUNT_DELETED_FULLY = "1";
-export const ACCOUNT_DELETED_RECORDS_REMAIN = "2";
+/** Its value: "1" everything is gone; otherwise the account is gone and this says what isn't, yet. */
+export function accountDeletedCookieValue(remain: { signInRecords: boolean; files: boolean }): string {
+  if (remain.signInRecords && remain.files) return "4";
+  if (remain.files) return "3";
+  return remain.signInRecords ? "2" : "1";
+}
+/** The notice for that cookie value, or null for anything else. */
+export function accountDeletedNotice(value: string | null | undefined): string | null {
+  if (value === "1") return DATA_COPY.accountDeleted;
+  if (value === "2") return DATA_COPY.accountDeletedRecordsRemain;
+  if (value === "3") return DATA_COPY.accountDeletedFilesRemain;
+  if (value === "4") return DATA_COPY.accountDeletedBothRemain;
+  return null;
+}
 /** Set only by the proxy, from that cookie, for the one document request that shows the notice. */
 export const ACCOUNT_DELETED_HEADER = "x-le-account-deleted";
 
@@ -53,6 +64,7 @@ export const DATA_COPY = {
   ], // PROPOSED
   sourceOnlyStays: ["Threads you accepted from it, with their quotes. Their source line will read “Source deleted”."], // PROPOSED
   sourceDeleted: "Source deleted.", // PROPOSED (status after success)
+  sourceFileRemains: "Your source was deleted, but its file hasn't been removed yet. Try again, or it will be removed automatically within a day.", // PROPOSED (S11-D2; rows gone, Storage failed)
 
   // Delete source and everything from it
   everythingTitle: "Delete source and everything from it?", // PROPOSED
@@ -77,6 +89,7 @@ export const DATA_COPY = {
   alsoDeleteSource: "Also delete source", // DOC
   alsoDeleteSourceHint: "Its text and file, its summary, and its other suggestions. Other threads from it keep their quotes.", // PROPOSED
   forgetButton: "Forget permanently", // DOC (glossary)
+  forgetFileRemains: "This thread was forgotten, but a file hasn't been removed yet. Try again, or it will be removed automatically within a day.", // PROPOSED (S11-D2 pattern; rows gone, Storage failed)
 
   // Delete account
   accountTitle: "Delete your account?", // PROPOSED
@@ -86,5 +99,8 @@ export const DATA_COPY = {
   accountConfirmError: "Type delete to confirm.", // PROPOSED
   accountButton: "Delete account", // PROPOSED
   accountDeleted: "Your account and everything in it were deleted.", // PROPOSED (sign-in page after deletion)
-  accountDeletedRecordsRemain: "Your account was deleted, but sign-in records with your email address are still stored. We'll keep trying to remove them automatically.", // PROPOSED (the audit log purge failed; rules 9, 10)
+  // PROPOSED: the account is gone but the final file sweep or the audit log purge failed; no retry is possible (rules 9, 10).
+  accountDeletedRecordsRemain: "Your account was deleted. Sign-in records with your email address are still stored and will be removed automatically.",
+  accountDeletedFilesRemain: "Your account was deleted. Some of your files are still stored and will be removed automatically.",
+  accountDeletedBothRemain: "Your account was deleted. Some of your files and sign-in records with your email address are still stored and will be removed automatically.",
 } as const;

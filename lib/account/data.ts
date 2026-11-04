@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { DATA_COPY } from "@/lib/account/copy";
 import { apiError, type ApiError } from "@/lib/errors";
 import { log as defaultLog, type Logger } from "@/lib/log";
 import { SOURCES_BUCKET, storageCall } from "./deleteAccount";
@@ -17,7 +18,13 @@ export interface DataClient {
   storage: { from(bucket: string): { remove(paths: string[]): PromiseLike<{ data: unknown; error: unknown }> } };
 }
 
-export type DataResult<T extends object = object> = ({ ok: true } & T) | ({ ok: false; code: "not_found" | "save_failed" } & ApiError);
+/** `rowsGone`: the rows were deleted but a file failed, so "That didn't save" would be untrue. */
+export type DataResult<T extends object = object> = ({ ok: true } & T) | ({ ok: false; code: "not_found" | "save_failed"; rowsGone?: true } & ApiError);
+
+const fileRemains = (message: string) => {
+  const failed = apiError("save_failed");
+  return { ok: false as const, code: "save_failed" as const, rowsGone: true as const, error: { ...failed.error, message } };
+};
 
 const code = (error: unknown): string | null => {
   const c = (error as { code?: unknown } | null)?.code;
@@ -75,7 +82,7 @@ export async function deleteSource(
     return { ok: false, code: "save_failed", ...apiError("save_failed") };
   }
   const files = await finishStorageDeletions(client, logger);
-  if (!files.ok) return files;
+  if (!files.ok) return fileRemains(DATA_COPY.sourceFileRemains);
   if (!parsed.data.ok) return { ok: false, code: "not_found", ...apiError("not_found") };
   return { ok: true, threadsForgotten: parsed.data.threads_forgotten };
 }
@@ -94,7 +101,7 @@ export async function forgetThread(
     // Already gone, for instance by an earlier attempt whose Storage step failed: `Try again` lands
     // here and must still finish the queued file (rule 8). not_found only once none is left.
     const left = await finishStorageDeletions(client, logger);
-    return left.ok ? { ok: false, code: "not_found", ...apiError("not_found") } : left;
+    return left.ok ? { ok: false, code: "not_found", ...apiError("not_found") } : fileRemains(DATA_COPY.forgetFileRemains);
   }
   const parsed = ForgetOut.safeParse(data);
   if (error || !parsed.success) {
@@ -102,6 +109,6 @@ export async function forgetThread(
     return { ok: false, code: "save_failed", ...apiError("save_failed") };
   }
   const files = await finishStorageDeletions(client, logger);
-  if (!files.ok) return files;
+  if (!files.ok) return fileRemains(DATA_COPY.forgetFileRemains);
   return { ok: true, sourceDeleted: parsed.data.sources > 0 };
 }

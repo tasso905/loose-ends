@@ -1,6 +1,7 @@
 import { createHash, timingSafeEqual } from "node:crypto";
 import { NextResponse } from "next/server";
-import { purgePendingAuditLogs, sweepStorageDeletions, type SweepClient } from "@/lib/account/sweep";
+import type { AccountAdminClient } from "@/lib/account/deleteAccount";
+import { purgePendingAuditLogs, sweepDeletedAccounts, sweepStorageDeletions, type SweepClient } from "@/lib/account/sweep";
 import { errorResponse, apiError } from "@/lib/errors";
 import { log } from "@/lib/log";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -9,7 +10,8 @@ export const dynamic = "force-dynamic";
 
 /**
  * cron/daily (PRD API Requirements; D62). Today it finishes deletions (rule 8): the Storage deletion
- * queue (S11-D3) and audit log purges that failed during account deletion; digests join it with F15.
+ * queue (S11-D3), and the files and audit log entries an account deletion couldn't finish; digests
+ * join it with F15.
  * Service role, as CLAUDE.md allows here.
  *
  * Authorization: `Bearer CRON_SECRET`, compared in constant time. With no secret configured every
@@ -35,8 +37,16 @@ async function run(request: Request): Promise<Response> {
   }
   const sweep = await sweepStorageDeletions(admin as unknown as SweepClient);
   const audit = await purgePendingAuditLogs(admin as unknown as SweepClient);
-  const counts = { files_found: sweep.found, files_remaining: sweep.remaining, audit_purged: audit.purged, audit_pending: audit.pending };
-  if (!sweep.ok || !audit.ok) return NextResponse.json({ ...apiError("save_failed"), ...counts }, { status: 500 });
+  const accounts = await sweepDeletedAccounts(admin as unknown as AccountAdminClient);
+  const counts = {
+    files_found: sweep.found,
+    files_remaining: sweep.remaining,
+    audit_purged: audit.purged,
+    audit_pending: audit.pending,
+    accounts_cleared: accounts.cleared,
+    accounts_pending: accounts.pending,
+  };
+  if (!sweep.ok || !audit.ok || !accounts.ok) return NextResponse.json({ ...apiError("save_failed"), ...counts }, { status: 500 });
   return NextResponse.json({ ok: true, ...counts });
 }
 

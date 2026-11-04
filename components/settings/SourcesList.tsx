@@ -44,8 +44,19 @@ export function SourcesList({ sources, headingId }: { sources: SourceRow[]; head
   // deletion (the row and its button are gone).
   const focusAfter = useRef<"trigger" | "heading">("trigger");
 
+  // The source's rows are gone though its file failed: closing the dialog can't leave its row listed.
+  const rowsGone = useRef(false);
+
   function cancel() {
-    focusAfter.current = "trigger";
+    if (rowsGone.current && target) {
+      rowsGone.current = false;
+      focusAfter.current = "heading";
+      setGone((g) => new Set(g).add(target.source.id));
+      setStatus(C.sourceFileRemains);
+      router.refresh();
+    } else {
+      focusAfter.current = "trigger";
+    }
     setTarget(null);
   }
 
@@ -65,9 +76,11 @@ export function SourcesList({ sources, headingId }: { sources: SourceRow[]; head
         // before its Storage step failed, or another tab deleted it. Either way the source is gone.
         const alreadyGone = !res.ok && res.error.code === "not_found";
         if (!res.ok && !alreadyGone) {
+          if (res.rowsGone) rowsGone.current = true;
           setError(res.error.message);
           return;
         }
+        rowsGone.current = false;
         focusAfter.current = "heading";
         setGone((g) => new Set(g).add(source.id));
         setTarget(null);
