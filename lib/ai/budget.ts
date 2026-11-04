@@ -4,7 +4,7 @@ import { log as defaultLog, type Logger } from "@/lib/log";
 
 /**
  * The global daily AI spend cap, DAILY_AI_BUDGET_USD (PRD Technical Architecture "Rate limiting";
- * D62 keeps it). Migration 20261103090000_ai_budget.sql holds the spend.
+ * D62 keeps it). Migration 20261104120000_ai_budget.sql holds the spend.
  *
  * withBudget() wraps the model so that every call (each attempt, including the one retry D43
  * allows) first asks the database whether today's (UTC) spend is still below the cap, and after it

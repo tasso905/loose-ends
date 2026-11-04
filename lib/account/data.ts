@@ -1,7 +1,8 @@
 import { z } from "zod";
+import { DATA_COPY } from "@/lib/account/copy";
 import { apiError, type ApiError } from "@/lib/errors";
 import { log as defaultLog, type Logger } from "@/lib/log";
-import { SOURCES_BUCKET } from "./deleteAccount";
+import { SOURCES_BUCKET, storageCall } from "./deleteAccount";
 
 /**
  * F13 and F9 Forget (rule 8) with the user's own client: rows are hard-deleted by one SECURITY
@@ -17,7 +18,13 @@ export interface DataClient {
   storage: { from(bucket: string): { remove(paths: string[]): PromiseLike<{ data: unknown; error: unknown }> } };
 }
 
-export type DataResult<T extends object = object> = ({ ok: true } & T) | ({ ok: false; code: "not_found" | "save_failed" } & ApiError);
+/** `rowsGone`: the rows were deleted but a file failed, so "That didn't save" would be untrue. */
+export type DataResult<T extends object = object> = ({ ok: true } & T) | ({ ok: false; code: "not_found" | "save_failed"; rowsGone?: true } & ApiError);
+
+const fileRemains = (message: string) => {
+  const failed = apiError("save_failed");
+  return { ok: false as const, code: "save_failed" as const, rowsGone: true as const, error: { ...failed.error, message } };
+};
 
 const code = (error: unknown): string | null => {
   const c = (error as { code?: unknown } | null)?.code;
@@ -38,7 +45,7 @@ export async function finishStorageDeletions(client: DataClient, logger: Logger 
   const paths = queued.data ?? [];
   if (paths.length === 0) return { ok: true, filesRemoved: 0 };
   for (let i = 0; i < paths.length; i += 100) {
-    const { error } = await client.storage.from(SOURCES_BUCKET).remove(paths.slice(i, i + 100));
+    const { error } = await storageCall(client.storage.from(SOURCES_BUCKET).remove(paths.slice(i, i + 100)));
     if (error) return fail("storage_remove", error);
   }
   const second = await client.rpc("storage_deletions_settle");
@@ -59,7 +66,8 @@ const DeleteSourceOut = z.union([
 /**
  * "Delete source only" (`everything = false`: threads keep their quotes) or "Delete source and
  * everything from it" (`everything = true`: its threads are forgotten too). A source that is
- * already gone still finishes any queued file, so `Try again` after a Storage failure completes.
+ * already gone still finishes any queued file, so `Try again` after a Storage failure completes; it
+ * then answers not_found, which the UI shows as gone (no one is told a deletion ran that did not).
  */
 export async function deleteSource(
   client: DataClient,
@@ -74,7 +82,7 @@ export async function deleteSource(
     return { ok: false, code: "save_failed", ...apiError("save_failed") };
   }
   const files = await finishStorageDeletions(client, logger);
-  if (!files.ok) return files;
+  if (!files.ok) return fileRemains(DATA_COPY.sourceFileRemains);
   if (!parsed.data.ok) return { ok: false, code: "not_found", ...apiError("not_found") };
   return { ok: true, threadsForgotten: parsed.data.threads_forgotten };
 }
@@ -89,13 +97,18 @@ export async function forgetThread(
   logger: Logger = defaultLog,
 ): Promise<DataResult<{ sourceDeleted: boolean }>> {
   const { data, error } = await client.rpc("forget_thread", { p_thread_id: threadId, p_delete_source: alsoDeleteSource });
-  if (code(error) === "P0002") return { ok: false, code: "not_found", ...apiError("not_found") };
+  if (code(error) === "P0002") {
+    // Already gone, for instance by an earlier attempt whose Storage step failed: `Try again` lands
+    // here and must still finish the queued file (rule 8). not_found only once none is left.
+    const left = await finishStorageDeletions(client, logger);
+    return left.ok ? { ok: false, code: "not_found", ...apiError("not_found") } : fileRemains(DATA_COPY.forgetFileRemains);
+  }
   const parsed = ForgetOut.safeParse(data);
   if (error || !parsed.success) {
     logger("data_delete_failed", { step: "forget_thread", code: code(error) ?? (error ? "unknown" : "bad_result") });
     return { ok: false, code: "save_failed", ...apiError("save_failed") };
   }
   const files = await finishStorageDeletions(client, logger);
-  if (!files.ok) return files;
+  if (!files.ok) return fileRemains(DATA_COPY.forgetFileRemains);
   return { ok: true, sourceDeleted: parsed.data.sources > 0 };
 }

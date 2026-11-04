@@ -7,7 +7,7 @@ import { AiBudgetError, withBudget } from "@/lib/ai/budget";
 import { asUser, migratedDb, rpcAs } from "./pglite";
 
 /**
- * DAILY_AI_BUDGET_USD on the real migrations (20261103090000_ai_budget.sql) in PGlite: the global
+ * DAILY_AI_BUDGET_USD on the real migrations (20261104120000_ai_budget.sql) in PGlite: the global
  * daily spend, the bound on what one caller can record, and that deleting an account does not
  * give the day's spend back.
  */

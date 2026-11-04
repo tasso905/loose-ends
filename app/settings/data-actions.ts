@@ -1,9 +1,9 @@
 "use server";
 import { cookies } from "next/headers";
 import { z } from "zod";
-import { ACCOUNT_DELETE_WORD, ACCOUNT_DELETED_COOKIE, DATA_COPY } from "@/lib/account/copy";
+import { ACCOUNT_DELETE_WORD, ACCOUNT_DELETED_COOKIE, accountDeletedCookieValue, DATA_COPY } from "@/lib/account/copy";
 import { deleteSource, type DataClient } from "@/lib/account/data";
-import { deleteAccount } from "@/lib/account/deleteAccount";
+import { deleteAccount, type AccountAdminClient } from "@/lib/account/deleteAccount";
 import { createTracker, track } from "@/lib/analytics/track";
 import { apiError, type ApiError } from "@/lib/errors";
 import { log } from "@/lib/log";
@@ -15,7 +15,7 @@ import { createClient } from "@/lib/supabase/server";
  * and offers no undo (D8). Each result is reported only after the server confirms (rule 10).
  */
 
-export type DeleteSourceActionResult = { ok: true; threadsForgotten: number } | { ok: false; error: ApiError["error"] };
+export type DeleteSourceActionResult = { ok: true; threadsForgotten: number } | { ok: false; error: ApiError["error"]; rowsGone?: true };
 export type DeleteAccountActionResult = { ok: true } | { ok: false; error: ApiError["error"]; field?: "confirm" };
 
 const DeleteSourceInput = z.object({ sourceId: z.uuid(), everything: z.boolean() });
@@ -28,7 +28,7 @@ export async function deleteSourceAction(sourceId: unknown, everything: unknown)
   const { data } = await supabase.auth.getUser();
   if (!data.user) return { ok: false, error: apiError("unauthenticated").error };
   const res = await deleteSource(supabase as unknown as DataClient, input.data.sourceId, input.data.everything);
-  if (!res.ok) return { ok: false, error: { code: res.error.code, message: res.error.message, retryable: res.error.retryable } };
+  if (!res.ok) return { ok: false, error: { code: res.error.code, message: res.error.message, retryable: res.error.retryable }, ...(res.rowsGone ? { rowsGone: true as const } : {}) };
   track(data.user.id, "source_deleted", { cascade: input.data.everything });
   return { ok: true, threadsForgotten: res.threadsForgotten };
 }
@@ -58,13 +58,15 @@ export async function deleteAccountAction(confirm: unknown): Promise<DeleteAccou
     log("account_delete_sweep_failed", { user_id: userId, step: "config" });
     return { ok: false, error: apiError("save_failed").error };
   }
-  const res = await deleteAccount(admin, userId);
+  const res = await deleteAccount(admin as unknown as AccountAdminClient, userId, { email: data.user.email });
   if (!res.ok) return { ok: false, error: res.error };
 
   await supabase.auth.signOut({ scope: "local" }).catch(() => undefined);
-  // Lets the sign-in page say the account was deleted. Only this success path sets it (a link can't),
-  // so the page never claims a deletion that did not happen (rule 10).
-  (await cookies()).set(ACCOUNT_DELETED_COOKIE, "1", { httpOnly: true, sameSite: "lax", path: "/sign-in", maxAge: 120 });
+  // Lets the sign-in page say the account was deleted, and what remains if a last step failed.
+  // Only this success path sets it (a link can't), so the page never claims a deletion that did not
+  // happen (rules 9, 10).
+  const notice = accountDeletedCookieValue({ signInRecords: res.signInRecordsRemain === true, files: res.filesRemain === true });
+  (await cookies()).set(ACCOUNT_DELETED_COOKIE, notice, { httpOnly: true, sameSite: "lax", path: "/sign-in", maxAge: 120 });
   createTracker({ isOptedIn: async () => optedIn }).track(userId, "account_deleted", {});
   return { ok: true };
 }

@@ -6,11 +6,12 @@ const UID = "00000000-0000-4000-8000-000000000001";
 /** In-memory bucket: flat paths like `${UID}/a.txt` and `${UID}/sub/b.txt`. */
 function fakeClient(
   files: string[],
-  fail: { list?: boolean; remove?: boolean; removeNoop?: boolean; deleteUser?: boolean | "not_found" } = {},
+  fail: { list?: boolean; remove?: boolean; removeNoop?: boolean; deleteUser?: boolean | "not_found"; prepare?: boolean; purge?: "error" | "throws" | "left" } = {},
   onDeleteUser?: (store: Set<string>, fail: { list?: boolean }) => void,
 ) {
   const store = new Set(files);
   const calls: string[] = [];
+  const rpcArgs: unknown[] = [];
   const deleteUser = vi.fn(async () => {
     calls.push("deleteUser");
     onDeleteUser?.(store, fail);
@@ -42,8 +43,17 @@ function fakeClient(
       }),
     },
     auth: { admin: { deleteUser } },
+    rpc: async (fn, args) => {
+      calls.push(fn);
+      rpcArgs.push(args);
+      if (fn === "auth_audit_purge_prepare") return fail.prepare ? { data: null, error: { code: "42501" } } : { data: null, error: null };
+      if (fn === "account_file_purge_clear") return { data: true, error: null };
+      if (fail.purge === "throws") throw new Error("network");
+      if (fail.purge === "error") return { data: null, error: { code: "XX000", message: "secret@example.com" } };
+      return { data: { deleted: 3, remaining: fail.purge === "left" ? 2 : 0 }, error: null };
+    },
   };
-  return { client, store, calls, deleteUser };
+  return { client, store, calls, deleteUser, rpcArgs };
 }
 
 describe("deleteAccount(): storage first, then the auth user", () => {
@@ -96,19 +106,83 @@ describe("deleteAccount(): storage first, then the auth user", () => {
     expect(logger).toHaveBeenCalledWith("account_delete_late_objects", { user_id: UID, objects: 1 });
   });
 
-  it("final sweep failure after the user is gone: logged and reported as a failure, never success", async () => {
+  it("final sweep failure after the user is gone: no retry is possible, so the result says files remain; the row stays for cron", async () => {
     const logger = vi.fn();
     const f = fakeClient([`${UID}/a.txt`], {}, (store, fail) => {
       store.add(`${UID}/late.txt`);
       fail.list = true;
     });
     const r = await deleteAccount(f.client, UID, { logger });
-    expect(r).toMatchObject({ ok: false, error: { code: "save_failed", retryable: true } });
+    expect(r).toEqual({ ok: true, objectsRemoved: 1, filesRemain: true });
     expect(logger).toHaveBeenCalledWith("account_delete_sweep_failed", { user_id: UID });
+    expect(f.calls).not.toContain("account_file_purge_clear");
+  });
+
+  it("a clean final sweep clears the pending row, and a failure to clear it isn't a failure to delete", async () => {
+    const f = fakeClient([]);
+    await deleteAccount(f.client, UID);
+    expect(f.calls.at(-1)).toBe("account_file_purge_clear");
+    const rpc = f.client.rpc;
+    f.client.rpc = async (fn, args) => {
+      if (fn === "account_file_purge_clear") throw new Error("network");
+      return rpc(fn, args);
+    };
+    expect(await deleteAccount(f.client, UID)).toEqual({ ok: true, objectsRemoved: 0 });
   });
 
   it("a retry when the auth user is already gone treats it as deleted and sweeps", async () => {
     const f = fakeClient([`${UID}/late.txt`], { deleteUser: "not_found" });
     expect(await deleteAccount(f.client, UID)).toEqual({ ok: true, objectsRemoved: 1 });
+  });
+});
+
+describe("deleteAccount(): the auth audit log", () => {
+  const EMAIL = "a@example.com";
+
+  it("records the purge before anything is deleted and runs it after the auth user is gone, with the id and email", async () => {
+    const f = fakeClient([`${UID}/a.txt`]);
+    expect(await deleteAccount(f.client, UID, { email: EMAIL })).toEqual({ ok: true, objectsRemoved: 1 });
+    expect(f.calls[0]).toBe("auth_audit_purge_prepare");
+    expect(f.calls.indexOf("auth_audit_purge")).toBeGreaterThan(f.calls.indexOf("deleteUser"));
+    expect(f.rpcArgs).toEqual([
+      { p_user_id: UID, p_email: EMAIL },
+      { p_user_id: UID, p_email: EMAIL },
+      { p_user_id: UID },
+    ]);
+  });
+
+  it("if the purge can't be recorded, nothing is deleted: no file, no user", async () => {
+    const logger = vi.fn();
+    const f = fakeClient([`${UID}/a.txt`], { prepare: true });
+    expect(await deleteAccount(f.client, UID, { email: EMAIL, logger })).toMatchObject({ ok: false, error: { code: "save_failed", retryable: true } });
+    expect([...f.store]).toEqual([`${UID}/a.txt`]);
+    expect(f.deleteUser).not.toHaveBeenCalled();
+    expect(logger).toHaveBeenCalledWith("account_delete_audit_failed", { user_id: UID, step: "prepare", remaining: null });
+  });
+
+  it("a failed deletion never purges: a surviving account keeps its history", async () => {
+    const f = fakeClient([], { deleteUser: true });
+    expect((await deleteAccount(f.client, UID, { email: EMAIL })).ok).toBe(false);
+    expect(f.calls).not.toContain("auth_audit_purge");
+  });
+
+  it.each([
+    ["the call fails", "error", null],
+    ["the call throws", "throws", null],
+    ["entries are left", "left", 2],
+  ] as const)("%s: the result says the records remain, and the log carries IDs only", async (_, purge, remaining) => {
+    const logger = vi.fn();
+    const f = fakeClient([], { purge });
+    expect(await deleteAccount(f.client, UID, { email: EMAIL, logger })).toEqual({ ok: true, objectsRemoved: 0, signInRecordsRemain: true });
+    expect(logger).toHaveBeenCalledWith("account_delete_audit_failed", { user_id: UID, step: "purge", remaining });
+    expect(JSON.stringify(logger.mock.calls)).not.toContain("example.com");
+  });
+
+  it("the purge still runs when the final sweep fails", async () => {
+    const f = fakeClient([], {}, (_store, fail) => {
+      fail.list = true;
+    });
+    expect(await deleteAccount(f.client, UID, { email: EMAIL, logger: vi.fn() })).toEqual({ ok: true, objectsRemoved: 0, filesRemain: true });
+    expect(f.calls).toContain("auth_audit_purge");
   });
 });

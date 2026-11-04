@@ -89,12 +89,19 @@ describe("deleteSource", () => {
 
   it("rows deleted but the file failed: save_failed, not success", async () => {
     const { c } = client({ delete_source: [deleted()], storage_deletions_settle: [ok(["u/a.pdf"])] }, { code: "x" });
-    expect(await deleteSource(c, SRC, false, vi.fn())).toMatchObject({ ok: false, code: "save_failed" });
+    expect(await deleteSource(c, SRC, false, vi.fn())).toMatchObject({
+      ok: false,
+      code: "save_failed",
+      rowsGone: true,
+      error: { message: "Your source was deleted, but its file hasn't been removed yet. Try again, or it will be removed automatically within a day.", retryable: true },
+    });
   });
 
   it("an RPC error is save_failed and touches no file", async () => {
     const { c, calls } = client({ delete_source: [{ data: null, error: { code: "P0001" } }] });
-    expect(await deleteSource(c, SRC, false, vi.fn())).toMatchObject({ ok: false, code: "save_failed" });
+    const res = await deleteSource(c, SRC, false, vi.fn());
+    expect(res).toMatchObject({ ok: false, code: "save_failed", error: { message: "That didn't save. Try again." } });
+    expect(res).not.toHaveProperty("rowsGone");
     expect(calls).toEqual(["delete_source"]);
   });
 });
@@ -106,8 +113,42 @@ describe("forgetThread", () => {
   });
 
   it("another user's thread (P0002) is not found", async () => {
-    const { c } = client({ forget_thread: [{ data: null, error: { code: "P0002" } }] });
+    const { c } = client({ forget_thread: [{ data: null, error: { code: "P0002" } }], storage_deletions_settle: [{ data: [], error: null }] });
     expect(await forgetThread(c, THR, false, vi.fn())).toMatchObject({ ok: false, code: "not_found" });
+  });
+
+  it("S11-D1: an already-gone thread still finishes the queue first, and says not_found only when it empties", async () => {
+    const { c, removed } = client({
+      forget_thread: [{ data: null, error: { code: "P0002" } }],
+      storage_deletions_settle: [
+        { data: ["u/f"], error: null },
+        { data: [], error: null },
+      ],
+    });
+    expect(await forgetThread(c, THR, true, vi.fn())).toMatchObject({ ok: false, code: "not_found" });
+    expect(removed).toEqual([["u/f"]]);
+  });
+
+  it("S11-D1: an already-gone thread whose queued file can't be removed reports the failure, not not_found", async () => {
+    const { c } = client(
+      { forget_thread: [{ data: null, error: { code: "P0002" } }], storage_deletions_settle: [{ data: ["u/f"], error: null }] },
+      { code: "storage_down" },
+    );
+    expect(await forgetThread(c, THR, true, vi.fn())).toMatchObject({
+      ok: false,
+      code: "save_failed",
+      rowsGone: true,
+      error: { code: "save_failed", message: "This thread was forgotten, but a file hasn't been removed yet. Try again, or it will be removed automatically within a day." },
+    });
+  });
+
+  it("the first attempt's rows went and its file failed: the same message; a forget that never ran keeps \"That didn't save\"", async () => {
+    const first = client({ forget_thread: [ok({ threads: 1, sources: 1 })], storage_deletions_settle: [ok(["u/f"])] }, { code: "x" });
+    expect(await forgetThread(first.c, THR, true, vi.fn())).toMatchObject({ rowsGone: true });
+    const never = client({ forget_thread: [{ data: null, error: { code: "XX000" } }] });
+    const res = await forgetThread(never.c, THR, true, vi.fn());
+    expect(res).toMatchObject({ error: { message: "That didn't save. Try again." } });
+    expect(res).not.toHaveProperty("rowsGone");
   });
 });
 

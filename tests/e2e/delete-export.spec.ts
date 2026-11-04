@@ -1,3 +1,4 @@
+import { execFileSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import AxeBuilder from "@axe-core/playwright";
@@ -173,6 +174,40 @@ test("a failed delete keeps the dialog open with the error inside it; nothing cl
   expect(await fileExists(s.path)).toBe(false);
 });
 
+test("a failed delete moves focus to the error inside the dialog, never <body>", async () => {
+  await seedUpload("Focus notes");
+  await page.goto("/settings");
+  // Held, so the destructive button is disabled (and drops focus) before the failure comes back.
+  let release!: () => void;
+  const gate = new Promise<void>((r) => (release = r));
+  await page.route("**/settings", async (route) => {
+    if (route.request().method() !== "POST") return route.continue();
+    await gate;
+    return route.fulfill({ status: 500, body: "" });
+  });
+  await page.getByRole("button", { name: "Delete source only: Focus notes" }).click();
+  const d = dialog("Delete source only?");
+  await d.getByRole("button", { name: "Delete source only" }).click();
+  await expect(d.getByRole("button", { name: "Cancel" })).toBeDisabled();
+  release();
+  await expect(d.getByText("That didn't save. Try again.")).toBeVisible();
+  // The focused element is the wrapper holding the error, inside the open dialog.
+  await expect
+    .poll(() =>
+      page.evaluate(() => {
+        const a = document.activeElement;
+        return { tag: a?.tagName, inDialog: !!a?.closest("dialog[open]"), hasError: !!a?.textContent?.includes("That didn't save. Try again.") };
+      }),
+    )
+    .toEqual({ tag: "DIV", inDialog: true, hasError: true });
+  await page.unrouteAll();
+  // Tab from the error reaches the dialog's own controls: focus stays trapped inside it.
+  await page.keyboard.press("Tab");
+  expect(await page.evaluate(() => !!document.activeElement?.closest("dialog[open]"))).toBe(true);
+  await d.getByRole("button", { name: "Cancel" }).click();
+  await expect(d).toBeHidden();
+});
+
 test("rule 10: Escape twice while a delete is in flight keeps the dialog open; the failure shows in it", async () => {
   await seedUpload("Escape notes");
   await page.goto("/settings");
@@ -200,6 +235,54 @@ test("rule 10: Escape twice while a delete is in flight keeps the dialog open; t
   await page.getByRole("button", { name: "Delete source only: Escape notes" }).click();
   await expect(dialog("Delete source only?")).toBeVisible();
   await dialog("Delete source only?").getByRole("button", { name: "Cancel" }).click();
+});
+
+test.describe("Storage down, so the rows go and the file doesn't: Cancel can't return to what's gone", () => {
+  const STORAGE = process.env.LE_S11_STORAGE_CONTAINER;
+  test.skip(!STORAGE, "set LE_S11_STORAGE_CONTAINER on an isolated stack");
+  test.setTimeout(240_000);
+  const stop = () => execFileSync("docker", ["stop", "-t", "1", STORAGE!], { encoding: "utf8" });
+  const start = async () => {
+    execFileSync("docker", ["start", STORAGE!], { encoding: "utf8" });
+    await expect.poll(() => admin().storage.from("sources").list("x").then((r) => r.error === null), { timeout: 60_000 }).toBe(true);
+  };
+
+  test("Forget: the message says the thread went, and Cancel goes to Threads", async () => {
+    const s = await seedUpload("Outage forget cancel");
+    await page.goto(`/threads/${s.threadId}`);
+    await page.getByRole("button", { name: "More actions" }).click();
+    await page.getByRole("menuitem", { name: "Forget permanently…" }).click();
+    const d = dialog("Forget this thread permanently?");
+    await d.getByRole("checkbox", { name: "Also delete source" }).check();
+    stop();
+    try {
+      await d.getByRole("button", { name: "Forget permanently" }).click();
+      await expect(d.getByText("This thread was forgotten, but a file hasn't been removed yet.")).toBeVisible({ timeout: 120_000 });
+      await d.getByRole("button", { name: "Cancel" }).click();
+      await expect(page).toHaveURL(/\/threads$/, { timeout: 15_000 });
+    } finally {
+      await start();
+    }
+    expect((await admin().from("threads").select("id").eq("id", s.threadId)).data).toEqual([]);
+  });
+
+  test("Delete source: the message says the source went, and Cancel takes its row off the list and keeps the message", async () => {
+    await seedUpload("Outage source cancel");
+    await page.goto("/settings");
+    await page.getByRole("button", { name: "Delete source only: Outage source cancel" }).click();
+    const d = dialog("Delete source only?");
+    stop();
+    try {
+      await d.getByRole("button", { name: "Delete source only" }).click();
+      await expect(d.getByText("Your source was deleted, but its file hasn't been removed yet.")).toBeVisible({ timeout: 120_000 });
+      await d.getByRole("button", { name: "Cancel" }).click();
+      await expect(d).toBeHidden();
+      await expect(page.getByRole("button", { name: "Delete source only: Outage source cancel" })).toHaveCount(0);
+      await expect(page.getByRole("status").filter({ hasText: "Your source was deleted, but its file hasn't been removed yet." })).toBeVisible();
+    } finally {
+      await start();
+    }
+  });
 });
 
 test("Export data (JSON): the file arrives first, then the status says so; it holds the user's rows", async () => {
@@ -297,3 +380,21 @@ test("Delete account: disabled until `delete` is typed; then every row and file 
   await page.goto("/today");
   await expect(page).toHaveURL(/\/sign-in/);
 });
+
+for (const [value, text] of [
+  ["2", "Sign-in records with your email address are still stored and will be removed automatically."],
+  ["3", "Some of your files are still stored and will be removed automatically."],
+  ["4", "Some of your files and sign-in records with your email address are still stored and will be removed automatically."],
+]) {
+  test(`when something remains after deletion, the sign-in notice says what, once (cookie ${value})`, async ({ browser, baseURL }) => {
+    const ctx = await browser.newContext();
+    await ctx.addCookies([{ name: "le_account_deleted", value: value!, domain: new URL(baseURL!).hostname, path: "/sign-in" }]);
+    const p = await ctx.newPage();
+    await p.goto("/sign-in");
+    await expect(p.getByRole("status").filter({ hasText: text! })).toBeVisible();
+    await expect(p.getByText("Your account and everything in it were deleted.")).toHaveCount(0);
+    await p.reload();
+    await expect(p.getByText("Your account was deleted.")).toHaveCount(0);
+    await ctx.close();
+  });
+}

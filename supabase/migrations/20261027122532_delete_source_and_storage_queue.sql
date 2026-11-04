@@ -9,8 +9,9 @@
 -- deletion, whoever deleted it (delete_source, forget_thread with "also delete source", or a
 -- direct DELETE). The action calls storage_deletions_settle() to get the queued paths, removes
 -- those files, and settles again: an entry is cleared only when storage.objects no longer has the
--- file. Anything left (a failed Storage call)
--- stays queued; the next delete, a retry, or cron/daily (service role) finishes it.
+-- file. Anything left (a failed Storage call) stays queued; the user's next delete or a retry
+-- finishes it, or cron/daily through public.storage_deletions_sweep() (migration 20261104090000),
+-- since the service role cannot use storage_deletions_settle() or schema private.
 -- Account deletion cascades through sources while the profile is already gone; those files are
 -- swept by deleteAccount() (lib/account/deleteAccount.ts), so the trigger does not queue them.
 

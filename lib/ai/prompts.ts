@@ -1,9 +1,10 @@
+import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
 /** Versioned prompt files in /prompts. The version recorded on each extraction is the file stem. */
-export const EXTRACT_PROMPT_VERSION = "extract.v1";
-export const ASK_WHY_PROMPT_VERSION = "ask-why.v2";
+export const EXTRACT_PROMPT_VERSION = "extract.v3";
+export const ASK_WHY_PROMPT_VERSION = "ask-why.v3";
 
 const cache = new Map<string, string>();
 
@@ -16,6 +17,15 @@ export function loadPrompt(version: string): string {
   const body = (sep >= 0 ? raw.slice(sep).replace(/^---\s*\n/, "") : raw).trim();
   cache.set(version, body);
   return body;
+}
+
+/**
+ * First 12 hex characters of sha256 over the whole prompt file (comment header included), so an
+ * eval report names the exact text it scored even if a file is edited without a version bump.
+ */
+export function promptSha(version: string): string {
+  const raw = readFileSync(join(process.cwd(), "prompts", `${version}.md`));
+  return createHash("sha256").update(raw).digest("hex").slice(0, 12);
 }
 
 /** Wraps untrusted text in a delimited block, neutralising any closing tag inside it. */

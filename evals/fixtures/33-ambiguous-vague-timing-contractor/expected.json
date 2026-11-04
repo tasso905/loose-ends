@@ -1,7 +1,7 @@
 {
   "items": [
     {
-      "type": "commitment",
+      "type": "waiting_on",
       "title": "Luis to start the deck repair",
       "owner": "other",
       "quote": "We should be able to start the deck repair in the next couple of weeks, weather permitting.",
@@ -12,10 +12,10 @@
       "counterparty": "Luis Ferreira",
       "amount_text": null,
       "band": "low",
-      "note": "'should be able to', 'weather permitting': speculative. 'next couple of weeks' is never a date (vague amount). 0.35, Also noticed."
+      "note": "'should be able to', 'weather permitting': speculative. 'next couple of weeks' is never a date (vague amount). 0.30 + 0.05 = 0.35, Also noticed. D63: another person's promise to the user is waiting_on (no first-person-modal bonus)."
     },
     {
-      "type": "commitment",
+      "type": "waiting_on",
       "title": "Luis to send a written estimate",
       "owner": "other",
       "quote": "I'll get you a written estimate early next week.",
@@ -26,7 +26,7 @@
       "counterparty": "Luis Ferreira",
       "amount_text": null,
       "band": "high",
-      "note": "Clear promise; 'early next week' names no day, so no date (chrono refuses the leftover 'early'). 0.80 + 0.05 + 0.05 modal = 0.90. A model that dates it gets a date error, and a model_only date costs 0.15 (0.75, still High)."
+      "note": "Clear promise; 'early next week' names no day, so no date (chrono refuses the leftover 'early'). 0.80 + 0.05 = 0.85. A model that dates it gets a date error, and a model_only date costs 0.15 (0.70, Medium). D63: another person's promise to the user is waiting_on (no first-person-modal bonus)."
     },
     {
       "type": "intention",
@@ -43,7 +43,7 @@
       "note": "A hedged suggestion: as an intention 0.35, Also noticed. Typed request, 'might' costs 0.15 (0.20, Ignore): a recall miss."
     },
     {
-      "type": "commitment",
+      "type": "waiting_on",
       "title": "Luis to call about the stain color",
       "owner": "other",
       "quote": "Once the lumber is in, I'll call you to pick a stain color.",
@@ -54,7 +54,7 @@
       "counterparty": "Luis Ferreira",
       "amount_text": null,
       "band": "low",
-      "note": "Conditional on the lumber arriving: speculative. 0.40, Also noticed."
+      "note": "Conditional on the lumber arriving: speculative. 0.30 + 0.05 = 0.35, Also noticed. D63: another person's promise to the user is waiting_on (no first-person-modal bonus)."
     },
     {
       "type": "request",

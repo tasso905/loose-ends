@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createServerClient } from "@supabase/ssr";
+import { ACCOUNT_DELETED_COOKIE, ACCOUNT_DELETED_HEADER, accountDeletedNotice } from "@/lib/account/copy";
 import { decideRoute, isPublicPath } from "@/lib/auth/routing";
 import { redirectResponse } from "@/lib/auth/signIn";
 import { supabasePublicEnv } from "@/lib/supabase/env";
@@ -10,6 +11,17 @@ import { supabasePublicEnv } from "@/lib/supabase/env";
  * not the only guard.
  */
 export async function proxy(request: NextRequest) {
+  // The account-deleted notice shows once (S11-D4): a page can't clear a cookie, so the cookie becomes
+  // a request header here and is cleared on the response. Only a document load counts, so a prefetch
+  // can't use it up; a header sent by the client is never trusted.
+  request.headers.delete(ACCOUNT_DELETED_HEADER);
+  const deletedCookie = request.cookies.get(ACCOUNT_DELETED_COOKIE)?.value;
+  const showAccountDeleted =
+    request.nextUrl.pathname === "/sign-in" &&
+    accountDeletedNotice(deletedCookie) !== null &&
+    (request.headers.get("accept") ?? "").includes("text/html");
+  if (showAccountDeleted) request.headers.set(ACCOUNT_DELETED_HEADER, deletedCookie!);
+
   let response = NextResponse.next({ request });
   let cacheHeaders: Record<string, string> = {};
   const { url, anonKey } = supabasePublicEnv();
@@ -45,7 +57,10 @@ export async function proxy(request: NextRequest) {
   }
 
   const decision = decideRoute({ pathname, search, signedIn });
-  if (decision.kind === "continue") return response;
+  if (decision.kind === "continue") {
+    if (showAccountDeleted) response.cookies.set(ACCOUNT_DELETED_COOKIE, "", { path: "/sign-in", maxAge: 0 });
+    return response;
+  }
 
   const redirect = redirectResponse(decision.to);
   // Keep any refreshed or cleared session cookies on the redirect.

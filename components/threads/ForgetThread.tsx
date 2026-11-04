@@ -26,6 +26,8 @@ export function ForgetThread({ threadId, hasSource }: { threadId: string; hasSou
   const [pending, startTransition] = useTransition();
   const triggerRef = useRef<HTMLButtonElement>(null);
   const itemRef = useRef<HTMLButtonElement>(null);
+  // The thread is gone though a file failed: closing the dialog can't return to this page.
+  const rowsGone = useRef(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -52,6 +54,7 @@ export function ForgetThread({ threadId, hasSource }: { threadId: string; hasSou
 
   function cancel() {
     setDialogOpen(false);
+    if (rowsGone.current) router.replace("/threads");
   }
 
   function confirm() {
@@ -65,6 +68,7 @@ export function ForgetThread({ threadId, hasSource }: { threadId: string; hasSou
             router.replace("/threads");
             return;
           }
+          if (res.rowsGone) rowsGone.current = true;
           setError(res.error.message);
           return;
         }
@@ -125,7 +129,9 @@ export function ForgetThread({ threadId, hasSource }: { threadId: string; hasSou
         error={error}
         onCancel={cancel}
         onConfirm={confirm}
-        onClosed={() => triggerRef.current?.focus()}
+        onClosed={() => {
+          if (!rowsGone.current) triggerRef.current?.focus();
+        }}
       >
         {hasSource ? (
           <label className="flex min-h-11 cursor-pointer items-start gap-3 text-body text-le-text">
