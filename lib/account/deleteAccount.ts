@@ -19,8 +19,9 @@ import { log as defaultLog, type Logger } from "@/lib/log";
  *
  * deleteUser can report an error though the user went, so any error is checked with getUserById.
  * Still there: a plain failure, and a retry works. Gone: the deletion carries on. If the check fails
- * too, nothing more is deleted here and the message says it can't tell (rule 10); cron/daily finishes
- * the rest if the user did go.
+ * too, nothing more is deleted here and the message says it couldn't confirm (rule 10); cron/daily
+ * finishes the rest if the user did go. A deleteUser that timed out may still land, so even "still
+ * there" can't be trusted after one: that is unconfirmed as well.
  *
  * The user's auth.audit_log_entries go too (migration 20261104100000). The purge is recorded before
  * anything is deleted, and refusing there stops the deletion. It runs after the auth user is deleted,
@@ -37,6 +38,9 @@ export const SOURCES_BUCKET = "sources";
  */
 export const STORAGE_TIMEOUT_MS = 15_000;
 export const STORAGE_TIMEOUT_CODE = "storage_timeout";
+
+/** The same limit for Auth calls: with Auth hung, the confirmation dialog can't close either. */
+export const authCall = <T>(call: PromiseLike<{ data: T | null; error: unknown }>, ms = STORAGE_TIMEOUT_MS) => storageCall(call, ms);
 
 /** The call's result, or an error result with STORAGE_TIMEOUT_CODE once the time is up. */
 export async function storageCall<T>(call: PromiseLike<{ data: T | null; error: unknown }>, ms = STORAGE_TIMEOUT_MS): Promise<{ data: T | null; error: unknown }> {
@@ -140,17 +144,13 @@ const isNotFound = (error: unknown) =>
 
 /** Asks Auth, after deleteUser reported an error. null: Auth didn't answer either. */
 async function userIsGone(client: AccountAdminClient, userId: string): Promise<boolean | null> {
-  try {
-    const { data, error } = await client.auth.admin.getUserById(userId);
-    if (error) return isNotFound(error) ? true : null;
-    return data?.user ? false : null;
-  } catch {
-    return null;
-  }
+  const { data, error } = await authCall(client.auth.admin.getUserById(userId));
+  if (error) return isNotFound(error) ? true : null;
+  return data?.user ? false : null;
 }
 
-/** Not knowing whether the user went, "Try again" alone could be untrue (rule 10). */
-const unconfirmed = (): { ok: false } & ApiError => {
+/** Not knowing whether the user went, "That didn't save" could be untrue (rule 10). */
+export const unconfirmed = (): { ok: false } & ApiError => {
   const failed = apiError("save_failed");
   return { ok: false, error: { ...failed.error, message: DATA_COPY.accountDeleteUnconfirmed } };
 };
@@ -191,16 +191,12 @@ export async function deleteAccount(client: AccountAdminClient, userId: string, 
     return { ok: false, ...apiError("save_failed") };
   }
 
-  let deleteError: unknown = null;
-  try {
-    ({ error: deleteError } = await client.auth.admin.deleteUser(userId));
-  } catch (e) {
-    deleteError = e ?? { code: "unknown" };
-  }
+  const { error: deleteError } = await authCall(client.auth.admin.deleteUser(userId));
   if (deleteError && !isNotFound(deleteError)) {
     const gone = await userIsGone(client, userId);
-    if (gone === false) return { ok: false, ...apiError("save_failed") };
-    if (gone === null) {
+    const mayStillLand = (deleteError as { code?: unknown }).code === STORAGE_TIMEOUT_CODE;
+    if (gone === false && !mayStillLand) return { ok: false, ...apiError("save_failed") };
+    if (gone !== true) {
       logger("account_delete_sweep_failed", { user_id: userId, step: "user_unconfirmed" });
       return unconfirmed();
     }
