@@ -1,3 +1,4 @@
+import { DATA_COPY } from "@/lib/account/copy";
 import { apiError, type ApiError } from "@/lib/errors";
 import { log as defaultLog, type Logger } from "@/lib/log";
 
@@ -6,16 +7,20 @@ import { log as defaultLog, type Logger } from "@/lib/log";
  * Server-only, service role (CLAUDE.md allows it for account deletion). `userId` must come from the
  * signed-in session, never from the request body.
  *
- * Order matters: storage.objects has no foreign key to auth.users, so files are removed first
- * through the Storage API (listing paginated, subfolders included) and the folder is re-listed to
- * prove it is empty. Only then is the auth user deleted, which cascades every table row. If any
- * storage step fails the user is NOT deleted and a retryable error is returned (rule 10).
+ * Order matters (S11-D6). Nothing goes before the auth user does, so a refused deletion leaves the
+ * account whole: first the pending purges are recorded and Storage has to answer, or nothing is
+ * deleted. Then the auth user is deleted, which cascades every table row. Then the folder is swept
+ * (storage.objects has no foreign key to auth.users; listing paginated, subfolders included) and
+ * re-listed to prove it is empty. The storage insert policy refuses uploads once the profile is gone.
  *
- * A still-valid session could race the deletion, so the folder is swept once more after the user is
- * deleted (the storage insert policy also refuses uploads once the profile row is gone). If that
- * sweep fails, no retry is possible: the session is dead. The failure is logged (IDs only), the result
- * says files remain (rules 9, 10), and cron/daily finishes the folder from the row prepared up front
- * (migration 20261104110000).
+ * Once the user is gone no retry is possible: the session is dead. A sweep that fails then is logged
+ * (IDs only), the result says files remain (rules 9, 10), and cron/daily finishes the folder from the
+ * row prepared up front (migration 20261104110000).
+ *
+ * deleteUser can report an error though the user went, so any error is checked with getUserById.
+ * Still there: a plain failure, and a retry works. Gone: the deletion carries on. If the check fails
+ * too, nothing more is deleted here and the message says it can't tell (rule 10); cron/daily finishes
+ * the rest if the user did go.
  *
  * The user's auth.audit_log_entries go too (migration 20261104100000). The purge is recorded before
  * anything is deleted, and refusing there stops the deletion. It runs after the auth user is deleted,
@@ -62,7 +67,12 @@ export interface AccountAdminClient {
       remove(paths: string[]): PromiseLike<{ data: unknown; error: unknown }>;
     };
   };
-  auth: { admin: { deleteUser(id: string): PromiseLike<{ data: unknown; error: unknown }> } };
+  auth: {
+    admin: {
+      deleteUser(id: string): PromiseLike<{ data: unknown; error: unknown }>;
+      getUserById(id: string): PromiseLike<{ data: { user: unknown } | null; error: unknown }>;
+    };
+  };
   rpc(fn: string, args?: Record<string, unknown>): PromiseLike<{ data: unknown; error: unknown }>;
 }
 
@@ -128,6 +138,23 @@ export async function sweepUserFolder(client: FolderClient, userId: string, page
 const isNotFound = (error: unknown) =>
   typeof error === "object" && error !== null && ((error as { status?: number }).status === 404 || (error as { code?: string }).code === "user_not_found");
 
+/** Asks Auth, after deleteUser reported an error. null: Auth didn't answer either. */
+async function userIsGone(client: AccountAdminClient, userId: string): Promise<boolean | null> {
+  try {
+    const { data, error } = await client.auth.admin.getUserById(userId);
+    if (error) return isNotFound(error) ? true : null;
+    return data?.user ? false : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Not knowing whether the user went, "Try again" alone could be untrue (rule 10). */
+const unconfirmed = (): { ok: false } & ApiError => {
+  const failed = apiError("save_failed");
+  return { ok: false, error: { ...failed.error, message: DATA_COPY.accountDeleteUnconfirmed } };
+};
+
 /** True only when the database confirms nothing identifying the user is left. Logs IDs only. */
 async function purgeAuditLog(client: AccountAdminClient, userId: string, email: string | null, logger: Logger): Promise<boolean> {
   let remaining: unknown;
@@ -147,7 +174,6 @@ export async function deleteAccount(client: AccountAdminClient, userId: string, 
   const pageSize = Math.min(Math.max(opts.pageSize ?? 1000, 1), 1000);
   const logger = opts.logger ?? defaultLog;
   const email = opts.email || null;
-  let removed = 0;
 
   // First, so that a purge that could never run deletes nothing at all, not even the files.
   try {
@@ -158,31 +184,38 @@ export async function deleteAccount(client: AccountAdminClient, userId: string, 
     return { ok: false, ...apiError("save_failed") };
   }
 
+  // Storage has to answer before anything is deleted. It removes nothing.
+  const probe = await storageCall(client.storage.from(SOURCES_BUCKET).list(userId, { limit: 1, offset: 0 }));
+  if (probe.error || !probe.data) {
+    logger("account_delete_sweep_failed", { user_id: userId, step: "storage_check" });
+    return { ok: false, ...apiError("save_failed") };
+  }
+
+  let deleteError: unknown = null;
+  try {
+    ({ error: deleteError } = await client.auth.admin.deleteUser(userId));
+  } catch (e) {
+    deleteError = e ?? { code: "unknown" };
+  }
+  if (deleteError && !isNotFound(deleteError)) {
+    const gone = await userIsGone(client, userId);
+    if (gone === false) return { ok: false, ...apiError("save_failed") };
+    if (gone === null) {
+      logger("account_delete_sweep_failed", { user_id: userId, step: "user_unconfirmed" });
+      return unconfirmed();
+    }
+  }
+
+  // The user is gone from here on, so the purge runs whatever the sweep does.
+  const auditPurged = await purgeAuditLog(client, userId, email, logger);
+
+  let filesGone = true;
+  let removed = 0;
   try {
     removed = await sweepUserFolder(client, userId, pageSize);
   } catch {
-    return { ok: false, ...apiError("save_failed") };
-  }
-
-  try {
-    const { error } = await client.auth.admin.deleteUser(userId);
-    if (error && !isNotFound(error)) return { ok: false, ...apiError("save_failed") };
-  } catch {
-    return { ok: false, ...apiError("save_failed") };
-  }
-
-  // The user is gone from here on, so the purge runs whatever the final sweep does.
-  const auditPurged = await purgeAuditLog(client, userId, email, logger);
-
-  // Final sweep for anything uploaded between the check and the user deletion.
-  let filesGone = true;
-  try {
-    const late = await sweepUserFolder(client, userId, pageSize);
-    if (late > 0) logger("account_delete_late_objects", { user_id: userId, objects: late });
-    removed += late;
-  } catch {
     filesGone = false;
-    logger("account_delete_sweep_failed", { user_id: userId });
+    logger("account_delete_sweep_failed", { user_id: userId, step: "sweep" });
   }
   // The folder is empty, so nothing is pending. If this call fails, cron/daily clears the row instead.
   if (filesGone) await Promise.resolve(client.rpc("account_file_purge_clear", { p_user_id: userId })).catch(() => undefined);

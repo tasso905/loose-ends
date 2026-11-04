@@ -98,6 +98,7 @@ export const DATA_COPY = {
   accountConfirmLabel: "Type delete to confirm", // PROPOSED (CONTENT_MODEL: confirmation requires typing `delete`)
   accountConfirmError: "Type delete to confirm.", // PROPOSED
   accountButton: "Delete account", // PROPOSED
+  accountDeleteUnconfirmed: "I can't tell whether your account was deleted. Reload this page. If you're signed out, it was, and anything left will be removed automatically. If you're still signed in, try again.", // PROPOSED (deleteUser and the check after it both failed; rule 10)
   accountDeleted: "Your account and everything in it were deleted.", // PROPOSED (sign-in page after deletion)
   // PROPOSED: the account is gone but the final file sweep or the audit log purge failed; no retry is possible (rules 9, 10).
   accountDeletedRecordsRemain: "Your account was deleted. Sign-in records with your email address are still stored and will be removed automatically.",

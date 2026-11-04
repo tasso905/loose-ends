@@ -490,10 +490,126 @@ test.describe("Delete account", () => {
   });
 });
 
+const CRON_SECRET = process.env.CRON_SECRET;
+const DB = process.env.LE_S11_DB_CONTAINER;
+const psql = (sql: string) => execFileSync("docker", ["exec", DB!, "psql", "-U", "postgres", "-d", "postgres", "-tAc", sql], { encoding: "utf8" }).trim();
+
+test.describe("cron over HTTP, through the proxy", () => {
+  test.skip(!CRON_SECRET, "start the server with CRON_SECRET set");
+  test("no credential or a wrong one is a JSON 401, never a redirect to sign-in; the right one answers counts", async ({ browser }) => {
+    const ctx = await browser.newContext();
+    const attempts: Array<Record<string, string>> = [{}, { authorization: "Bearer wrong" }, { authorization: "" }];
+    for (const headers of attempts) {
+      for (const res of [await ctx.request.get("/api/cron/daily", { headers, maxRedirects: 0 }), await ctx.request.post("/api/cron/daily", { headers, maxRedirects: 0 })]) {
+        expect(res.status()).toBe(401);
+        expect(await res.json()).toEqual({ error: { code: "unauthenticated", message: "Sign in to continue.", retryable: false } });
+      }
+    }
+    const res = await ctx.request.get("/api/cron/daily", { headers: { authorization: `Bearer ${CRON_SECRET}` }, maxRedirects: 0 });
+    expect(res.status()).toBe(200);
+    expect(await res.json()).toMatchObject({ ok: true, files_remaining: 0, audit_pending: 0, accounts_pending: 0 });
+    await ctx.close();
+  });
+
+  test("a signed-in user's cookies are not a cron credential", async ({ browser }) => {
+    const { context } = await signIn(browser);
+    expect((await context.request.get("/api/cron/daily", { maxRedirects: 0 })).status()).toBe(401);
+    expect((await context.request.post("/api/cron/daily", { maxRedirects: 0 })).status()).toBe(401);
+  });
+});
+
+test.describe("the deletion notice", () => {
+  const NOTICES = {
+    "1": "Your account and everything in it were deleted.",
+    "2": "Your account was deleted. Sign-in records with your email address are still stored and will be removed automatically.",
+    "3": "Your account was deleted. Some of your files are still stored and will be removed automatically.",
+    "4": "Your account was deleted. Some of your files and sign-in records with your email address are still stored and will be removed automatically.",
+  } as const;
+  const cookie = (value: string) => ({ name: "le_account_deleted", value, domain: "127.0.0.1", path: "/sign-in", httpOnly: true, sameSite: "Lax" as const });
+
+  for (const [value, text] of Object.entries(NOTICES)) {
+    for (const viewport of [{ width: 1280, height: 800 }, { width: 375, height: 740 }]) {
+      test(`value ${value} at ${viewport.width} px: its own text once, axe clean, gone on reload, cookie cleared`, async ({ browser }) => {
+        const ctx = await browser.newContext({ viewport });
+        const page = await ctx.newPage();
+        await ctx.addCookies([cookie(value)]);
+        await page.goto("/sign-in");
+        await expect(page.getByRole("status").filter({ hasText: text })).toBeVisible();
+        for (const [other, otherText] of Object.entries(NOTICES)) if (other !== value) await expect(page.getByText(otherText, { exact: true })).toHaveCount(0);
+        expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+        await axe(page, `notice ${value}`);
+        expect((await ctx.cookies()).filter((c) => c.name === "le_account_deleted")).toEqual([]);
+        await page.reload();
+        await expect(page.getByText(text, { exact: true })).toHaveCount(0);
+        await ctx.close();
+      });
+    }
+  }
+
+  test("anything else shows nothing and isn't reflected; a client header or a link can't produce it", async ({ browser }) => {
+    for (const value of ["0", "5", "11", "true", "%3Cscript%3Ealert(1)%3C/script%3E", ""]) {
+      const ctx = await browser.newContext();
+      const page = await ctx.newPage();
+      await ctx.addCookies([cookie(value)]);
+      await page.goto("/sign-in");
+      await expect(page.getByText("Your account", { exact: false })).toHaveCount(0);
+      expect(await page.content()).not.toContain("alert(1)");
+      await ctx.close();
+    }
+    const forged = await browser.newContext({ extraHTTPHeaders: { "x-le-account-deleted": "1" } });
+    const fp = await forged.newPage();
+    await fp.goto("/sign-in?account_deleted=1&x-le-account-deleted=1&notice=1");
+    await expect(fp.getByText("Your account", { exact: false })).toHaveCount(0);
+    await forged.close();
+  });
+
+  test("a prefetch or client-side request doesn't use it up", async ({ browser }) => {
+    const ctx = await browser.newContext();
+    const page = await ctx.newPage();
+    await ctx.addCookies([cookie("1")]);
+    const rsc = await ctx.request.get("/sign-in", { headers: { accept: "*/*", rsc: "1", "next-router-prefetch": "1" } });
+    expect(rsc.ok()).toBe(true);
+    expect(await rsc.text()).not.toContain(NOTICES["1"]);
+    await page.goto("/sign-in");
+    await expect(page.getByRole("status").filter({ hasText: NOTICES["1"] })).toBeVisible();
+    await ctx.close();
+  });
+
+  test("a signed-in user with the cookie goes to the app without the claim", async ({ browser }) => {
+    const { context, page } = await signIn(browser);
+    await context.addCookies([cookie("1")]);
+    await page.goto("/sign-in");
+    await expect(page).toHaveURL(/\/today/);
+    await expect(page.getByText(NOTICES["1"], { exact: true })).toHaveCount(0);
+  });
+
+  test("real deletion through the UI with a magic link: nothing with the id or email in any auth table; notice 1", async ({ browser }) => {
+    test.skip(!DB, "set LE_S11_DB_CONTAINER");
+    const { page, uid, email } = await signIn(browser);
+    await seed(uid, "Audit notes");
+    expect(Number(psql(`select count(*) from auth.audit_log_entries where payload::text ilike '%${email}%'`))).toBeGreaterThan(0);
+    await page.goto("/settings");
+    await page.getByRole("button", { name: "Delete account…" }).click();
+    const d = page.getByRole("dialog", { name: "Delete your account?" });
+    await d.getByLabel("Type delete to confirm").fill("delete");
+    await d.getByRole("button", { name: "Delete account" }).click();
+    await expect(page).toHaveURL(/\/sign-in$/, { timeout: 20_000 });
+    await expect(page.getByRole("status").filter({ hasText: NOTICES["1"] })).toBeVisible();
+    await page.goto("/today");
+    await expect(page).toHaveURL(/\/sign-in/);
+    const dump = execFileSync("docker", ["exec", DB!, "pg_dump", "-U", "postgres", "-d", "postgres", "--data-only", "--inserts", "-n", "public", "-n", "private", "-n", "storage", "-n", "auth"], {
+      encoding: "utf8",
+      maxBuffer: 512 * 1024 * 1024,
+    });
+    expect(dump.split("\n").filter((l) => l.includes(uid)).map((l) => l.slice(0, 120))).toEqual([]);
+    expect(dump.split("\n").filter((l) => l.toLowerCase().includes(email.toLowerCase())).map((l) => l.slice(0, 120))).toEqual([]);
+  });
+});
+
 const STORAGE = process.env.LE_S11_STORAGE_CONTAINER;
 test.describe("a real Storage outage", () => {
   test.skip(!STORAGE, "set LE_S11_STORAGE_CONTAINER on an isolated stack");
-  test.setTimeout(600_000);
+  test.setTimeout(300_000);
   const stop = () => execFileSync("docker", ["stop", "-t", "1", STORAGE!], { encoding: "utf8" });
   const start = async () => {
     execFileSync("docker", ["start", STORAGE!], { encoding: "utf8" });
@@ -584,5 +700,115 @@ test.describe("a real Storage outage", () => {
     await expect.poll(() => fileExists(s.path), { timeout: 15_000 }).toBe(false);
     await expect(d).toBeHidden({ timeout: 10_000 });
     await expect(page.getByRole("status").filter({ hasText: "Source deleted." })).toBeVisible();
+  });
+  for (const viewport of [{ width: 1280, height: 800 }, { width: 375, height: 740 }]) {
+    test(`rows gone, file stuck, at ${viewport.width} px (Source): truthful message, focus on it, axe, inside the time limit; Cancel can't relist it; cron finishes`, async ({ browser }) => {
+      test.skip(!CRON_SECRET, "start the server with CRON_SECRET set");
+      const { page, uid, context } = await signIn(browser, undefined, { viewport });
+      const s = await seed(uid, "Stuck source");
+      await page.goto("/settings");
+      await page.getByRole("button", { name: "Delete source only: Stuck source" }).click();
+      const d = page.getByRole("dialog", { name: "Delete source only?" });
+      stop();
+      try {
+        const t0 = Date.now();
+        await d.getByRole("button", { name: "Delete source only" }).click();
+        const msg = d.getByText("Your source was deleted, but its file hasn't been removed yet.");
+        await expect(msg).toBeVisible({ timeout: 40_000 });
+        console.log(`outage ${viewport.width}: source message after ${Date.now() - t0} ms`);
+        await expect(msg).toBeInViewport();
+        await expectFocusOnError(page, "stuck source");
+        await expect(d.getByText("That didn't save")).toHaveCount(0);
+        await expect(page.getByText("Source deleted.", { exact: true })).toHaveCount(0);
+        await axe(page, "source dialog, rows gone");
+        await d.getByRole("button", { name: "Cancel" }).click();
+        await expect(d).toBeHidden();
+        await expect(page.getByRole("heading", { level: 3, name: "Your sources" })).toBeFocused();
+        await expect(page.getByRole("status").filter({ hasText: "its file hasn't been removed yet" })).toBeVisible();
+        await expect(page.getByRole("button", { name: "Delete source only: Stuck source" })).toHaveCount(0);
+        await axe(page, "settings after Cancel, rows gone");
+        await page.reload();
+        await expect(page.getByText("Stuck source", { exact: true })).toHaveCount(0);
+      } finally {
+        await start();
+      }
+      // Not asserted that the file is still there here: a remove the gateway held during the outage may
+      // complete when Storage returns. Either way, after cron nothing may be left.
+      const res = await context.request.get("/api/cron/daily", { headers: { authorization: `Bearer ${CRON_SECRET}` } });
+      expect(res.status()).toBe(200);
+      expect(await res.json()).toMatchObject({ ok: true, files_remaining: 0 });
+      expect(await fileExists(s.path)).toBe(false);
+    });
+
+    test(`rows gone, file stuck, at ${viewport.width} px (Forget): truthful message, focus, axe; a second failure keeps focus; Cancel goes to Threads, never <body> on a dead page; cron finishes`, async ({ browser }) => {
+      test.skip(!CRON_SECRET, "start the server with CRON_SECRET set");
+      const { page, uid, context } = await signIn(browser, undefined, { viewport });
+      const s = await seed(uid, "Stuck forget");
+      await page.goto(`/threads/${s.threadId}`);
+      const d = await openForget(page);
+      await d.getByRole("checkbox", { name: "Also delete source" }).check();
+      const confirm = d.getByRole("button", { name: "Forget permanently" });
+      stop();
+      try {
+        const t0 = Date.now();
+        await confirm.click();
+        const msg = d.getByText("This thread was forgotten, but a file hasn't been removed yet.");
+        await expect(msg).toBeVisible({ timeout: 40_000 });
+        console.log(`outage ${viewport.width}: forget message after ${Date.now() - t0} ms`);
+        await expect(msg).toBeInViewport();
+        await expectFocusOnError(page, "stuck forget");
+        await axe(page, "forget dialog, rows gone");
+
+        await confirm.click();
+        await expect(confirm).toBeEnabled({ timeout: 40_000 });
+        await expect(msg).toBeVisible();
+        await expectFocusOnError(page, "stuck forget, retry failed");
+
+        await page.keyboard.press("Escape");
+        await expect(page).toHaveURL(/\/threads$/, { timeout: 15_000 });
+        await expect(page.getByText("Thread of Stuck forget")).toHaveCount(0);
+      } finally {
+        await start();
+      }
+      // Not asserted that the file is still there here: a remove the gateway held during the outage may
+      // complete when Storage returns. Either way, after cron nothing may be left.
+      const res = await context.request.get("/api/cron/daily", { headers: { authorization: `Bearer ${CRON_SECRET}` } });
+      expect(res.status()).toBe(200);
+      expect(await res.json()).toMatchObject({ ok: true, files_remaining: 0 });
+      expect(await fileExists(s.path)).toBe(false);
+    });
+  }
+
+  test("Delete account with Storage down at 375 px: focus on the error; the user keeps using the account; its files survive cron; a retry then succeeds", async ({ browser }) => {
+    test.skip(!CRON_SECRET, "start the server with CRON_SECRET set");
+    const { page, uid, context } = await signIn(browser, undefined, { viewport: { width: 375, height: 740 } });
+    const s = await seed(uid, "Survivor notes");
+    await page.goto("/settings");
+    await page.getByRole("button", { name: "Delete account…" }).click();
+    const d = page.getByRole("dialog", { name: "Delete your account?" });
+    await d.getByLabel("Type delete to confirm").fill("delete");
+    const confirm = d.getByRole("button", { name: "Delete account" });
+    stop();
+    try {
+      const t0 = Date.now();
+      await confirm.click();
+      await expect(d.getByText("That didn't save. Try again.")).toBeVisible({ timeout: 40_000 });
+      console.log(`outage 375: account error after ${Date.now() - t0} ms`);
+      await expectFocusOnError(page, "account outage 375");
+      await axe(page, "account dialog, Storage down");
+    } finally {
+      await start();
+    }
+    expect((await context.request.get("/api/cron/daily", { headers: { authorization: `Bearer ${CRON_SECRET}` } })).status()).toBe(200);
+    expect(await fileExists(s.path)).toBe(true);
+    await page.goto(`/threads/${s.threadId}`);
+    await expect(page.getByRole("heading", { name: "Thread of Survivor notes" })).toBeVisible();
+    await page.goto("/settings");
+    await page.getByRole("button", { name: "Delete account…" }).click();
+    await d.getByLabel("Type delete to confirm").fill("delete");
+    await confirm.click();
+    await expect(page).toHaveURL(/\/sign-in$/, { timeout: 20_000 });
+    await expect(page.getByRole("status").filter({ hasText: "Your account and everything in it were deleted." })).toBeVisible();
+    expect(await fileExists(s.path)).toBe(false);
   });
 });
