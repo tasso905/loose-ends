@@ -13,11 +13,54 @@ import { clampChars, DECISION_REASON_MAX, isBlankText } from "@/lib/threads/tran
  * The no-reason state (SITE_CONTRACT §2.11, CONTENT_MODEL §10, D58): says so plainly and offers
  * `Add a reason now`, which opens an inline field. Save sends the text exactly as typed (rule 5);
  * the reason appears only after the server confirms (rule 10), in the You wrote voice, and focus
- * moves to the element with id `reason-<decisionId>`, which the caller renders. Used by Ask why
+ * moves to it: the caller renders the reason and focuses it when it mounts (`useFocusOnMount`), so
+ * focus never depends on a frame landing after React commits. Used by Ask why
  * and by the Decision block on Thread detail (§2.7 as amended by D58). Cancel closes the field and
  * returns focus to `Add a reason now`. Limits and the blank check match Resolve (2,000 characters,
  * counted as characters).
  */
+/**
+ * Focus for the reason a NoReason form just added. `request(id)` before showing it; spread
+ * `ref(id)` on the reason's element. The element is focused in the commit that inserts it, so
+ * focus moves to it however late React renders (a requestAnimationFrame could fire before the
+ * element existed, leaving focus on <body>: the intermittent CI failure fixed Nov 2). `focus(id)`
+ * moves it again later (after a refresh) only if focus was lost to <body> meanwhile.
+ */
+export function useFocusOnMount() {
+  // One stable object per component: its methods close over this instance's state only.
+  const [api] = useState(() => {
+    let pending: string | null = null;
+    const els = new Map<string, HTMLElement>();
+    const refs = new Map<string, (el: HTMLElement | null) => void>();
+    return {
+      request(id: string) {
+        pending = id;
+      },
+      ref(id: string) {
+        let r = refs.get(id);
+        if (!r) {
+          r = (el: HTMLElement | null) => {
+            if (!el) return void els.delete(id);
+            els.set(id, el);
+            if (pending === id) {
+              pending = null;
+              el.focus();
+            }
+          };
+          refs.set(id, r);
+        }
+        return r;
+      },
+      refocus(id: string) {
+        const el = els.get(id) ?? document.getElementById(`reason-${id}`);
+        const active = document.activeElement;
+        if (el && el.isConnected && (!active || active === document.body)) el.focus();
+      },
+    };
+  });
+  return api;
+}
+
 export function NoReason({ decisionId, onAdded }: { decisionId: string; onAdded: (reason: string) => void }) {
   const [open, setOpen] = useState(false);
   const [text, setText] = useState("");
@@ -53,9 +96,8 @@ export function NoReason({ decisionId, onAdded }: { decisionId: string; onAdded:
           fieldRef.current?.focus();
           return;
         }
+        // The caller shows the reason and moves focus to it as it mounts (useFocusOnMount).
         onAdded(res.reason);
-        // The card re-renders with the reason; focus follows it so it is announced and not lost.
-        requestAnimationFrame(() => document.getElementById(`reason-${decisionId}`)?.focus());
       } catch {
         setError(apiError(typeof navigator !== "undefined" && !navigator.onLine ? "offline" : "save_failed").error.message);
       }
