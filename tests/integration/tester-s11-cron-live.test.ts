@@ -922,12 +922,160 @@ describe.skipIf(!live)("lead-tester S11 cron, account deletion failures, purge",
         expect(res).toMatchObject({ ok: false, error: { message: expect.stringContaining("I couldn't confirm whether your account was deleted") } });
         // The request held by the paused container can still land once it resumes, which is why the
         // message can't say either way. So: nothing else was deleted, and cron finishes if it did land.
+        expect(jar.set).toEqual([]);
+        // Lead-tester: the action itself swept nothing, whichever way the delete lands.
+        expect(await fileExists(s.path)).toBe(true);
+        process.stderr.write(`HUNG AUTH: after resuming, user exists = ${await userExists(A.id)}\n`);
         expect((await cron()).status).toBe(200);
         if (await userExists(A.id)) expect(await fileExists(s.path)).toBe(true);
         else expect(await fileExists(s.path)).toBe(false);
       },
       420_000,
     );
+
+    describe("the 15 s limits, each way a timed-out delete can land (lead-tester)", () => {
+      const UNCONFIRMED = "I couldn't confirm whether your account was deleted. Try again in a few minutes.";
+      const never = () => new Promise<never>(() => undefined);
+      const withDelete = (deleteUser: (id: string) => Promise<unknown>, getUserById?: (id: string) => Promise<unknown>): AccountAdminClient => ({
+        ...withAuth("down-first"),
+        auth: {
+          admin: {
+            getUserById: (getUserById ?? ((id: string) => admin.auth.admin.getUserById(id))) as never,
+            deleteUser: deleteUser as never,
+          },
+        },
+      });
+      const run = async () => {
+        jar.set.length = 0;
+        const t0 = Date.now();
+        const res = await deleteAccountAction("delete");
+        return { res, ms: Date.now() - t0 };
+      };
+
+      it("hangs and never lands, the check says the user is there: couldn't confirm at one limit; nothing deleted; a retry deletes", async () => {
+        const A = await makeUser("ta");
+        const s = await source(A);
+        current.client = A.client;
+        current.admin = withDelete(never);
+        const { res, ms } = await run();
+        current.admin = null;
+        expect(res).toMatchObject({ ok: false, error: { code: "save_failed", message: UNCONFIRMED } });
+        expect(ms).toBeGreaterThanOrEqual(14_900);
+        expect(ms).toBeLessThan(20_000);
+        expect(jar.set).toEqual([]);
+        expect(await userExists(A.id)).toBe(true);
+        expect(await fileExists(s.path)).toBe(true);
+        expect((await cron()).status).toBe(200);
+        expect(await fileExists(s.path)).toBe(true);
+        expect(await deleteAccountAction("delete")).toEqual({ ok: true });
+        expect(await userExists(A.id)).toBe(false);
+        expect(await fileExists(s.path)).toBe(false);
+        expect(pendingFiles(A.id)).toBe(0);
+        expect(pendingAudit(A.id)).toBe(0);
+      }, 60_000);
+
+      it("hangs and lands late: couldn't confirm; the retry says sign in and never claims anything; cron finishes", async () => {
+        const A = await makeUser("tb");
+        const s = await source(A);
+        current.client = A.client;
+        current.admin = withDelete(async (id) => {
+          await new Promise((r) => setTimeout(r, 16_000));
+          return admin.auth.admin.deleteUser(id);
+        });
+        const { res } = await run();
+        current.admin = null;
+        expect(res).toMatchObject({ ok: false, error: { message: UNCONFIRMED } });
+        expect(jar.set).toEqual([]);
+        await vi.waitFor(async () => expect(await userExists(A.id)).toBe(false), { timeout: 10_000, interval: 250 });
+        expect(await fileExists(s.path)).toBe(true);
+        expect(pendingFiles(A.id)).toBe(1);
+        expect(pendingAudit(A.id)).toBe(1);
+        jar.set.length = 0;
+        const retry = await deleteAccountAction("delete");
+        process.stderr.write(`LANDED LATE, RETRY: ${JSON.stringify(retry)}\n`);
+        expect(retry).toMatchObject({ ok: false, error: { code: "unauthenticated" } });
+        expect(jar.set).toEqual([]);
+        expect((await cron()).status).toBe(200);
+        expect(await fileExists(s.path)).toBe(false);
+        expect(auditCount(A)).toBe(0);
+        expect(pendingFiles(A.id)).toBe(0);
+        expect(pendingAudit(A.id)).toBe(0);
+      }, 60_000);
+
+      it("hangs, and the check hangs too: couldn't confirm at two limits; nothing deleted", async () => {
+        const A = await makeUser("tc");
+        const s = await source(A);
+        current.client = A.client;
+        current.admin = withDelete(never, never);
+        const { res, ms } = await run();
+        current.admin = null;
+        expect(res).toMatchObject({ ok: false, error: { message: UNCONFIRMED } });
+        expect(ms).toBeGreaterThanOrEqual(29_900);
+        expect(ms).toBeLessThan(36_000);
+        expect(jar.set).toEqual([]);
+        expect(await userExists(A.id)).toBe(true);
+        expect(await fileExists(s.path)).toBe(true);
+      }, 60_000);
+
+      it("the delete worked but its answer never came, the check says gone: the deletion carries on and says so", async () => {
+        const A = await makeUser("td");
+        const s = await source(A);
+        current.client = A.client;
+        current.admin = withDelete(async (id) => {
+          await admin.auth.admin.deleteUser(id);
+          return never();
+        });
+        const { res } = await run();
+        current.admin = null;
+        expect(res).toEqual({ ok: true });
+        expect(jar.set.length).toBeGreaterThan(0);
+        expect(await fileExists(s.path)).toBe(false);
+        expect(pendingFiles(A.id)).toBe(0);
+        expect(pendingAudit(A.id)).toBe(0);
+      }, 60_000);
+
+      it("the session check hangs (Auth paused first): couldn't confirm at one limit; no admin call is made; a retry deletes", async () => {
+        const A = await makeUser("te");
+        const s = await source(A);
+        current.client = A.client;
+        let adminCalls = 0;
+        current.admin = withDelete(async (id) => {
+          adminCalls++;
+          return admin.auth.admin.deleteUser(id);
+        });
+        execFileSync("docker", ["pause", AUTH!], { encoding: "utf8" });
+        let out;
+        try {
+          out = await run();
+        } finally {
+          execFileSync("docker", ["unpause", AUTH!], { encoding: "utf8" });
+        }
+        await startAuth();
+        expect(out.res).toMatchObject({ ok: false, error: { message: UNCONFIRMED } });
+        expect(out.ms).toBeLessThan(20_000);
+        expect(adminCalls).toBe(0);
+        expect(await userExists(A.id)).toBe(true);
+        expect(await fileExists(s.path)).toBe(true);
+        expect(await deleteAccountAction("delete")).toEqual({ ok: true });
+        current.admin = null;
+        expect(await fileExists(s.path)).toBe(false);
+      }, 240_000);
+
+      it.each([
+        ["AuthSessionMissingError", { name: "AuthSessionMissingError", status: 400 }, "unauthenticated"],
+        ["403 user not found", { name: "AuthApiError", status: 403, code: "user_not_found" }, "unauthenticated"],
+        ["401", { name: "AuthApiError", status: 401 }, "unauthenticated"],
+        ["429 (MEASURE: an outage-like state that says sign in)", { name: "AuthApiError", status: 429 }, "unauthenticated"],
+        ["500", { name: "AuthApiError", status: 500 }, "save_failed"],
+        ["502 from the gateway", { name: "AuthRetryableFetchError", status: 502 }, "save_failed"],
+        ["network failure, status 0", { name: "AuthRetryableFetchError", status: 0 }, "save_failed"],
+      ] as Array<[string, unknown, string]>)("the session check answers %s: %s", async (_n, error, code) => {
+        current.client = { auth: { getUser: async () => ({ data: { user: null }, error }) } } as never;
+        const res = await deleteAccountAction("delete");
+        expect(res).toMatchObject({ ok: false, error: { code } });
+        if (code === "save_failed") expect((res as { error: { message: string } }).error.message).toBe(UNCONFIRMED);
+      });
+    });
   });
 
   describe.runIf(STORAGE)("a real Storage outage", () => {
