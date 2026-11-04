@@ -415,7 +415,7 @@ describe.skipIf(!live)("S11 deletion and export on real local Supabase", () => {
           // The account is gone, and the notice says files remain instead of asking for a retry.
           expect((await admin.auth.admin.getUserById(A.id)).data.user).toBeNull();
           expect(jar.set).toEqual([{ name: "le_account_deleted", value: "3" }]);
-          expect(objects()).toBe("1");
+          expect(objects()).toBe("2"); // the seeded file and the race upload
           expect(row()).toBe("1");
           expect(auditMentions(A.id)).toBe(0);
 
@@ -423,7 +423,7 @@ describe.skipIf(!live)("S11 deletion and export on real local Supabase", () => {
           expect(down.status).toBe(500);
           expect(await down.json()).toMatchObject({ accounts_cleared: 0, accounts_pending: 1 });
           expect(row()).toBe("1");
-          expect(objects()).toBe("1");
+          expect(objects()).toBe("2");
         } finally {
           adminHook.afterDeleteUser = null;
           execFileSync("docker", ["start", STORAGE!], { encoding: "utf8" });

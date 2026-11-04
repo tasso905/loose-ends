@@ -381,6 +381,18 @@ test("Delete account: disabled until `delete` is typed; then every row and file 
   await expect(page).toHaveURL(/\/sign-in/);
 });
 
+test("a notice cookie on path / shows once and is cleared too", async ({ browser, baseURL }) => {
+  const ctx = await browser.newContext();
+  await ctx.addCookies([{ name: "le_account_deleted", value: "1", domain: new URL(baseURL!).hostname, path: "/" }]);
+  const p = await ctx.newPage();
+  await p.goto("/sign-in");
+  await expect(p.getByRole("status").filter({ hasText: "Your account and everything in it were deleted." })).toBeVisible();
+  expect((await ctx.cookies()).filter((c) => c.name === "le_account_deleted")).toEqual([]);
+  await p.reload();
+  await expect(p.getByText("Your account and everything in it were deleted.")).toHaveCount(0);
+  await ctx.close();
+});
+
 for (const [value, text] of [
   ["2", "Sign-in records with your email address are still stored and will be removed automatically."],
   ["3", "Some of your files are still stored and will be removed automatically."],

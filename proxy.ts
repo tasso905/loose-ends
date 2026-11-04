@@ -58,7 +58,11 @@ export async function proxy(request: NextRequest) {
 
   const decision = decideRoute({ pathname, search, signedIn });
   if (decision.kind === "continue") {
-    if (showAccountDeleted) response.cookies.set(ACCOUNT_DELETED_COOKIE, "", { path: "/sign-in", maxAge: 0 });
+    if (showAccountDeleted) {
+      response.cookies.set(ACCOUNT_DELETED_COOKIE, "", { path: "/sign-in", maxAge: 0 });
+      // A second path needs its own header: cookies.set keeps one entry per name.
+      response.headers.append("set-cookie", `${ACCOUNT_DELETED_COOKIE}=; Path=/; Max-Age=0`);
+    }
     return response;
   }
 

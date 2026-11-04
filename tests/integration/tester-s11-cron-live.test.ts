@@ -78,6 +78,7 @@ function faulty(admin: SupabaseClient, f: Faults): AccountAdminClient {
     },
     auth: {
       admin: {
+        getUserById: (id) => admin.auth.admin.getUserById(id) as never,
         deleteUser: async (id) => {
           if (f.deleteUser === "refused") return { data: null, error: { status: 500, code: "injected" } };
           const res = await admin.auth.admin.deleteUser(id);
@@ -309,7 +310,7 @@ describe.skipIf(!live)("lead-tester S11 cron, account deletion failures, purge",
     // OPEN DEFECT S11-D6 (blocker, rules 8 and 10): the first sweep removes every file before deleteUser runs.
     // If deleteUser then fails, the user is told "That didn't save. Try again." and keeps the account with
     // its files already gone and its sources still marked as having one.
-    it.fails("deleteUser refused: the surviving account keeps its files (it was told nothing was saved)", async () => {
+    it("deleteUser refused: the surviving account keeps its files (it was told nothing was saved)", async () => {
       const A = await makeUser("pe");
       const s = await source(A);
       await deleteAccount(faulty(admin, { deleteUser: "refused" }), A.id, { email: A.email, logger: () => undefined });
@@ -317,29 +318,27 @@ describe.skipIf(!live)("lead-tester S11 cron, account deletion failures, purge",
       expect(await fileExists(s.path)).toBe(true);
     });
 
-    it("deleteUser reports an error though the user is gone: a failure is shown, no success; cron finishes everything", async () => {
+    it("deleteUser reports an error though the user is gone: it carries on as a successful deletion", async () => {
       const A = await makeUser("pf");
       const s = await source(A);
       current.client = A.client;
       current.admin = faulty(admin, { deleteUser: "after" });
       jar.set.length = 0;
       try {
-        expect(await deleteAccountAction("delete")).toMatchObject({ ok: false, error: { code: "save_failed", retryable: true } });
+        expect(await deleteAccountAction("delete")).toEqual({ ok: true });
       } finally {
         current.admin = null;
       }
-      expect(jar.set).toEqual([]);
+      expect(jar.set.map((c) => c.value)).toEqual(["1"]);
       expect(await userExists(A.id)).toBe(false);
       expect(await rowsLeft(A.id)).toBe(0);
       expect(await fileExists(s.path)).toBe(false);
-      expect(auditCount(A)).toBeGreaterThan(0);
-      expect(pendingAudit(A.id)).toBe(1);
+      expect(auditCount(A)).toBe(0);
+      expect(pendingAudit(A.id)).toBe(0);
 
-      // "Try again" from the dead session: not a success, not a second deletion.
+      // A repeat from the dead session: not a success, not a second deletion.
       expect(await deleteAccountAction("delete")).toMatchObject({ ok: false, error: { code: "unauthenticated" } });
 
-      expect((await cron()).status).toBe(200);
-      expect(auditCount(A)).toBe(0);
       expect(pendingAudit(A.id)).toBe(0);
       expect(pendingFiles(A.id)).toBe(0);
     });
@@ -361,13 +360,14 @@ describe.skipIf(!live)("lead-tester S11 cron, account deletion failures, purge",
       expect(pendingFiles(A.id)).toBe(1);
       const late = `${A.id}/${randomUUID()}`;
       expect((await admin.storage.from("sources").upload(late, new Blob(["late race"]), { contentType: "text/plain" })).error).toBeNull();
-      expect(await fileExists(s.path)).toBe(false);
+      expect(await fileExists(s.path)).toBe(true);
 
       const res = await cron();
       const body = (await res.json()) as { accounts_cleared: number };
       expect(res.status).toBe(200);
       expect(body.accounts_cleared).toBeGreaterThanOrEqual(1);
       expect(await fileExists(late)).toBe(false);
+      expect(await fileExists(s.path)).toBe(false);
       expect(pendingFiles(A.id)).toBe(0);
     });
 
@@ -404,7 +404,7 @@ describe.skipIf(!live)("lead-tester S11 cron, account deletion failures, purge",
       }
       expect(jar.set.map((c) => c.value)).toEqual(["4"]);
       expect((await admin.storage.from("sources").upload(extra, new Blob(["late"]), { contentType: "text/plain" })).error).toBeNull();
-      expect(await fileExists(s.path)).toBe(false);
+      expect(await fileExists(s.path)).toBe(true);
 
       // Cron with Storage's remove failing: the account stays pending, the purge still finishes.
       const broken = createClient(url, service, opts);
@@ -430,6 +430,7 @@ describe.skipIf(!live)("lead-tester S11 cron, account deletion failures, purge",
 
       expect((await cron()).status).toBe(200);
       expect(await fileExists(extra)).toBe(false);
+      expect(await fileExists(s.path)).toBe(false);
       expect(auditCount(A)).toBe(0);
       expect(pendingAudit(A.id)).toBe(0);
       expect(pendingFiles(A.id)).toBe(0);

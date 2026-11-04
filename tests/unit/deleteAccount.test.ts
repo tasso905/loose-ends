@@ -6,7 +6,15 @@ const UID = "00000000-0000-4000-8000-000000000001";
 /** In-memory bucket: flat paths like `${UID}/a.txt` and `${UID}/sub/b.txt`. */
 function fakeClient(
   files: string[],
-  fail: { list?: boolean; remove?: boolean; removeNoop?: boolean; deleteUser?: boolean | "not_found"; prepare?: boolean; purge?: "error" | "throws" | "left" } = {},
+  fail: {
+    list?: boolean;
+    remove?: boolean;
+    removeNoop?: boolean;
+    deleteUser?: boolean | "not_found" | "throws";
+    getUser?: "exists" | "gone" | "error" | "throws";
+    prepare?: boolean;
+    purge?: "error" | "throws" | "left";
+  } = {},
   onDeleteUser?: (store: Set<string>, fail: { list?: boolean }) => void,
 ) {
   const store = new Set(files);
@@ -15,6 +23,7 @@ function fakeClient(
   const deleteUser = vi.fn(async () => {
     calls.push("deleteUser");
     onDeleteUser?.(store, fail);
+    if (fail.deleteUser === "throws") throw new Error("network");
     if (fail.deleteUser === "not_found") return { data: null, error: { message: "User not found", status: 404, code: "user_not_found" } };
     return { data: null, error: fail.deleteUser ? { message: "x" } : null };
   });
@@ -42,7 +51,18 @@ function fakeClient(
         },
       }),
     },
-    auth: { admin: { deleteUser } },
+    auth: {
+      admin: {
+        deleteUser,
+        getUserById: async () => {
+          calls.push("getUserById");
+          if (fail.getUser === "throws") throw new Error("network");
+          if (fail.getUser === "error") return { data: { user: null }, error: { message: "x", status: 500 } };
+          if (fail.getUser === "gone") return { data: { user: null }, error: { message: "User not found", status: 404, code: "user_not_found" } };
+          return { data: { user: { id: UID } }, error: null };
+        },
+      },
+    },
     rpc: async (fn, args) => {
       calls.push(fn);
       rpcArgs.push(args);
@@ -56,32 +76,69 @@ function fakeClient(
   return { client, store, calls, deleteUser, rpcArgs };
 }
 
-describe("deleteAccount(): storage first, then the auth user", () => {
+describe("deleteAccount(): Storage has to answer, then the auth user goes, then the files", () => {
   it("removes every object (paginated, with subfolders) and then deletes the user", async () => {
     const files = [...Array.from({ length: 5 }, (_, i) => `${UID}/f${i}.txt`), `${UID}/sub/x.pdf`, `${UID}/sub/y.pdf`];
     const f = fakeClient([...files, "someone-else/z.txt"]);
     const r = await deleteAccount(f.client, UID, { pageSize: 2 });
     expect(r).toEqual({ ok: true, objectsRemoved: 7 });
     expect([...f.store]).toEqual(["someone-else/z.txt"]);
-    expect(f.calls.indexOf("deleteUser")).toBeGreaterThan(f.calls.findIndex((c) => c.startsWith("remove:")));
+    expect(f.calls.indexOf("deleteUser")).toBeLessThan(f.calls.findIndex((c) => c.startsWith("remove:")));
     expect(f.calls.filter((c) => c.startsWith(`list:${UID}:`)).length).toBeGreaterThan(2); // paginated
   });
 
-  it.each([
-    ["list fails", { list: true }],
-    ["remove fails", { remove: true }],
-    ["objects still there after remove", { removeNoop: true }],
-  ])("%s → retryable error, user NOT deleted", async (_, fail) => {
-    const f = fakeClient([`${UID}/a.txt`], fail);
-    const r = await deleteAccount(f.client, UID);
+  it("Storage not answering → retryable error, nothing deleted", async () => {
+    const f = fakeClient([`${UID}/a.txt`], { list: true });
+    const r = await deleteAccount(f.client, UID, { logger: vi.fn() });
     expect(r).toEqual({ ok: false, error: { code: "save_failed", message: "That didn't save. Try again.", retryable: true } });
     expect(f.deleteUser).not.toHaveBeenCalled();
+    expect([...f.store]).toEqual([`${UID}/a.txt`]);
   });
 
-  it("auth delete failure is reported, not success", async () => {
-    const f = fakeClient([], { deleteUser: true });
-    const r = await deleteAccount(f.client, UID);
-    expect(r.ok).toBe(false);
+  it.each([
+    ["remove fails", { remove: true }],
+    ["objects still there after remove", { removeNoop: true }],
+  ])("%s after the user is gone → the result says files remain", async (_, fail) => {
+    const f = fakeClient([`${UID}/a.txt`], fail);
+    expect(await deleteAccount(f.client, UID, { logger: vi.fn() })).toEqual({ ok: true, objectsRemoved: 0, filesRemain: true });
+    expect(f.deleteUser).toHaveBeenCalled();
+    expect(f.calls).not.toContain("account_file_purge_clear");
+  });
+
+  it.each([
+    ["an error", true],
+    ["a throw", "throws"],
+  ] as const)("S11-D6: deleteUser refused with %s and the user is still there → failure, every file stays, nothing purged", async (_, deleteUser) => {
+    const f = fakeClient([`${UID}/a.txt`], { deleteUser, getUser: "exists" });
+    const r = await deleteAccount(f.client, UID, { logger: vi.fn() });
+    expect(r).toEqual({ ok: false, error: { code: "save_failed", message: "That didn't save. Try again.", retryable: true } });
+    expect([...f.store]).toEqual([`${UID}/a.txt`]);
+    expect(f.calls.some((c) => c.startsWith("remove:"))).toBe(false);
+    expect(f.calls).not.toContain("auth_audit_purge");
+  });
+
+  it("deleteUser reports an error but the user is gone → carries on: files, purge, success", async () => {
+    const f = fakeClient([`${UID}/a.txt`], { deleteUser: true, getUser: "gone" });
+    expect(await deleteAccount(f.client, UID, { logger: vi.fn() })).toEqual({ ok: true, objectsRemoved: 1 });
+    expect([...f.store]).toEqual([]);
+    expect(f.calls).toContain("auth_audit_purge");
+  });
+
+  it.each(["error", "throws"] as const)("deleteUser errors and the check %s too → says it can't tell, deletes nothing more", async (getUser) => {
+    const logger = vi.fn();
+    const f = fakeClient([`${UID}/a.txt`], { deleteUser: true, getUser });
+    const r = await deleteAccount(f.client, UID, { logger });
+    expect(r).toMatchObject({ ok: false, error: { code: "save_failed", message: expect.stringContaining("I can't tell whether your account was deleted") } });
+    expect(r).not.toMatchObject({ error: { message: expect.stringContaining("didn't save") } });
+    expect([...f.store]).toEqual([`${UID}/a.txt`]);
+    expect(f.calls).not.toContain("auth_audit_purge");
+    expect(logger).toHaveBeenCalledWith("account_delete_sweep_failed", { user_id: UID, step: "user_unconfirmed" });
+  });
+
+  it("deleteUser saying not found needs no check", async () => {
+    const f = fakeClient([], { deleteUser: "not_found" });
+    await deleteAccount(f.client, UID);
+    expect(f.calls).not.toContain("getUserById");
   });
 
   it("refuses a user id that is not a UUID (no prefix tricks like '' or '../')", async () => {
@@ -97,13 +154,10 @@ describe("deleteAccount(): storage first, then the auth user", () => {
     expect(f.deleteUser).toHaveBeenCalledWith(UID);
   });
 
-  it("sweeps again after deleting the user: a late upload is removed and logged (IDs only)", async () => {
-    const logger = vi.fn();
+  it("the sweep runs after deleting the user, so an upload that raced the delete goes too", async () => {
     const f = fakeClient([`${UID}/a.txt`], {}, (store) => store.add(`${UID}/late.txt`));
-    const r = await deleteAccount(f.client, UID, { logger });
-    expect(r).toEqual({ ok: true, objectsRemoved: 2 });
+    expect(await deleteAccount(f.client, UID)).toEqual({ ok: true, objectsRemoved: 2 });
     expect([...f.store]).toEqual([]);
-    expect(logger).toHaveBeenCalledWith("account_delete_late_objects", { user_id: UID, objects: 1 });
   });
 
   it("final sweep failure after the user is gone: no retry is possible, so the result says files remain; the row stays for cron", async () => {
@@ -113,8 +167,8 @@ describe("deleteAccount(): storage first, then the auth user", () => {
       fail.list = true;
     });
     const r = await deleteAccount(f.client, UID, { logger });
-    expect(r).toEqual({ ok: true, objectsRemoved: 1, filesRemain: true });
-    expect(logger).toHaveBeenCalledWith("account_delete_sweep_failed", { user_id: UID });
+    expect(r).toEqual({ ok: true, objectsRemoved: 0, filesRemain: true });
+    expect(logger).toHaveBeenCalledWith("account_delete_sweep_failed", { user_id: UID, step: "sweep" });
     expect(f.calls).not.toContain("account_file_purge_clear");
   });
 

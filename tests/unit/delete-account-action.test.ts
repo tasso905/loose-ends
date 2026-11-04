@@ -72,6 +72,13 @@ describe("deleteAccountAction: the notice", () => {
     for (const bad of ["0", "5", "", null, undefined, "__proto__"]) expect(accountDeletedNotice(bad)).toBeNull();
   });
 
+  it("can't tell whether the user went: the message says so, and no notice claims it", async () => {
+    s.result = { ok: false, error: { code: "save_failed", message: "I can't tell whether your account was deleted.", retryable: true } };
+    expect(await deleteAccountAction("delete")).toMatchObject({ ok: false, error: { message: "I can't tell whether your account was deleted." } });
+    expect(s.cookies).toEqual([]);
+    expect(s.events).toEqual([]);
+  });
+
   it("a failed deletion sets no notice", async () => {
     s.result = { ok: false, error: { code: "save_failed", message: "That didn't save. Try again.", retryable: true } };
     expect(await deleteAccountAction("delete")).toMatchObject({ ok: false, error: { code: "save_failed" } });
