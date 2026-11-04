@@ -34,6 +34,8 @@ import { suppressionHash } from "@/lib/pipeline/verifyQuotes";
 
 const DB = process.env.LE_S11_DB_CONTAINER;
 const STORAGE = process.env.LE_S11_STORAGE_CONTAINER;
+/** Stops or pauses the stack's Auth container: set only on an isolated stack. */
+const AUTH = process.env.LE_S11_AUTH_CONTAINER;
 const live = process.env.LE_SUPABASE_LIVE === "1" && Boolean(DB);
 const opts = { auth: { persistSession: false, autoRefreshToken: false } };
 const SECRET = "s11-unit-cron-secret";
@@ -95,6 +97,12 @@ function faulty(admin: SupabaseClient, f: Faults): AccountAdminClient {
     },
   };
 }
+
+/** Whether the object's bytes are still on the storage container's disk. */
+const onDisk = (path: string) => {
+  const name = path.slice(path.lastIndexOf("/") + 1);
+  return Number(execFileSync("docker", ["exec", STORAGE!, "sh", "-c", `find /mnt -path '*${name}*' -type f | wc -l`], { encoding: "utf8" }).trim()) > 0;
+};
 
 function failingRemove(client: SupabaseClient): DataClient {
   return {
@@ -654,6 +662,270 @@ describe.skipIf(!live)("lead-tester S11 cron, account deletion failures, purge",
     });
   });
 
+  describe("S11-D6: the order and what a refused deletion leaves", () => {
+    /** The real client, recording each step and what the database and Storage held at that moment. */
+    function traced(u: User, s: { path: string }, seen: string[], hooks: { removeFailAfter?: number } = {}): AccountAdminClient {
+      let removes = 0;
+      return {
+        storage: {
+          from: (bucket) => ({
+            list: async (prefix, o) => {
+              seen.push(`list pending=${pendingFiles(u.id)}/${pendingAudit(u.id)} user=${await userExists(u.id)}`);
+              return admin.storage.from(bucket).list(prefix, o) as never;
+            },
+            remove: async (paths) => {
+              removes += 1;
+              seen.push(`remove user=${await userExists(u.id)}`);
+              if (hooks.removeFailAfter !== undefined && removes > hooks.removeFailAfter) return { data: null, error: { code: "injected" } };
+              return admin.storage.from(bucket).remove(paths) as never;
+            },
+          }),
+        },
+        auth: {
+          admin: {
+            getUserById: (id) => admin.auth.admin.getUserById(id) as never,
+            deleteUser: async (id) => {
+              seen.push(`deleteUser file=${await fileExists(s.path)} pending=${pendingFiles(u.id)}/${pendingAudit(u.id)}`);
+              return admin.auth.admin.deleteUser(id) as never;
+            },
+          },
+        },
+        rpc: async (fn, args) => {
+          seen.push(`rpc ${fn}`);
+          return admin.rpc(fn, args) as never;
+        },
+      };
+    }
+
+    it("pending rows, Storage answers, deleteUser, purge, sweep: no file goes while the user exists", async () => {
+      const A = await makeUser("oa");
+      const s = await source(A);
+      const seen: string[] = [];
+      const res = await deleteAccount(traced(A, s, seen), A.id, { email: A.email, logger: () => undefined });
+      expect(res).toMatchObject({ ok: true, objectsRemoved: 1 });
+      expect(seen[0]).toBe("rpc auth_audit_purge_prepare");
+      expect(seen[1]).toBe("list pending=1/1 user=true");
+      expect(seen[2]).toBe("deleteUser file=true pending=1/1");
+      expect(seen[3]).toBe("rpc auth_audit_purge");
+      // The sweep: list, remove, list to prove it empty, then the row clears.
+      expect(seen[4]).toMatch(/^list pending=1\/0 user=false$/);
+      expect(seen[5]).toBe("remove user=false");
+      expect(seen.at(-1)).toBe("rpc account_file_purge_clear");
+      expect(seen.filter((x) => x.startsWith("remove") && x.includes("user=true"))).toEqual([]);
+      expect(pendingFiles(A.id)).toBe(0);
+      expect(pendingAudit(A.id)).toBe(0);
+    });
+
+    it("deleteUser refused and the user is there: account, every file, every row and the sign-in history stay; a retry then succeeds", async () => {
+      const A = await makeUser("ob");
+      const one = await source(A);
+      const two = await source(A);
+      const unowned = await upload(A);
+      const rows = await rowsLeft(A.id);
+      const audit = auditCount(A);
+      current.client = A.client;
+      current.admin = faulty(admin, { deleteUser: "refused" });
+      jar.set.length = 0;
+      try {
+        expect(await deleteAccountAction("delete")).toEqual({ ok: false, error: { code: "save_failed", message: "That didn't save. Try again.", retryable: true } });
+      } finally {
+        current.admin = null;
+      }
+      expect(jar.set).toEqual([]);
+      expect(await userExists(A.id)).toBe(true);
+      for (const p of [one.path, two.path, unowned]) expect(await fileExists(p), p).toBe(true);
+      if (STORAGE) for (const p of [one.path, two.path, unowned]) expect(onDisk(p), p).toBe(true);
+      expect(await rowsLeft(A.id)).toBe(rows);
+      expect(auditCount(A)).toBe(audit);
+
+      expect((await cron()).status).toBe(200);
+      for (const p of [one.path, two.path, unowned]) expect(await fileExists(p), p).toBe(true);
+
+      expect(await deleteAccountAction("delete")).toEqual({ ok: true });
+      for (const p of [one.path, two.path, unowned]) expect(await fileExists(p), p).toBe(false);
+      expect(auditCount(A)).toBe(0);
+    });
+
+    it("Storage fails partway through the sweep: the account goes, some files wait for cron, cookie 3 and nothing else", async () => {
+      const A = await makeUser("oc");
+      const one = await source(A);
+      const two = await source(A);
+      const seen: string[] = [];
+      const res = await deleteAccount(traced(A, one, seen, { removeFailAfter: 1 }), A.id, { email: A.email, pageSize: 1, logger: () => undefined });
+      expect(res).toMatchObject({ ok: true, filesRemain: true });
+      expect(res).not.toHaveProperty("signInRecordsRemain");
+      expect(await userExists(A.id)).toBe(false);
+      expect(await rowsLeft(A.id)).toBe(0);
+      expect([await fileExists(one.path), await fileExists(two.path)].filter(Boolean)).toHaveLength(1);
+      expect(auditCount(A)).toBe(0);
+      expect(pendingFiles(A.id)).toBe(1);
+      expect((await cron()).status).toBe(200);
+      expect(await fileExists(one.path)).toBe(false);
+      expect(await fileExists(two.path)).toBe(false);
+      expect(pendingFiles(A.id)).toBe(0);
+    });
+
+    it("the same through the action: cookie 3", async () => {
+      const A = await makeUser("od");
+      await source(A);
+      current.client = A.client;
+      const seen: string[] = [];
+      current.admin = traced(A, { path: `${A.id}/none` }, seen, { removeFailAfter: 0 });
+      jar.set.length = 0;
+      try {
+        expect(await deleteAccountAction("delete")).toEqual({ ok: true });
+      } finally {
+        current.admin = null;
+      }
+      expect(jar.set.map((c) => c.value)).toEqual(["3"]);
+      expect((await cron()).status).toBe(200);
+      expect(pendingFiles(A.id)).toBe(0);
+    });
+
+    it("late upload after the sweep: the session's token is refused once the profile is gone, so nothing is stranded", async () => {
+      const A = await makeUser("oe");
+      await source(A);
+      current.client = A.client;
+      expect(await deleteAccountAction("delete")).toEqual({ ok: true });
+      const token = createClient(url, anon, { ...opts, global: { headers: { Authorization: `Bearer ${(await A.client.auth.getSession()).data.session?.access_token ?? anon}` } } });
+      const late = await token.storage.from("sources").upload(`${A.id}/${randomUUID()}`, new Blob(["late"]), { contentType: "text/plain" });
+      expect(late.error).not.toBeNull();
+      expect(Number(psql(`select count(*) from storage.objects where name like '${A.id}/%'`))).toBe(0);
+    });
+  });
+
+  describe.runIf(AUTH)("deleteUser error, then the check, against a really stopped Auth", () => {
+    const startAuth = async () => {
+      execFileSync("docker", ["start", AUTH!], { encoding: "utf8" });
+      await vi.waitFor(
+        async () => {
+          const r = await admin.auth.admin.listUsers({ perPage: 1 });
+          expect(r.error).toBeNull();
+        },
+        { timeout: 90_000, interval: 1_000 },
+      );
+    };
+    /** The real client. `beforeDelete` / `afterDelete` run around a real or skipped deleteUser. */
+    const withAuth = (mode: "down-first" | "gone-then-down"): AccountAdminClient => ({
+      storage: { from: (b) => admin.storage.from(b) as never },
+      auth: {
+        admin: {
+          getUserById: (id) => admin.auth.admin.getUserById(id) as never,
+          deleteUser: async (id) => {
+            if (mode === "down-first") {
+              execFileSync("docker", ["stop", "-t", "1", AUTH!], { encoding: "utf8" });
+              return admin.auth.admin.deleteUser(id) as never;
+            }
+            const res = await admin.auth.admin.deleteUser(id);
+            if (res.error) return res as never;
+            execFileSync("docker", ["stop", "-t", "1", AUTH!], { encoding: "utf8" });
+            return { data: null, error: { status: 504, code: "injected" } };
+          },
+        },
+      },
+      rpc: (fn, args) => admin.rpc(fn, args) as never,
+    });
+
+    it(
+      "Auth down before the delete: says it can't tell, deletes nothing; a retry after Auth returns succeeds",
+      async () => {
+        const A = await makeUser("ua");
+        const s = await source(A);
+        const audit = auditCount(A);
+        current.client = A.client;
+        current.admin = withAuth("down-first");
+        jar.set.length = 0;
+        let res;
+        const t0 = Date.now();
+        try {
+          res = await deleteAccountAction("delete");
+        } finally {
+          current.admin = null;
+          await startAuth();
+        }
+        console.log(`auth down: answered in ${Date.now() - t0} ms including the restart`);
+        expect(res).toMatchObject({ ok: false, error: { code: "save_failed", message: expect.stringContaining("I can't tell whether your account was deleted") } });
+        expect(jar.set).toEqual([]);
+        expect(await userExists(A.id)).toBe(true);
+        expect(await fileExists(s.path)).toBe(true);
+        expect(auditCount(A)).toBeGreaterThanOrEqual(audit);
+        expect((await cron()).status).toBe(200);
+        expect(await fileExists(s.path)).toBe(true);
+        expect(await deleteAccountAction("delete")).toEqual({ ok: true });
+        expect(await fileExists(s.path)).toBe(false);
+      },
+      240_000,
+    );
+
+    it(
+      "the user went and the check fails: can't tell, no cookie; cron finishes the audit log and every file",
+      async () => {
+        const A = await makeUser("ub");
+        const s = await source(A);
+        current.client = A.client;
+        current.admin = withAuth("gone-then-down");
+        jar.set.length = 0;
+        let res;
+        try {
+          res = await deleteAccountAction("delete");
+        } finally {
+          current.admin = null;
+          await startAuth();
+        }
+        expect(res).toMatchObject({ ok: false, error: { message: expect.stringContaining("I can't tell whether your account was deleted") } });
+        expect(jar.set).toEqual([]);
+        expect(await userExists(A.id)).toBe(false);
+        expect(await rowsLeft(A.id)).toBe(0);
+        expect(await fileExists(s.path)).toBe(true);
+        expect(pendingFiles(A.id)).toBe(1);
+        expect(pendingAudit(A.id)).toBe(1);
+        expect((await cron()).status).toBe(200);
+        expect(await fileExists(s.path)).toBe(false);
+        expect(auditCount(A)).toBe(0);
+        expect(pendingFiles(A.id)).toBe(0);
+        expect(pendingAudit(A.id)).toBe(0);
+      },
+      240_000,
+    );
+
+    it(
+      "a hung Auth call: how long the action holds the dialog (measured, no limit asserted)",
+      async () => {
+        const A = await makeUser("uc");
+        const s = await source(A);
+        current.client = A.client;
+        const hung: AccountAdminClient = {
+          ...withAuth("down-first"),
+          auth: {
+            admin: {
+              getUserById: (id) => admin.auth.admin.getUserById(id) as never,
+              deleteUser: async (id) => {
+                execFileSync("docker", ["pause", AUTH!], { encoding: "utf8" });
+                return admin.auth.admin.deleteUser(id) as never;
+              },
+            },
+          },
+        };
+        current.admin = hung;
+        const t0 = Date.now();
+        let res;
+        try {
+          res = await deleteAccountAction("delete");
+        } finally {
+          current.admin = null;
+          execFileSync("docker", ["unpause", AUTH!], { encoding: "utf8" });
+        }
+        const ms = Date.now() - t0;
+        process.stderr.write(`HUNG AUTH: action answered after ${ms} ms: ${JSON.stringify(res)}\n`);
+        await startAuth();
+        expect(res).toMatchObject({ ok: false });
+        expect(await userExists(A.id)).toBe(true);
+        expect(await fileExists(s.path)).toBe(true);
+      },
+      420_000,
+    );
+  });
+
   describe.runIf(STORAGE)("a real Storage outage", () => {
     const start = async () => {
       execFileSync("docker", ["start", STORAGE!], { encoding: "utf8" });
@@ -713,6 +985,9 @@ describe.skipIf(!live)("lead-tester S11 cron, account deletion failures, purge",
         }
         expect(await userExists(A.id)).toBe(true);
         expect(await fileExists(s.path)).toBe(true);
+        expect(onDisk(s.path)).toBe(true);
+        expect(auditCount(A)).toBeGreaterThan(0);
+        expect(await rowsLeft(A.id)).toBeGreaterThan(0);
         expect((await cron()).status).toBe(200);
         expect(await fileExists(s.path)).toBe(true);
       },

@@ -546,6 +546,33 @@ test.describe("the deletion notice", () => {
     }
   }
 
+  test("a cookie on `/` and on /sign-in: shown once, both cleared, on a production response", async ({ browser }) => {
+    const ctx = await browser.newContext();
+    const page = await ctx.newPage();
+    await ctx.addCookies([{ ...cookie("1"), path: "/" }, cookie("1")]);
+    const res = await page.goto("/sign-in");
+    await expect(page.getByRole("status").filter({ hasText: NOTICES["1"] })).toBeVisible();
+    const setCookie = (await res!.headerValue("set-cookie")) ?? "";
+    expect(setCookie).toMatch(/le_account_deleted=;[^\n]*Path=\/sign-in/i);
+    expect(setCookie).toMatch(/le_account_deleted=;[^\n]*Path=\/(;|\s|$)/im);
+    expect((await ctx.cookies()).filter((c) => c.name === "le_account_deleted")).toEqual([]);
+    await page.reload();
+    await expect(page.getByText(NOTICES["1"], { exact: true })).toHaveCount(0);
+    await ctx.close();
+  });
+
+  test("a cookie on `/` alone: shown once and cleared", async ({ browser }) => {
+    const ctx = await browser.newContext();
+    const page = await ctx.newPage();
+    await ctx.addCookies([{ ...cookie("3"), path: "/" }]);
+    await page.goto("/sign-in");
+    await expect(page.getByRole("status").filter({ hasText: NOTICES["3"] })).toBeVisible();
+    expect((await ctx.cookies()).filter((c) => c.name === "le_account_deleted")).toEqual([]);
+    await page.reload();
+    await expect(page.getByText(NOTICES["3"], { exact: true })).toHaveCount(0);
+    await ctx.close();
+  });
+
   test("anything else shows nothing and isn't reflected; a client header or a link can't produce it", async ({ browser }) => {
     for (const value of ["0", "5", "11", "true", "%3Cscript%3Ealert(1)%3C/script%3E", ""]) {
       const ctx = await browser.newContext();
@@ -810,5 +837,33 @@ test.describe("a real Storage outage", () => {
     await expect(page).toHaveURL(/\/sign-in$/, { timeout: 20_000 });
     await expect(page.getByRole("status").filter({ hasText: "Your account and everything in it were deleted." })).toBeVisible();
     expect(await fileExists(s.path)).toBe(false);
+  });
+});
+
+const AUTH = process.env.LE_S11_AUTH_CONTAINER;
+test.describe("the unconfirmed message, against a really stopped Auth", () => {
+  test.skip(!AUTH, "set LE_S11_AUTH_CONTAINER on an isolated stack");
+  test.setTimeout(300_000);
+
+  // OPEN DEFECT S11-D7 (rule 10): accountDeleteUnconfirmed says "Reload this page. If you're signed out, it
+  // was". That message appears when Auth isn't answering, and with Auth still down the reload lands a live
+  // account on sign-in, so the user concludes it was deleted when it wasn't.
+  test("Auth still down: reloading does not sign a live account out", async ({ browser }) => {
+    test.fail();
+    const { page, uid } = await signIn(browser);
+    await page.goto("/settings");
+    await expect(page.getByRole("heading", { level: 2, name: "Data" })).toBeVisible();
+    execFileSync("docker", ["stop", "-t", "1", AUTH!], { encoding: "utf8" });
+    let url = "";
+    try {
+      await page.reload({ timeout: 120_000 }).catch(() => undefined);
+      url = page.url();
+    } finally {
+      execFileSync("docker", ["start", AUTH!], { encoding: "utf8" });
+      await expect.poll(() => admin().auth.admin.listUsers({ perPage: 1 }).then((r) => r.error === null), { timeout: 90_000 }).toBe(true);
+    }
+    console.log(`reload with Auth down landed on ${url}`);
+    expect((await admin().auth.admin.getUserById(uid)).data.user).not.toBeNull();
+    expect(url).not.toMatch(/\/sign-in/);
   });
 });
