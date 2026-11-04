@@ -4,6 +4,7 @@ import { extract, ExtractionFailedError, type ExtractInput } from "@/lib/ai/extr
 import { createRecordedModel, NoRecordingError } from "@/lib/ai/fake";
 import { AiConfigError, getModel } from "@/lib/ai/provider";
 import { ASK_WHY_PROMPT_VERSION, EXTRACT_PROMPT_VERSION, loadPrompt, promptSha } from "@/lib/ai/prompts";
+import { findCondition } from "@/lib/pipeline/conditional";
 import { processExtraction } from "@/lib/pipeline/proposals";
 
 const input = (sourceText: string, over: Partial<ExtractInput> = {}): ExtractInput => ({
@@ -35,8 +36,9 @@ describe("prompts", () => {
   });
 
   it("the current versions load and older versions stay in the repo (eval gate, Oct 27)", () => {
-    expect(EXTRACT_PROMPT_VERSION).toBe("extract.v3");
+    expect(EXTRACT_PROMPT_VERSION).toBe("extract.v4");
     expect(ASK_WHY_PROMPT_VERSION).toBe("ask-why.v3");
+    expect(loadPrompt("extract.v3")).toMatch(/^You read one message/);
     expect(loadPrompt("extract.v2")).toMatch(/^You read one message/);
     expect(loadPrompt("extract.v2")).not.toContain("prompt: extract.v2");
     expect(loadPrompt("ask-why.v3")).toMatch(/^You answer a user's question/);
@@ -52,9 +54,36 @@ describe("prompts", () => {
     expect(v3.replace(/ A promise made to a group the user belongs to[^\n]*?\("Ilse: collect the raffle prizes"\)\./, "")).toBe(v2);
   });
 
+  it("extract.v4 is extract.v3 plus one certainty bullet, and v3 is unchanged", () => {
+    const v3 = loadPrompt("extract.v3");
+    const v4 = loadPrompt("extract.v4");
+    expect(v4).not.toContain("prompt: extract.v4");
+    expect(v3).not.toContain("a polite opt-out");
+    const added = /;\n {5}- a promise with its own date or time whose only qualifier[^\n]*stays `implied`\./;
+    expect(v4).toMatch(added);
+    expect(v4.replace(added, ".")).toBe(v3);
+  });
+
+  // The prompt and the deterministic guard must agree, or the guard would cap what v4 calls explicit.
+  it.each([
+    "I'll return the ladder on Monday, if that works for you",
+    "We'll move the meeting to Wednesday, if you don't mind",
+    "I'll post the photos on Sunday, when I find a moment",
+  ])("extract.v4's explicit example is not capped by the conditional guard: %s", (quote) => {
+    expect(loadPrompt("extract.v4")).toContain(quote);
+    expect(findCondition(quote, true)).toBeNull();
+  });
+
+  it("extract.v4's speculative example is capped by the conditional guard", () => {
+    const quote = "I'll pay you back on Friday if the refund comes through";
+    expect(loadPrompt("extract.v4")).toContain(quote);
+    expect(findCondition(quote, true)).toMatchObject({ kind: "if", position: "trailing" });
+  });
+
   it("promptSha is a stable 12-hex hash of the whole file, so a header or body edit changes it", () => {
-    expect(promptSha("extract.v3")).toMatch(/^[0-9a-f]{12}$/);
-    expect(promptSha("extract.v3")).toBe(promptSha("extract.v3"));
+    expect(promptSha("extract.v4")).toMatch(/^[0-9a-f]{12}$/);
+    expect(promptSha("extract.v4")).toBe(promptSha("extract.v4"));
+    expect(promptSha("extract.v4")).not.toBe(promptSha("extract.v3"));
     expect(promptSha("extract.v3")).not.toBe(promptSha("extract.v2"));
   });
 });
@@ -62,7 +91,7 @@ describe("prompts", () => {
 describe("extract() with the recorded fake model", () => {
   it("returns validated output and the trace fields an extractions row needs (F5)", async () => {
     const run = await extract(input(MIKE), { model: createRecordedModel(), modelLabel: "fake:recorded", logger: () => {} });
-    expect(run).toMatchObject({ model: "fake:recorded", promptVersion: "extract.v3", schemaVersion: "extraction.v1", attempts: 1 });
+    expect(run).toMatchObject({ model: "fake:recorded", promptVersion: "extract.v4", schemaVersion: "extraction.v1", attempts: 1 });
     expect(run.inputTokens).toBeGreaterThan(0);
     expect(run.outputTokens).toBeGreaterThan(0);
     expect(run.latencyMs).toBeGreaterThanOrEqual(0);

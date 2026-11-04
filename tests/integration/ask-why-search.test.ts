@@ -287,6 +287,7 @@ const EMPTY_REPORT: EvalReport = {
   schema_version: "x",
   run_at: "2026-10-22T00:00:00.000Z",
   rpm: null,
+  unavailable_retries: { rounds: 0, extra_attempts: 0, retried: 0, still_unavailable: 0 },
   fixtures: 0,
   ambiguous_fixtures: 0,
   scores: {

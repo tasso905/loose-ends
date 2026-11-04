@@ -40,6 +40,13 @@
  * unless a zero-tolerance gate (unverified quote shown, F19 speculative-as-High or
  * explicit-dated-as-Low) is already violated: missing fixtures cannot undo that, so it is "fail".
  *
+ * Provider outages: a fixture whose final failure kind is `unavailable` (5xx, network, timeout, empty
+ * response) is tried again in later rounds, after the whole set has had its first attempt, with
+ * backoff (see retryUnavailable). No other kind is retried: malformed, safety, rejected, quota and
+ * config are real results. The report and the scorecard always state the extra attempts, so a clean
+ * result can't hide them; a fixture still unavailable after the last round fails the run as before.
+ * Only `pnpm eval` turns this on; product behaviour (extract(), askWhy()) is unchanged.
+ *
  * Rule 9: per-fixture failures record only the classification (kind, status, attempts, error
  * class name) via safeErrorFields(); never the provider message, the model's raw text or the input.
  * Per-item detail identifies items by golden index and a short quote hash, never by text.
@@ -101,6 +108,65 @@ export function createThrottle(rpm: number, clock: ThrottleClock = realClock): T
       next = at + interval; // reserved synchronously, so concurrent callers queue too
       if (at > now) await clock.sleep(at - now);
     },
+  };
+}
+
+/** How a run retries provider outages. Each delay is one extra round over what is still unavailable. */
+export interface UnavailableRetry {
+  delaysMs: readonly number[];
+  sleep?: (ms: number) => Promise<void>;
+}
+
+/**
+ * Four extra rounds, 225 s of waiting in all, for `pnpm eval`. An attempt is one extract() or
+ * askWhy() call, which itself makes up to 2 provider calls on `unavailable` (D43), so one case makes
+ * at most 10 provider calls. Every call still goes through the throttle.
+ */
+export const DEFAULT_UNAVAILABLE_RETRY: UnavailableRetry = { delaysMs: [15_000, 30_000, 60_000, 120_000] };
+
+export interface UnavailableRetrySummary {
+  /** Extra rounds that ran (0 when nothing was unavailable). */
+  rounds: number;
+  /** Extra attempts in all, over every case. */
+  extra_attempts: number;
+  /** Cases that needed at least one extra attempt. */
+  retried: number;
+  /** Cases still `unavailable` after the last round; these count as failed. */
+  still_unavailable: number;
+  /** Extra attempts by case index. */
+  perCase: number[];
+}
+
+/**
+ * Replaces each outcome still marked unavailable with a new attempt, round by round, until none is
+ * left or the delays run out. An attempt ending in any other way (a success or a real failure)
+ * is final. Content-free: it only counts.
+ */
+export async function retryUnavailable<T>(
+  outcomes: T[],
+  isUnavailable: (outcome: T) => boolean,
+  again: (index: number) => Promise<T>,
+  policy: UnavailableRetry = { delaysMs: [] },
+): Promise<UnavailableRetrySummary> {
+  const sleep = policy.sleep ?? realClock.sleep;
+  const perCase = outcomes.map(() => 0);
+  let rounds = 0;
+  for (const delay of policy.delaysMs) {
+    const pending = outcomes.flatMap((o, i) => (isUnavailable(o) ? [i] : []));
+    if (pending.length === 0) break;
+    rounds++;
+    await sleep(delay);
+    for (const i of pending) {
+      perCase[i]!++;
+      outcomes[i] = await again(i);
+    }
+  }
+  return {
+    rounds,
+    extra_attempts: perCase.reduce((a, b) => a + b, 0),
+    retried: perCase.filter((n) => n > 0).length,
+    still_unavailable: outcomes.filter(isUnavailable).length,
+    perCase,
   };
 }
 
@@ -191,6 +257,8 @@ export interface FixtureResult {
   expected: number;
   shown: number | null;
   attempts: number | null;
+  /** Extra attempts after `unavailable`, beyond the first (0 for most fixtures). `attempts` is the last one's. */
+  extra_attempts: number;
   /** Set when the fixture failed; "quota" means the provider limit, not the model, failed it. */
   failure: { kind: AiFailureKind; status: number | null; error: string } | null;
   counts: { matched: number; missed: number; extra: number; ignore_shown: number };
@@ -203,6 +271,8 @@ export interface FixtureResult {
  * violation, so not judged.
  */
 export type EvalResult = "pass" | "fail" | "incomplete_quota";
+
+type FixtureOutcome = Pick<FixtureResult, "attempts" | "failure"> & { proposals: Proposal[] };
 
 export interface EvalReport {
   model: string;
@@ -247,6 +317,8 @@ export interface EvalReport {
     extraction_failures: number;
   };
   failures_by_kind: Partial<Record<AiFailureKind, number>>;
+  /** Extra attempts made because the provider was unavailable; always reported. */
+  unavailable_retries: Omit<UnavailableRetrySummary, "perCase">;
   /** False when any fixture failed (quota or otherwise): the scores then undercount the model. */
   complete: boolean;
   thresholds: typeof THRESHOLDS;
@@ -260,6 +332,8 @@ export interface RunEvalOptions {
   model: LanguageModel;
   /** e.g. "google:gemini-3.5-flash"; recorded in the report and the scorecard header. */
   modelLabel: string;
+  /** Off when omitted; `pnpm eval` passes DEFAULT_UNAVAILABLE_RETRY. */
+  unavailableRetry?: UnavailableRetry;
   throttle?: Throttle;
   /** ISO timestamp of the run; supplied by the caller (the harness reads no clock). */
   runAt: string;
@@ -430,18 +504,19 @@ export async function runEval(opts: RunEvalOptions): Promise<EvalReport> {
   const perFixture: FixtureResult[] = [];
   let ambiguousCount = 0;
 
-  for (const name of names) {
+  const fixtures = names.map((name) => {
     const dir = join(opts.fixturesDir, name);
-    const text = readFileSync(join(dir, "input.txt"), "utf8");
-    const meta = JSON.parse(readFileSync(join(dir, "meta.json"), "utf8"));
-    const expected: Expected[] = JSON.parse(readFileSync(join(dir, "expected.json"), "utf8")).items;
-    const ambiguous = meta.ambiguous === true;
-    const pageOffsets: number[] | null = Array.isArray(meta.page_offsets) ? meta.page_offsets : null;
-    if (ambiguous) ambiguousCount++;
+    return {
+      name,
+      text: readFileSync(join(dir, "input.txt"), "utf8"),
+      meta: JSON.parse(readFileSync(join(dir, "meta.json"), "utf8")),
+      expected: JSON.parse(readFileSync(join(dir, "expected.json"), "utf8")).items as Expected[],
+    };
+  });
 
-    let proposals: Proposal[] = [];
-    let attempts: number | null = null;
-    let failure: FixtureResult["failure"] = null;
+  /** One extract() call plus the pipeline. Nothing is tallied here, so a retried attempt leaves no trace in the scores. */
+  const attempt = async ({ text, meta }: (typeof fixtures)[number]): Promise<FixtureOutcome> => {
+    const pageOffsets: number[] | null = Array.isArray(meta.page_offsets) ? meta.page_offsets : null;
     try {
       const run = await extract(
         {
@@ -454,8 +529,7 @@ export async function runEval(opts: RunEvalOptions): Promise<EvalReport> {
         },
         { model, modelLabel: opts.modelLabel, logger: () => {} },
       );
-      attempts = run.attempts;
-      proposals = processExtraction(run.output, {
+      const proposals = processExtraction(run.output, {
         sourceText: text,
         referenceDate: meta.reference_date,
         referenceDateSource: meta.reference_date_source ?? "user",
@@ -463,14 +537,25 @@ export async function runEval(opts: RunEvalOptions): Promise<EvalReport> {
         pageOffsets,
         logger: () => {},
       }).proposals.filter((p) => p.item.type !== "key_fact");
+      return { proposals, attempts: run.attempts, failure: null };
     } catch (err) {
-      // A failed fixture is scored as if the model returned nothing: its golden items are misses.
       const f = safeErrorFields(err);
+      return { proposals: [], attempts: f.attempts, failure: { kind: f.kind, status: f.status, error: f.error } };
+    }
+  };
+
+  const outcomes: FixtureOutcome[] = [];
+  for (const fixture of fixtures) outcomes.push(await attempt(fixture));
+  const retried = await retryUnavailable(outcomes, (o) => o.failure?.kind === "unavailable", (i) => attempt(fixtures[i]!), opts.unavailableRetry);
+
+  for (const [index, { name, text, meta, expected }] of fixtures.entries()) {
+    const ambiguous = meta.ambiguous === true;
+    if (ambiguous) ambiguousCount++;
+    const { proposals, attempts, failure } = outcomes[index]!;
+    if (failure) {
+      // A failed fixture is scored as if the model returned nothing: its golden items are misses.
       t.failures++;
-      failuresByKind[f.kind] = (failuresByKind[f.kind] ?? 0) + 1;
-      attempts = f.attempts;
-      failure = { kind: f.kind, status: f.status, error: f.error };
-      proposals = [];
+      failuresByKind[failure.kind] = (failuresByKind[failure.kind] ?? 0) + 1;
     }
 
     const { items, shown } = scoreFixture(text, expected, proposals, ambiguous, t);
@@ -482,6 +567,7 @@ export async function runEval(opts: RunEvalOptions): Promise<EvalReport> {
       expected: expected.length,
       shown: failure === null ? shown : null,
       attempts,
+      extra_attempts: retried.perCase[index]!,
       failure,
       counts: { matched: count("matched"), missed: count("missed"), extra: count("extra"), ignore_shown: count("ignore_shown") },
       items,
@@ -519,6 +605,7 @@ export async function runEval(opts: RunEvalOptions): Promise<EvalReport> {
     ambiguous_fixtures: ambiguousCount,
     scores,
     failures_by_kind: failuresByKind,
+    unavailable_retries: { rounds: retried.rounds, extra_attempts: retried.extra_attempts, retried: retried.retried, still_unavailable: retried.still_unavailable },
     complete: t.failures === 0,
     thresholds: THRESHOLDS,
     result,
@@ -575,6 +662,7 @@ export function renderScorecard(r: EvalReport, ask: AskWhyEvalReport | null = nu
     `- Run date: ${r.run_at}`,
     `- Fixtures: ${r.fixtures} (${r.ambiguous_fixtures} ambiguous)`,
     `- Throttle: ${r.rpm === null ? "off" : `${r.rpm} requests/min`}`,
+    `- Extra attempts after provider unavailable: ${r.unavailable_retries.extra_attempts} (${r.unavailable_retries.retried} fixtures, ${r.unavailable_retries.rounds} rounds, ${r.unavailable_retries.still_unavailable} still unavailable)`,
     "",
     RESULT_LINE[r.result],
     "",
@@ -604,7 +692,7 @@ export function renderScorecard(r: EvalReport, ask: AskWhyEvalReport | null = nu
   ];
   if (ask) {
     lines.push(
-      `- Ask-why: ${RESULT_LINE[ask.result].replace(/^Result: /, "")}; model ${ask.model}, prompt ${ask.prompt_version} (sha256 ${ask.prompt_sha256}), schema ${ask.schema_version}; answerable hit rate ${pct(ask.answerable_hit_rate)}; model calls ${ask.llm_calls}; failed calls ${ask.failures}`,
+      `- Ask-why: ${RESULT_LINE[ask.result].replace(/^Result: /, "")}; model ${ask.model}, prompt ${ask.prompt_version} (sha256 ${ask.prompt_sha256}), schema ${ask.schema_version}; answerable hit rate ${pct(ask.answerable_hit_rate)}; model calls ${ask.llm_calls}; failed calls ${ask.failures}; extra attempts after provider unavailable ${ask.unavailable_retries.extra_attempts} (${ask.unavailable_retries.retried} questions, ${ask.unavailable_retries.rounds} rounds, ${ask.unavailable_retries.still_unavailable} still unavailable)`,
     );
     const fab = Object.entries(ask.fabrications_by_kind);
     if (fab.length) lines.push(`- Ask-why fabrications by kind: ${fab.map(([k, n]) => `${k} ${n}`).join(", ")}`);
@@ -614,10 +702,10 @@ export function renderScorecard(r: EvalReport, ask: AskWhyEvalReport | null = nu
   const failures = Object.entries(r.failures_by_kind);
   if (failures.length) lines.push(`- Failures by kind: ${failures.map(([k, n]) => `${k} ${n}`).join(", ")}`);
   if (r.result === "fail") lines.push(`- Gates missed: ${failedGates(r.fixtures, s).join(", ")}`);
-  lines.push("", "## Per fixture", "", "| Fixture | Status | Matched | Missed | Extra | Ignore shown |", "| --- | --- | --- | --- | --- | --- |");
+  lines.push("", "## Per fixture", "", "| Fixture | Status | Extra attempts | Matched | Missed | Extra | Ignore shown |", "| --- | --- | --- | --- | --- | --- | --- |");
   for (const f of r.perFixture) {
     const status = f.failure ? `failed (${f.failure.kind})` : "ok";
-    lines.push(`| ${f.name} | ${status} | ${f.counts.matched} | ${f.counts.missed} | ${f.counts.extra} | ${f.counts.ignore_shown} |`);
+    lines.push(`| ${f.name} | ${status} | ${f.extra_attempts} | ${f.counts.matched} | ${f.counts.missed} | ${f.counts.extra} | ${f.counts.ignore_shown} |`);
   }
   if (!r.complete) lines.push("", "Incomplete run: some fixtures failed, so the scores undercount the model.");
   return [...lines, ""].join("\n");

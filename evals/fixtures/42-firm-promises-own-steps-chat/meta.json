@@ -1,0 +1,22 @@
+{
+  "description": "Chat written by the user (Noor) on Wed Oct 14, 2026. Each dated promise is firm: a trailing step on the speaker's own time, time passing, a courtesy, or an unrelated 'if' in the next sentence with no comma. None is a condition, so all must stay High.",
+  "covers": [
+    "conditional_guard_false_positive",
+    "own_time_get",
+    "time_step_contraction",
+    "comma_less_instruction",
+    "courtesy_if",
+    "commitment_by_user"
+  ],
+  "reference_date": "2026-10-14",
+  "reference_date_source": "user",
+  "timezone": "America/Chicago",
+  "source_kind": "paste",
+  "user": {
+    "display_name": "Noor Haddad",
+    "aliases": [
+      "Noor"
+    ]
+  },
+  "ambiguous": false
+}

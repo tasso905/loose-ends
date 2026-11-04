@@ -1,0 +1,47 @@
+{
+  "notes": "Every promise is conditional on another person, so each is speculative and Low, with its date. T-G13, T-G14 and T-G4: 'a.m.' and 'Inc.' do not end the sentence, and getting paid is not the speaker's own step.",
+  "items": [
+    {
+      "type": "commitment",
+      "title": "Call the tent rental",
+      "owner": "user",
+      "quote": "I'll call the tent rental at 9 a.m. Friday if the treasurer signs off.",
+      "date_text": "9 a.m. Friday",
+      "due_date": "2026-10-16",
+      "due_certainty": "explicit",
+      "certainty": "speculative",
+      "counterparty": "Sam",
+      "amount_text": null,
+      "band": "low",
+      "note": "A capital after a.m. is the weekday, not a new sentence."
+    },
+    {
+      "type": "commitment",
+      "title": "Ship the banners to Lakeside Signs",
+      "owner": "user",
+      "quote": "I'll ship the banners to Lakeside Signs Inc. on Monday if the deposit clears.",
+      "date_text": "on Monday",
+      "due_date": "2026-10-19",
+      "due_certainty": "explicit",
+      "certainty": "speculative",
+      "counterparty": "Sam",
+      "amount_text": null,
+      "band": "low",
+      "note": "'Inc.' before lowercase does not end the sentence."
+    },
+    {
+      "type": "commitment",
+      "title": "Pay the stage crew",
+      "owner": "user",
+      "quote": "I'll pay the stage crew on Thursday once I get paid by the sponsors.",
+      "date_text": "on Thursday",
+      "due_date": "2026-10-15",
+      "due_certainty": "explicit",
+      "certainty": "speculative",
+      "counterparty": "Sam",
+      "amount_text": null,
+      "band": "low",
+      "note": "Waiting to be paid is a condition, even with subject I."
+    }
+  ]
+}
