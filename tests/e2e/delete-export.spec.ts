@@ -371,7 +371,7 @@ test("Delete account: disabled until `delete` is typed; then every row and file 
   await d.getByLabel("Type delete to confirm").fill("delete");
   await confirm.click();
   await expect(page).toHaveURL(/\/sign-in$/, { timeout: 15_000 });
-  await expect(page.getByRole("status").filter({ hasText: "Your account and everything in it were deleted." })).toBeVisible();
+  await expect(page.getByRole("status").filter({ hasText: "Your account and your data in Loose Ends were deleted." })).toBeVisible();
   expect((await admin().auth.admin.getUserById(uid)).data.user).toBeNull();
   expect((await admin().from("sources").select("id").eq("user_id", uid)).data).toEqual([]);
   expect((await admin().from("threads").select("id").eq("user_id", uid)).data).toEqual([]);
@@ -386,10 +386,10 @@ test("a notice cookie on path / shows once and is cleared too", async ({ browser
   await ctx.addCookies([{ name: "le_account_deleted", value: "1", domain: new URL(baseURL!).hostname, path: "/" }]);
   const p = await ctx.newPage();
   await p.goto("/sign-in");
-  await expect(p.getByRole("status").filter({ hasText: "Your account and everything in it were deleted." })).toBeVisible();
+  await expect(p.getByRole("status").filter({ hasText: "Your account and your data in Loose Ends were deleted." })).toBeVisible();
   expect((await ctx.cookies()).filter((c) => c.name === "le_account_deleted")).toEqual([]);
   await p.reload();
-  await expect(p.getByText("Your account and everything in it were deleted.")).toHaveCount(0);
+  await expect(p.getByText("Your account and your data in Loose Ends were deleted.")).toHaveCount(0);
   await ctx.close();
 });
 
@@ -404,7 +404,7 @@ for (const [value, text] of [
     const p = await ctx.newPage();
     await p.goto("/sign-in");
     await expect(p.getByRole("status").filter({ hasText: text! })).toBeVisible();
-    await expect(p.getByText("Your account and everything in it were deleted.")).toHaveCount(0);
+    await expect(p.getByText("Your account and your data in Loose Ends were deleted.")).toHaveCount(0);
     await p.reload();
     await expect(p.getByText("Your account was deleted.")).toHaveCount(0);
     await ctx.close();
