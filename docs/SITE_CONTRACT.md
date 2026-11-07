@@ -40,6 +40,7 @@
 | Route | Page | Auth | Notes |
 |---|---|---|---|
 | `/sign-in` | Sign in | Public | First screen for signed-out visitors; no public landing page (D38). `?sent=1` shows the check-your-email state. `?next={path}` is kept through the check-your-email state and the magic link. |
+| `/privacy` | Privacy | Public | *Proposed (D77); not built.* Built from `docs/PRIVACY.md`; its URL is the privacy policy URL Google needs before the consent screen can be published (D76). Not a landing page: signed-out visitors still start at `/sign-in` (D38). Wording needs the user's approval |
 | `/auth/callback` | Auth handoff | Public | Redirects to `/onboarding` on first sign-in, else to the `next` param or `/today` |
 | `/onboarding` | Aliases question | Signed in | Shown once; skippable |
 | `/` | — | Any | Signed in: redirects to `/today`. Signed out: redirects to `/sign-in`, with no `next` because `/` lands on Today anyway (D38) |
@@ -238,7 +239,7 @@ Field-level content, constraints and copy are defined in the content model v1.1;
 | `unauthenticated` (D47; HTTP routes only, pages redirect to `/sign-in`) | `Sign in to continue.` | Sign in | No |
 | Today, Threads or Thread detail fail to load (D47) | `I couldn't load your threads.` | Page banner + `Try again` | Yes |
 
-**Extraction failures (D43).** Every extraction failure shows `extraction_failed`, whatever the cause, including the AI provider's own quota (429); `rate_limited` is only the user's own daily limit. Before the error shows, the server retries once only when a retry can help (provider unavailable or malformed output), never on quota, a safety block, a rejected request or a config error. `Try again` starts a new attempt and is offered for up to 3 retries per source; after the third, it is hidden and `retry_limit` explains why (D48). *Was:* "`Try again` is always offered."
+**Extraction failures (D43).** Every extraction failure shows `extraction_failed`, whatever the cause, including the AI provider's own quota (429); `rate_limited` is only the user's own daily limit. Before the error shows, the server retries once only when a retry can help (provider unavailable or malformed output), never on quota, a safety block, a rejected request or a config error. `Try again` starts a new attempt and is offered for up to 3 retries per source; after the third, it is hidden and `retry_limit` explains why (D48). *Was:* "`Try again` is always offered." **Exception, the daily AI budget (D79):** when `DAILY_AI_BUDGET_USD` refuses a paste, an upload or `Try again`, the page shows `save_failed` (`That didn't save. Try again.`), not `extraction_failed`. The refusal comes before anything is saved or extracted, so nothing is saved and no daily limit or retry is used up. On Decisions, an ask with matching decisions that the budget refuses shows `ask_failed`; a question with zero matches still gets the no-match answer, with no model call.
 
 **Upload refusals (D52).** Upload refusals reuse documented codes, each with its own message: Word, damaged or locked and empty files return `unsupported_type`, and an upload over 30,000 characters returns `input_too_long`. Scans keep `unsupported_scan`.
 
@@ -247,11 +248,11 @@ Field-level content, constraints and copy are defined in the content model v1.1;
 | Code | Message | Action | Retry? |
 |---|---|---|---|
 | Sign-in `invalid_email` | `Enter an email address, like name@example.com.` | Inline under the email field | No |
-| `sign_in_rate_limited` | `Too many sign-in links were requested. Wait a few minutes, then try again.` | Inline under the email field | Later |
+| `sign_in_rate_limited` | `Too many sign-in links were requested. Wait up to an hour, then try again.` (D78; *was:* "Wait a few minutes") | Inline under the email field | Later |
 | Sign-in `send_failed` | `I couldn't send the link. Try again.` | Inline under the email field; `Email me a sign-in link` stays available | Yes |
 | `?error=link_expired` | `That sign-in link has expired or was already used. Enter your email to get a new one.` | Email field | No; request a new link |
 | `?error=link_other_browser` | `That link was opened in a different browser. Enter your email to get a new one, and open it in this browser.` | Email field | No; request a new link |
-| `?error=oauth_failed` | `Google sign-in didn't finish. Try again, or use your email.` | `Continue with Google` or the email field. Applies only while Google sign-in is switched on (D41) | Yes |
+| `?error=oauth_failed` | `Google sign-in didn't finish. Try again, or use your email.` | `Continue with Google` or the email field. Applies only while Google sign-in is switched on (D41). While the consent screen is in Testing (D76), people who aren't test users get Google's own error page instead of this message; email sign-in still works for them | Yes |
 | Onboarding `too_many` | `That's more than 20 names and emails. Keep the ones people use most.` | Inline under the field | No |
 | Onboarding `too_long` | `Each name or email can be up to 100 characters.` | Inline under the field | No |
 | Onboarding save failure / offline | Generic rows above: `That didn't save. Try again.` / `You're offline. Nothing was saved.` | Page banner + `Try again` | Yes |
