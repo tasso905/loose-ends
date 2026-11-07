@@ -21,11 +21,6 @@ create table private.ai_spend_daily (
 );
 revoke all on private.ai_spend_daily from public, anon, authenticated;
 
--- The most one model call may record: $0.20, matching MAX_CALL_COST_MICROS in lib/ai/budget.ts.
-create function private.ai_max_call_cost_micros() returns bigint
-language sql immutable set search_path = '' as $$ select 200000::bigint $$;
-revoke all on function private.ai_max_call_cost_micros() from public, anon, authenticated;
-
 -- True while today's (UTC) recorded spend is below the cap. Callers treat an error as closed.
 -- Definer: the service role has no privileges on the private table.
 create function public.ai_budget_open(p_budget_micros bigint) returns boolean
@@ -46,16 +41,13 @@ grant execute on function public.ai_budget_open(bigint) to service_role;
 -- Records one model call's estimated cost for today (UTC).
 create function public.record_ai_cost(p_cost_micros bigint) returns boolean
 language plpgsql security definer set search_path = '' as $$
-declare
-  v_cost bigint;
 begin
   if p_cost_micros is null or p_cost_micros < 0 then
     raise exception using errcode = '22023', message = 'invalid cost';
   end if;
-  v_cost := least(p_cost_micros, private.ai_max_call_cost_micros());
 
   insert into private.ai_spend_daily as s (day, cost_micros, calls)
-  values ((now() at time zone 'UTC')::date, v_cost, 1)
+  values ((now() at time zone 'UTC')::date, p_cost_micros, 1)
   on conflict (day) do update set cost_micros = s.cost_micros + excluded.cost_micros, calls = s.calls + 1;
   return true;
 end;

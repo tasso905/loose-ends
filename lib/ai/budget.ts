@@ -18,7 +18,9 @@ import { log as defaultLog, type Logger } from "@/lib/log";
  * reached between the two checks, that one attempt has already been counted.
  *
  * The cap is checked before a call and spend recorded after, so calls already in flight when the
- * cap is reached can finish: the day's spend can pass the cap by at most those calls.
+ * cap is reached can finish, and the day's spend can pass the cap by those calls. A record that fails
+ * is logged and not retried, so while record_ai_cost is failing the estimate undercounts and the cap
+ * can be passed by more than that.
  *
  * A call that throws records nothing. Google says a request failing with a 400 or 500 error is not
  * charged (https://aistudio.google.com/docs/billing, read Nov 4, 2026). It does not say what other
@@ -37,8 +39,11 @@ import { log as defaultLog, type Logger } from "@/lib/log";
  */
 export const PRICE_USD_PER_MTOK = { input: 1.5, output: 7.5 } as const;
 
-/** Mirrors private.ai_max_call_cost_micros() in the migration; a call with no usage report is charged this. */
-export const MAX_CALL_COST_MICROS = 200_000;
+/**
+ * What a call with no usage report is charged: well above a typical call, below the most a call with
+ * no output limit could cost (about $0.54). Calls that report usage are charged in full.
+ */
+export const UNKNOWN_CALL_COST_MICROS = 200_000;
 
 export type BudgetConfig =
   | { mode: "off" }
@@ -58,13 +63,13 @@ export function budgetConfig(env: Record<string, string | undefined> = process.e
   return { mode: "cap", budgetMicros: Math.round(Number(raw) * 1_000_000) };
 }
 
-/** Estimated cost of one call in micro-dollars; unknown token counts are charged the per-call maximum. */
+/** Estimated cost of one call in micro-dollars; unknown token counts are charged UNKNOWN_CALL_COST_MICROS. */
 export function costMicros(inputTokens: number | undefined, outputTokens: number | undefined): number {
   if (inputTokens === undefined || outputTokens === undefined || !Number.isFinite(inputTokens) || !Number.isFinite(outputTokens)) {
-    return MAX_CALL_COST_MICROS;
+    return UNKNOWN_CALL_COST_MICROS;
   }
   const usd = (Math.max(0, inputTokens) * PRICE_USD_PER_MTOK.input + Math.max(0, outputTokens) * PRICE_USD_PER_MTOK.output) / 1_000_000;
-  return Math.min(MAX_CALL_COST_MICROS, Math.ceil(usd * 1_000_000));
+  return Math.ceil(usd * 1_000_000);
 }
 
 export type BudgetRefusal = "exhausted" | "unset" | "invalid" | "check_failed";
@@ -141,7 +146,7 @@ export function withBudget(model: LanguageModel, db: BudgetDb | undefined, opts:
       wrapGenerate: async ({ doGenerate }) => {
         await ensureOpen();
         const result = await doGenerate();
-        await record(costMicros(result.usage.inputTokens.total, result.usage.outputTokens.total));
+        await record(costMicros(result.usage?.inputTokens?.total, result.usage?.outputTokens?.total));
         return result;
       },
       // Nothing here streams; a streamed call would bypass the record step, so it is refused.

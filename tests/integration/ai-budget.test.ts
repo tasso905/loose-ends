@@ -48,12 +48,12 @@ describe("record_ai_cost()", () => {
     expect(await spend()).toEqual([{ cost_micros: "1234", calls: 2 }]);
   });
 
-  it("clamps one call to $0.20 and refuses a negative or null cost (nothing can lower the total)", async () => {
-    expect(await record(50_000_000)).toBe(true);
-    expect(await spend()).toEqual([{ cost_micros: "200000", calls: 1 }]);
+  it("records a large call in full and refuses a negative or null cost (nothing can lower the total)", async () => {
+    expect(await record(540_000)).toBe(true);
+    expect(await spend()).toEqual([{ cost_micros: "540000", calls: 1 }]);
     await expect(record(-5)).rejects.toThrow(/invalid cost/);
     await expect(sel("public.record_ai_cost(null)")).rejects.toThrow(/invalid cost/);
-    expect(await spend()).toEqual([{ cost_micros: "200000", calls: 1 }]);
+    expect(await spend()).toEqual([{ cost_micros: "540000", calls: 1 }]);
   });
 });
 

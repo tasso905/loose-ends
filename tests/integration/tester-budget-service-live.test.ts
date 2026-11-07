@@ -193,10 +193,8 @@ describe.skipIf(!live)("DAILY_AI_BUDGET_USD: the real budget client, usage repor
       process.stderr.write(`USAGE budgeted, ${name}: ${out}; provider calls ${m.calls()}; spend ${JSON.stringify(spend())}; logs ${JSON.stringify(logs)}\n`);
     });
 
-    // OPEN, low: budget.ts says "a call with no usage report is charged" $0.20. A provider breaking the
-    // V4 contract gets a TypeError and no record. The real Google provider always sends the object, so
-    // this can't happen on the only live provider; the SDK itself throws on such a response anyway.
-    it.fails("a provider that omits usage is still charged $0.20", async () => {
+    // The SDK itself throws on such a response, so the answer is lost either way; the call is still charged.
+    it("a provider that omits usage is still charged $0.20", async () => {
       const m = mock("omit", '{"ok":true}');
       const model = withBudget(m.model, admin as unknown as BudgetDb, { feature: "ask", env: CAP, logger: quiet });
       await generateObject({ model, schema: SCHEMA, prompt: "Synthetic", maxRetries: 0 }).catch(quiet);

@@ -124,7 +124,7 @@ describe.skipIf(!live)("DAILY_AI_BUDGET_USD, attacked live", () => {
     it("a free account cannot close the $2.50 budget for everyone else with direct calls", async () => {
       const attacker = await user();
       const victim = await user();
-      // Two counted extractions allow 16 records; 13 at the $0.20 clamp pass $2.50.
+      // 13 records of $0.20 would pass $2.50, if a signed-in user could make them.
       await attacker.db.rpc("consume_usage", { p_kind: "extraction" });
       await attacker.db.rpc("consume_usage", { p_kind: "extraction" });
       for (let i = 0; i < 13; i++) await attacker.db.rpc("record_ai_cost", { p_cost_micros: 200_000 });
@@ -311,7 +311,7 @@ describe.skipIf(!live)("DAILY_AI_BUDGET_USD, attacked live", () => {
       expect(await counters(a.id)).toEqual([]);
     });
 
-    it("a zero-match ask answers with no check, no request and no record, even at cap 0", async () => {
+    it("a zero-match ask answers with no request and no record, even at cap 0", async () => {
       const a = await user();
       const g = google(() => ({ body: EMPTY_ANSWER }));
       const r = await askQuestion(a.db as unknown as RpcDb, "Why did I choose Zzyzx?", { model: g.model, modelLabel: "t", logger: quiet, budgetDb: budget(), env: ZERO });
@@ -526,21 +526,21 @@ describe.skipIf(!live)("DAILY_AI_BUDGET_USD, attacked live", () => {
       expect(budgetConfig({})).toEqual({ mode: "off" });
     });
 
-    it("MEASURE: the $0.20 limit is below the worst-case call if output is not bounded", () => {
-      // extract() sets no maxOutputTokens. 30,000 input tokens and 65,536 output tokens would cost $0.54.
-      expect(costMicros(30_000, 65_536)).toBe(200_000);
+    it("a worst-case call with no output limit is charged in full", () => {
+      // extract() sets no maxOutputTokens. 30,000 input tokens and 65,536 output tokens cost $0.54.
+      expect(costMicros(30_000, 65_536)).toBe(536_520);
     });
   });
 
   describe("record_ai_cost limits, RLS and definer", () => {
-    it("a record over the limit is clamped; negative, null, fractional, text and overflow are refused", async () => {
-      expect((await admin.rpc("record_ai_cost", { p_cost_micros: 200_001 })).data).toBe(true);
-      expect(spend()).toEqual({ cost: 200_000, calls: 1 });
+    it("a large record is taken in full; negative, null, fractional, text and overflow are refused", async () => {
+      expect((await admin.rpc("record_ai_cost", { p_cost_micros: 536_520 })).data).toBe(true);
+      expect(spend()).toEqual({ cost: 536_520, calls: 1 });
       for (const v of [-1, null, 1.5, "abc", "9".repeat(40)]) {
         const r = await admin.rpc("record_ai_cost", { p_cost_micros: v });
         expect(r.error, String(v)).not.toBeNull();
       }
-      expect(spend()).toEqual({ cost: 200_000, calls: 1 });
+      expect(spend()).toEqual({ cost: 536_520, calls: 1 });
     });
 
     it("40 concurrent records: all land, and the total is exact", async () => {
@@ -549,16 +549,15 @@ describe.skipIf(!live)("DAILY_AI_BUDGET_USD, attacked live", () => {
       expect(spend()).toEqual({ cost: 40_000, calls: 40 });
     });
 
-    it("the private table and clamp function are out of reach; anon can call neither function", async () => {
+    it("the private table is out of reach; anon can call neither function", async () => {
       const a = await user();
       const client = createClient(url, anon, opts);
       expect((await client.rpc("ai_budget_open", { p_budget_micros: 1 })).error).not.toBeNull();
       expect((await client.rpc("record_ai_cost", { p_cost_micros: 1 })).error).not.toBeNull();
-      expect((await a.db.rpc("ai_max_call_cost_micros", {})).error).not.toBeNull();
       expect((await (a.db.schema("private" as never) as unknown as SupabaseClient).from("ai_spend_daily").select("*")).error).not.toBeNull();
       expect((await a.db.from("ai_spend_daily").select("*")).error).not.toBeNull();
       expect(sql("select has_table_privilege('authenticated','private.ai_spend_daily','SELECT'), has_table_privilege('anon','private.ai_spend_daily','SELECT'), has_table_privilege('service_role','private.ai_spend_daily','SELECT')")).toBe("f|f|f");
-      expect(sql("select has_function_privilege('anon','public.record_ai_cost(bigint)','EXECUTE'), has_function_privilege('anon','public.ai_budget_open(bigint)','EXECUTE'), has_function_privilege('public','public.record_ai_cost(bigint)','EXECUTE'), has_function_privilege('public','public.ai_budget_open(bigint)','EXECUTE'), has_function_privilege('authenticated','private.ai_max_call_cost_micros()','EXECUTE')")).toBe("f|f|f|f|f");
+      expect(sql("select has_function_privilege('anon','public.record_ai_cost(bigint)','EXECUTE'), has_function_privilege('anon','public.ai_budget_open(bigint)','EXECUTE'), has_function_privilege('public','public.record_ai_cost(bigint)','EXECUTE'), has_function_privilege('public','public.ai_budget_open(bigint)','EXECUTE')")).toBe("f|f|f|f");
       expect(sql("select has_function_privilege('authenticated','public.record_ai_cost(bigint)','EXECUTE'), has_function_privilege('authenticated','public.ai_budget_open(bigint)','EXECUTE'), has_function_privilege('service_role','public.record_ai_cost(bigint)','EXECUTE'), has_function_privilege('service_role','public.ai_budget_open(bigint)','EXECUTE')")).toBe("f|f|t|t");
     });
 

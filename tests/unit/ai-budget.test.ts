@@ -2,7 +2,7 @@ import { generateObject } from "ai";
 import { MockLanguageModelV4 } from "ai/test";
 import { describe, expect, it, vi } from "vitest";
 import { z } from "zod";
-import { AiBudgetError, budgetConfig, budgetRefusal, costMicros, MAX_CALL_COST_MICROS, PRICE_USD_PER_MTOK, withBudget } from "@/lib/ai/budget";
+import { AiBudgetError, budgetConfig, budgetRefusal, costMicros, PRICE_USD_PER_MTOK, UNKNOWN_CALL_COST_MICROS, withBudget } from "@/lib/ai/budget";
 import { classifyAiError } from "@/lib/ai/errors";
 import { extract, ExtractionFailedError } from "@/lib/ai/extract";
 import { askQuestion } from "@/lib/decisions/ask";
@@ -75,15 +75,16 @@ describe("costMicros()", () => {
     expect(PRICE_USD_PER_MTOK).toEqual({ input: 1.5, output: 7.5 });
     expect(costMicros(0, 0)).toBe(0);
   });
-  it("a missing usage report is charged the per-call maximum; nothing is charged above it", () => {
-    expect(costMicros(undefined, 10)).toBe(MAX_CALL_COST_MICROS);
-    expect(costMicros(10, undefined)).toBe(MAX_CALL_COST_MICROS);
-    expect(costMicros(Number.NaN, 10)).toBe(MAX_CALL_COST_MICROS);
-    expect(costMicros(50_000_000, 50_000_000)).toBe(MAX_CALL_COST_MICROS);
+  it("a missing usage report is charged $0.20; a call that reports usage is charged in full, however large", () => {
+    expect(UNKNOWN_CALL_COST_MICROS).toBe(200_000);
+    expect(costMicros(undefined, 10)).toBe(UNKNOWN_CALL_COST_MICROS);
+    expect(costMicros(10, undefined)).toBe(UNKNOWN_CALL_COST_MICROS);
+    expect(costMicros(Number.NaN, 10)).toBe(UNKNOWN_CALL_COST_MICROS);
+    expect(costMicros(50_000_000, 50_000_000)).toBe(450_000_000);
   });
-  it("a real worst-case extraction stays far below the per-call maximum", () => {
+  it("a large extraction stays far below the charge for an unknown call", () => {
     // 30,000 characters of source plus the prompt (about 12k tokens) and a long answer (8k tokens).
-    expect(costMicros(12_000, 8_000)).toBeLessThan(MAX_CALL_COST_MICROS / 2);
+    expect(costMicros(12_000, 8_000)).toBeLessThan(UNKNOWN_CALL_COST_MICROS / 2);
   });
 });
 
