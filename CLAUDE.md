@@ -6,7 +6,7 @@ Loose Ends turns messages and documents the user pastes in into a short list of 
 
 Read the relevant document before changing behaviour, copy or visuals. When they conflict, the order below wins, and the conflict is raised with the lead-program-manager agent rather than resolved silently.
 
-1. `docs/PRD.md` (v1.1) — product, scope, schema, API, AI behaviour. Its **Decisions Log (D1–D74)** overrides older text anywhere. Entries marked *Proposed* take effect only after the user confirms them.
+1. `docs/PRD.md` (v1.1) — product, scope, schema, API, AI behaviour. Its **Decisions Log (D1–D80)** overrides older text anywhere. Entries marked *Proposed* take effect only after the user confirms them.
 2. `docs/SITE_CONTRACT.md` (v1.1) — pages, routes, states, error copy, behaviour.
 3. `docs/CONTENT_MODEL.md` (v1.1) — fields, constraints, user-facing glossary.
 4. `docs/DESIGN_STANDARD.md` — visual standard: tokens, type, spacing, components, motion, microcopy.
@@ -103,7 +103,7 @@ Three project subagents live in `.claude/agents/`. Delegate to them by name ("us
 
 **Quality bars (the old gate criteria, now undated).** Core loop in production: magic link → paste → review → accept → thread → Done; text-layer PDF → Explain card; scanned PDF shows the unsupported message. Resolve + Ask why including the zero-match path. Today ranks and caps at 5. Why panel renders from stored fields. Forget, source deletion, account deletion and export verified by tests. Rate limit and budget cap on. 40-fixture eval passes thresholds; Ask-why 0 fabrications; axe checks pass. Docs: README, ARCHITECTURE, AI_BEHAVIOR, PRIVACY, CONTRIBUTING, LICENSE; privacy copy check passes.
 
-**No cuts (D61).** The user declined every proposed cut, including the cut order, F18 redaction and the MUST trims (F4, F6, F9). All of F1–F19 stay in scope. Google sign-in is on (D61(b)): it ships once the production OAuth checklist and a manual production check pass. A SHOULD feature's UI stays hidden and unclaimed (including redaction) until the lead-tester verifies it, and anything unfinished is stated plainly in the README (rule 9).
+**No cuts (D61).** The user declined every proposed cut, including the cut order, F18 redaction and the MUST trims (F4, F6, F9). All of F1–F19 stay in scope. Google sign-in is on in production (D61(b), D76): the manual production check passed Nov 7, and the Google consent screen stays in Testing (test users only) until the public `/privacy` page exists (D77). A SHOULD feature's UI stays hidden and unclaimed (including redaction) until the lead-tester verifies it, and anything unfinished is stated plainly in the README (rule 9).
 
 **Item types (D63).** A promise made by someone else to the user is `waiting_on` (owner = that person); `commitment` is only the user's own promises.
 
