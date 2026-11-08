@@ -1,0 +1,54 @@
+{
+  "name": "tester-waiting-on",
+  "task": "extract",
+  "input": "Sam said he'll send the venue contract by Thursday. Priya told me she will bring the projector on Monday. I'll book the caterer on Friday. Can you confirm the headcount by Wednesday? The hall holds 80 people.",
+  "responses": [
+    {
+      "source_summary": "Synthetic event-planning note with promises by others, the user's own promise and a request",
+      "participants": [{ "name": "Sam", "is_user": "no" }, { "name": "Priya", "is_user": "no" }],
+      "items": [
+        {
+          "type": "waiting_on", "title": "Venue contract from Sam",
+          "owner": "other", "counterparty": "Sam", "action": "Send the venue contract",
+          "date_text": "by Thursday", "date_iso": "2026-10-08", "amount_text": null,
+          "certainty": "explicit", "uncertainty_notes": [],
+          "matches_thread_id": null,
+          "evidence": [{ "quote": "Sam said he'll send the venue contract by Thursday", "speaker": null }]
+        },
+        {
+          "type": "commitment", "title": "Projector from Priya",
+          "owner": "other", "counterparty": "Priya", "action": "Bring the projector",
+          "date_text": "on Monday", "date_iso": "2026-10-12", "amount_text": null,
+          "certainty": "explicit", "uncertainty_notes": [],
+          "matches_thread_id": null,
+          "evidence": [{ "quote": "Priya told me she will bring the projector on Monday", "speaker": null }]
+        },
+        {
+          "type": "commitment", "title": "Book the caterer",
+          "owner": "user", "counterparty": null, "action": "Book the caterer for the event",
+          "date_text": "on Friday", "date_iso": "2026-10-09", "amount_text": null,
+          "certainty": "explicit", "uncertainty_notes": [],
+          "matches_thread_id": null,
+          "evidence": [{ "quote": "I'll book the caterer on Friday", "speaker": null }]
+        },
+        {
+          "type": "request", "title": "Confirm the headcount",
+          "owner": "user", "counterparty": null, "action": "Reply with the final headcount",
+          "date_text": "by Wednesday", "date_iso": "2026-10-07", "amount_text": null,
+          "certainty": "explicit", "uncertainty_notes": [],
+          "matches_thread_id": null,
+          "evidence": [{ "quote": "Can you confirm the headcount by Wednesday?", "speaker": null }]
+        },
+        {
+          "type": "key_fact", "title": "Hall capacity is 80",
+          "owner": "unknown", "counterparty": null, "action": "Plan for 80 guests",
+          "date_text": null, "date_iso": null, "amount_text": null,
+          "certainty": "explicit", "uncertainty_notes": [],
+          "matches_thread_id": null,
+          "evidence": [{ "quote": "The hall holds 80 people.", "speaker": null }]
+        }
+      ],
+      "brief": null
+    }
+  ]
+}
