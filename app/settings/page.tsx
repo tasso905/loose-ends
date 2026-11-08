@@ -11,6 +11,7 @@ import { buttonVariants } from "@/components/ui/button";
 import { DATA_COPY as D } from "@/lib/account/copy";
 import { ANALYTICS_SETTINGS_COPY as C } from "@/lib/auth/copy";
 import { requireUser } from "@/lib/auth/session";
+import { PRIVACY_COPY } from "@/lib/privacy/copy";
 import { createClient } from "@/lib/supabase/server";
 import { isAnalyticsEnabled } from "@/lib/supabase/env";
 import { userTimezone } from "@/lib/threads/read";
@@ -109,6 +110,15 @@ export default async function SettingsPage() {
               <DeleteAccount />
             </div>
           </div>
+
+          <p className="mt-8">
+            <Link
+              href="/privacy"
+              className="focus-ring inline-flex items-center rounded-control text-body text-le-accent underline-offset-3 hover:underline max-md:min-h-11"
+            >
+              {PRIVACY_COPY.linkLabel}
+            </Link>
+          </p>
         </section>
       </main>
     </>

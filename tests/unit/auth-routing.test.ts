@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { callbackErrorNotice, callbackLogReason, decideRoute, isPublicPath, postSignInDestination } from "@/lib/auth/routing";
+import { callbackErrorNotice, callbackLogReason, decideRoute, isAlwaysOpenPath, isPublicPath, postSignInDestination } from "@/lib/auth/routing";
 
 const go = (pathname: string, signedIn: boolean, search = "") => decideRoute({ pathname, search, signedIn });
 
@@ -56,6 +56,18 @@ describe("decideRoute (SITE_CONTRACT §1.2 route map, D38)", () => {
 
   it("API routes are never redirected (they return the JSON error envelope)", () => {
     expect(go("/api/threads", false)).toEqual({ kind: "continue" });
+  });
+
+  it("/privacy is open signed out and signed in, and never redirects (SITE_CONTRACT §1.2, §2.15)", () => {
+    for (const signedIn of [false, true]) {
+      expect(go("/privacy", signedIn)).toEqual({ kind: "continue" });
+      expect(go("/privacy", signedIn, "?next=%2Fthreads")).toEqual({ kind: "continue" });
+    }
+    expect(isPublicPath("/privacy")).toBe(true);
+    expect(isAlwaysOpenPath("/privacy")).toBe(true);
+    expect(isAlwaysOpenPath("/sign-in")).toBe(false);
+    expect(isAlwaysOpenPath("/privacyx")).toBe(false);
+    expect(go("/privacyx", false).kind).toBe("redirect");
   });
 
   it("prefix matching is by segment, not by string prefix", () => {

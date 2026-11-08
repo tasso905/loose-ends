@@ -26,7 +26,8 @@ export function isGoogleSignInEnabled(): boolean {
  */
 // SHIP SWITCH (D40): on since the user approved the notice and toggle wording (D46) and set up
 // PostHog (US cloud) with POSTHOG_KEY and ANALYTICS_ENABLED=true in Vercel Production only. Preview
-// and local servers without those variables still send nothing and keep /settings hidden.
+// and local servers without those variables still send nothing and hide the analytics toggle and
+// notice; /settings itself always returns 200 (D66).
 export const SETTINGS_ANALYTICS_TOGGLE_SHIPPED = true;
 
 /** PostHog US cloud ingestion host (D40: US region). Override with POSTHOG_HOST. */

@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import { ACCOUNT_DELETED_COOKIE, ACCOUNT_DELETED_HEADER, accountDeletedNotice } from "@/lib/account/copy";
-import { decideRoute, isPublicPath } from "@/lib/auth/routing";
+import { decideRoute, isAlwaysOpenPath, isPublicPath } from "@/lib/auth/routing";
 import { redirectResponse } from "@/lib/auth/signIn";
 import { supabasePublicEnv } from "@/lib/supabase/env";
 
@@ -21,6 +21,10 @@ export async function proxy(request: NextRequest) {
     accountDeletedNotice(deletedCookie) !== null &&
     (request.headers.get("accept") ?? "").includes("text/html");
   if (showAccountDeleted) request.headers.set(ACCOUNT_DELETED_HEADER, deletedCookie!);
+
+  // /privacy is static and the same for everyone (SITE_CONTRACT §2.15): no session refresh, no
+  // Supabase call, so it loads while Supabase is down and never signs anyone out.
+  if (isAlwaysOpenPath(request.nextUrl.pathname)) return NextResponse.next({ request });
 
   let response = NextResponse.next({ request });
   let cacheHeaders: Record<string, string> = {};
