@@ -68,7 +68,7 @@ describe("deleteAccountAction: the notice", () => {
   });
 
   it("every value has its own line, the partial ones say what remains, and anything else shows nothing", () => {
-    expect(accountDeletedNotice("1")).toBe("Your account and everything in it were deleted.");
+    expect(accountDeletedNotice("1")).toBe("Your account and your data in Loose Ends were deleted.");
     expect(accountDeletedNotice("2")).toMatch(/Sign-in records/);
     expect(accountDeletedNotice("3")).toMatch(/files .*removed automatically/);
     expect(accountDeletedNotice("4")).toMatch(/files and sign-in records/);
