@@ -75,7 +75,7 @@ test.describe("rule 10: check-your-email only after Supabase confirms", () => {
     expect(first.status).toBe(200);
     await page.getByRole("button", { name: SEND }).click();
     await expect(page.locator("main").getByRole("alert")).toHaveText(
-      "Too many sign-in links were requested. Wait a few minutes, then try again.",
+      "Too many sign-in links were requested. Wait up to an hour, then try again.",
     );
     await expect(sentHeading(page)).toHaveCount(0);
     await expect(page).toHaveURL(/\/sign-in$/);

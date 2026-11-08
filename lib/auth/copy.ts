@@ -34,7 +34,8 @@ export const SIGN_IN_COPY = {
   linkLifetime: `The link works for ${LINK_HOURS} ${LINK_HOURS === 1 ? "hour" : "hours"}.`,
   orDivider: "or",
   invalidEmail: "Enter an email address, like name@example.com.",
-  rateLimited: "Too many sign-in links were requested. Wait a few minutes, then try again.",
+  // APPROVED (user, Nov 7): code sign_in_rate_limited.
+  rateLimited: "Too many sign-in links were requested. Wait up to an hour, then try again.",
   sendFailed: "I couldn't send the link. Try again.",
   linkExpired: "That sign-in link has expired or was already used. Enter your email to get a new one.",
   oauthFailed: "Google sign-in didn't finish. Try again, or use your email.",
