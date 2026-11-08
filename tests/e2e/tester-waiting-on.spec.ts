@@ -9,8 +9,9 @@ import { localSupabase } from "./localSupabase";
  * is never shown as the user's next action, in the Review Tray or on Thread detail. Recording
  * tests/fixtures/llm/tester-waiting-on.extract.json (synthetic): one waiting_on (Sam), one
  * commitment with owner other (Priya, maps to waiting_on), the user's own commitment, a request,
- * and a key_fact (never shown in the tray, D5). The user's own items keep their action in the
- * Interpretation voice with the `Suggested` tag. axe at 375 and 1280 px on the tray and detail.
+ * and a key_fact (never shown in the tray, D5). The user's own items keep their action: in the tray
+ * in the Interpretation voice with the `Suggested` tag; on Thread detail as plain text with no tag,
+ * because accepting confirmed it (coordinator, Nov 8). axe at 375 and 1280 px on the tray and detail.
  *
  * Written Mon Oct 5, 2026, so every date is in the past by the real clock: nothing here depends on
  * the run date (the tester-focus-combined weekday lesson).
@@ -151,15 +152,15 @@ test("Thread detail, waiting_on: header and due chip intact; no Next action, no 
   }
 });
 
-test("Thread detail, the user's own: Next action and What you need to do show the action with Suggested", async () => {
+test("Thread detail, the user's own: Next action and What you need to do show the action, with no Suggested tag", async () => {
   for (const o of OWN) {
     await page.goto(`/threads/${threadIds[o.title]}`);
     const next = page.locator("section", { has: page.getByRole("heading", { level: 2, name: "Next action" }) });
-    await expect(next.getByText("Suggested", { exact: true })).toBeVisible();
+    await expect(next.getByText("Suggested", { exact: true })).toHaveCount(0);
     await expect(next.getByText(o.action, { exact: true })).toBeVisible();
     const about = page.locator("section", { has: page.getByRole("heading", { level: 2, name: "About this" }) });
     await expect(about.getByText("What you need to do")).toBeVisible();
-    await expect(about.getByText("Suggested", { exact: true })).toBeVisible();
+    await expect(about.getByText("Suggested", { exact: true })).toHaveCount(0);
     await expect(about.getByText(o.action, { exact: true })).toBeVisible();
   }
 });

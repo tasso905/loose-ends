@@ -7,7 +7,7 @@ import type { ExtractionView } from "@/lib/extraction/service";
 import { processExtraction } from "@/lib/pipeline/proposals";
 import { createFieldsFromPayload } from "@/lib/review/tray";
 import type { ThreadDetail } from "@/lib/threads/read";
-import { nextActionIsSuggested, userNextAction } from "@/lib/threads/view";
+import { userNextAction } from "@/lib/threads/view";
 import { setNowForTests } from "@/lib/time";
 
 /**
@@ -17,8 +17,9 @@ import { setNowForTests } from "@/lib/time";
  * A model answer that is correct under D63 (waiting_on, owner other, counterparty Sam) goes through
  * the real pipeline and Accept mapping, then the real thread detail page and Review Tray render.
  * Synthetic text only; no model call. Fix: a waiting_on loop's action is someone else's, so it is
- * never shown as the user's next action (userNextAction), and a next action that is shown carries
- * the `Suggested` tag in the Interpretation voice until the user edits it (CONTENT_MODEL "Next action").
+ * never shown as the user's next action (userNextAction). Thread detail shows the user's own next
+ * action as plain text with no `Suggested` tag: accepting the proposal confirmed it (coordinator,
+ * Nov 8). The Review Tray card keeps `Suggested` for proposals not yet accepted.
  */
 
 const NOW = "2026-11-07T15:00:00.000Z"; // Sat Nov 7, 2026, 10:00 in New York
@@ -180,20 +181,13 @@ describe("the pipeline keeps a reported promise someone else's (D63)", () => {
   });
 });
 
-describe("userNextAction and nextActionIsSuggested", () => {
+describe("userNextAction", () => {
   it("hides a waiting_on action and keeps every other kind's", () => {
     expect(userNextAction("waiting_on", "Send the venue contract")).toBeNull();
     for (const kind of ["commitment", "request", "admin", "decision"] as const) expect(userNextAction(kind, "Do it")).toBe("Do it");
     expect(userNextAction("request", null)).toBeNull();
     expect(userNextAction("request", "  ")).toBeNull();
     expect(userNextAction(null, "Do it")).toBeNull(); // key_fact: no thread kind
-  });
-
-  it("is Suggested until an edited event sets next_action", () => {
-    expect(nextActionIsSuggested([])).toBe(true);
-    expect(nextActionIsSuggested([{ type: "created", after: { next_action: "Book the caterer" } }])).toBe(true);
-    expect(nextActionIsSuggested([{ type: "edited", after: { title: "New title" } }])).toBe(true);
-    expect(nextActionIsSuggested([{ type: "edited", after: { next_action: "Book Marco's" } }])).toBe(false);
   });
 });
 
@@ -208,28 +202,22 @@ describe("thread detail", () => {
     expect(aboutThis(html)).toMatch(/^About this By when .*Not sure about/);
   });
 
-  it("commitment (the user's own): Next action and What you need to do show it, tagged Suggested", async () => {
+  it("commitment (the user's own): Next action and What you need to do show it as plain text, no Suggested tag", async () => {
     const html = await renderThread(COMMITMENT);
-    expect(nextActionSection(html)).toBe("Next action Suggested Send Sam the seating plan");
-    expect(aboutThis(html)).toContain("What you need to do Suggested Send Sam the seating plan By when");
-    // Interpretation voice: dashed rule, secondary text, Sparkle icon (DESIGN_STANDARD Three voices).
-    expect(html).toMatch(/border-dashed border-le-border-strong[^"]*"><p[^>]*><svg[^>]*lucide-sparkle[\s\S]*?Suggested<\/p><p class="text-body text-le-text-secondary">Send Sam the seating plan<\/p>/);
+    expect(nextActionSection(html)).toBe("Next action Send Sam the seating plan");
+    expect(aboutThis(html)).toContain("What you need to do Send Sam the seating plan By when");
+    // Accepted, so confirmed (coordinator, Nov 8): main's markup, no Interpretation voice and no Sparkle.
+    expect(html).toContain('<p class="mt-1 text-body text-le-text">Send Sam the seating plan</p>');
+    expect(html).toContain('<p class="mt-2 text-body text-le-text">Send Sam the seating plan</p>');
+    expect(text(html)).not.toContain("Suggested");
+    expect(html).not.toContain("lucide-sparkle");
   });
 
-  it("request: shown, tagged Suggested", async () => {
+  it("request: shown as plain text, no Suggested tag", async () => {
     const html = await renderThread(REQUEST);
-    expect(nextActionSection(html)).toBe("Next action Suggested Book the caterer");
-    expect(aboutThis(html)).toContain("What you need to do Suggested Book the caterer");
-  });
-
-  it("a next action the user edited is their own words: no Suggested tag", async () => {
-    const events: Events = [
-      { id: 2, type: "edited", actor: "user", before: { next_action: "Book the caterer" }, after: { next_action: "Book Marco's for 40" }, created_at: NOW },
-    ];
-    const html = await renderThread(REQUEST, events);
-    // The stored thread still carries the model's line here; only the label rule is under test.
     expect(nextActionSection(html)).toBe("Next action Book the caterer");
     expect(aboutThis(html)).toContain("What you need to do Book the caterer");
+    expect(text(html)).not.toContain("Suggested");
   });
 });
 

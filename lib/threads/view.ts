@@ -50,14 +50,6 @@ export function userNextAction(kind: ThreadKind | null | undefined, action: stri
   return action?.trim() ? action : null;
 }
 
-/**
- * CONTENT_MODEL "Next action": labelled `Suggested` until the user edits it (DESIGN_STANDARD Three
- * voices: an edited field drops its label and is the user's). True unless an `edited` event set it.
- */
-export function nextActionIsSuggested(events: ReadonlyArray<{ type: string; after: Record<string, unknown> | null }>): boolean {
-  return !events.some((e) => e.type === "edited" && e.after !== null && Object.hasOwn(e.after, "next_action"));
-}
-
 export interface ListRow {
   id: string;
   status: ThreadStatus;
