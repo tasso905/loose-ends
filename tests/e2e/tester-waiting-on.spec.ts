@@ -194,7 +194,9 @@ test("Threads index lists all four; Today shows the user's two overdue items by 
   for (const t of [...WAITING, ...OWN]) await expect(page.getByText(t.action, { exact: true })).toHaveCount(0);
 });
 
-test("after the user edits a next action it is theirs: no Suggested tag", async () => {
+// Thread detail never tags a next action (accepted = confirmed, coordinator Nov 8); this checks an
+// edited one shows the stored new text, still untagged, with the edit in History.
+test("an edited next action shows the new stored text as plain text, and History records the edit", async () => {
   const id = threadIds[OWN[0].title]!;
   const db = admin();
   const { data: row } = await db.from("threads").select("user_id, next_action").eq("id", id).single();
@@ -212,5 +214,7 @@ test("after the user edits a next action it is theirs: no Suggested tag", async 
   await page.goto(`/threads/${id}`);
   const next = page.locator("section", { has: page.getByRole("heading", { level: 2, name: "Next action" }) });
   await expect(next.getByText("Call the caterer first", { exact: true })).toBeVisible();
+  await expect(page.getByText("Book the caterer for the event", { exact: true })).toHaveCount(0);
   await expect(page.getByText("Suggested", { exact: true })).toHaveCount(0);
+  await expect(page.getByText("You edited this.")).toBeVisible();
 });
