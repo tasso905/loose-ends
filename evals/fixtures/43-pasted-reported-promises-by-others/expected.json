@@ -1,0 +1,33 @@
+{
+  "notes": "Draft (lead-developer, Nov 7) for the reported-promise pattern; not yet scored live. Rule 5's unknown-owner rule covers an unlabelled 'I'll' or 'Can you'; a named third person who promised is the owner (prompt rule 6, 'Mike said he'll send the contract Friday').",
+  "items": [
+    {
+      "type": "waiting_on",
+      "title": "Venue contract from Sam",
+      "owner": "other",
+      "quote": "Sam said he'll send the venue contract by Thursday.",
+      "date_text": "by Thursday",
+      "due_date": "2026-11-12",
+      "due_certainty": "inferred",
+      "certainty": "explicit",
+      "counterparty": "Sam",
+      "amount_text": null,
+      "band": "high",
+      "note": "D63: Sam's promise to the user is waiting_on, owner other (Sam). Thursday after Sat Nov 7 is Nov 12, Assumed because the written-on date is defaulted."
+    },
+    {
+      "type": "waiting_on",
+      "title": "Projector from Priya",
+      "owner": "other",
+      "quote": "Priya told me she will bring the projector on Monday.",
+      "date_text": "on Monday",
+      "due_date": "2026-11-09",
+      "due_certainty": "inferred",
+      "certainty": "explicit",
+      "counterparty": "Priya",
+      "amount_text": null,
+      "band": "high",
+      "note": "D63: Priya's promise to the user is waiting_on, owner other (Priya). Monday after Sat Nov 7 is Nov 9, Assumed."
+    }
+  ]
+}

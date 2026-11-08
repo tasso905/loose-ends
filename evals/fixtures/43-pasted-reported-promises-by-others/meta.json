@@ -1,0 +1,10 @@
+{
+  "description": "Two-line paste with no header, no speaker labels and none of the user's names (Nov 7 production report, synthetic). Each line reports someone else's promise in the third person ('Sam said he'll', 'Priya told me she will'), so by D63 both are waiting_on with owner other, never the user's own task. No written-on date: relative weekdays are read against the paste day (Sat Nov 7, 2026) and marked Assumed.",
+  "covers": ["paste", "commitment_by_other", "reported_speech_third_person", "no_speaker_label", "reference_date_defaulted", "assumed_relative_dates", "d63_waiting_on"],
+  "reference_date": "2026-11-07",
+  "reference_date_source": "defaulted",
+  "timezone": "America/New_York",
+  "source_kind": "paste",
+  "user": { "display_name": "Jordan Lee", "aliases": ["jordan.lee@example.com", "Jordan"] },
+  "ambiguous": false
+}
