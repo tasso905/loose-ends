@@ -25,6 +25,7 @@
 | 10 | Resolve / Decision Memory | How the loop ended, optional decision and reason. |
 | 11 | Decisions / Ask Why | Decision list and grounded answers about past decisions. |
 | 12 | Settings and Data | Profile, aliases, timezone, analytics, sources, export, account deletion, sign-out. |
+| 13 | Privacy (*Proposed*, D77, D82) | Public page: what is stored, what the AI sees, what deleting removes and can't reach, export, who else handles data, contact. Built from `docs/PRIVACY.md`. |
 
 ### 1.1 Persistent app shell
 
@@ -40,7 +41,7 @@
 | Route | Page | Auth | Notes |
 |---|---|---|---|
 | `/sign-in` | Sign in | Public | First screen for signed-out visitors; no public landing page (D38). `?sent=1` shows the check-your-email state. `?next={path}` is kept through the check-your-email state and the magic link. |
-| `/privacy` | Privacy | Public | *Proposed (D77); not built.* Built from `docs/PRIVACY.md`; its URL is the privacy policy URL Google needs before the consent screen can be published (D76). Not a landing page: signed-out visitors still start at `/sign-in` (D38). Wording needs the user's approval |
+| `/privacy` | Privacy | Public | *Proposed (D77, D82); not built.* No sign-in needed, and signed-in users can open it too; never redirects to `/sign-in`. Built from `docs/PRIVACY.md`; linked from the sign-in page footer and Settings (§2.15). Its URL is the privacy policy URL Google needs before the consent screen can be published (D76). Not a landing page: signed-out visitors still start at `/sign-in` (D38). Wording needs the user's approval |
 | `/auth/callback` | Auth handoff | Public | Redirects to `/onboarding` on first sign-in, else to the `next` param or `/today` |
 | `/onboarding` | Aliases question | Signed in | Shown once; skippable |
 | `/` | — | Any | Signed in: redirects to `/today`. Signed out: redirects to `/sign-in`, with no `next` because `/` lands on Today anyway (D38) |
@@ -74,6 +75,7 @@ Field-level content, constraints and copy are defined in the content model v1.1;
 | No JavaScript | `Signing in needs JavaScript. Turn it on in your browser, then reload this page.` (D39) |
 | Aliases question | `What name and emails do people use for you?` Field label `Names and emails`. Hint `Separate them with commas. I use these to tell which tasks are yours.` Below it, `Your sign-in email, {email}, is always included.` Actions `Save` and `Skip`. Skippable; signed-in email always saved as alias. At most 20 names and emails, each up to 100 characters (D40). Field errors per §2.13 (D39) |
 | Notices | "Don't paste passwords or full account numbers.", shown on the sign-in page and in onboarding. Analytics notice with opt-out link, shown in onboarding. It ships with the first PostHog event and stays hidden until then (D40, rule 9). Approved wording (D46, Oct 21): `Loose Ends counts which features you use. Analytics never include what you paste.` with the opt-out link `Turn off analytics` |
+| Footer (*Proposed*, D82) | One link, `Privacy` (PROPOSED), to `/privacy`, below the sign-in form. A link, not a claim: no privacy wording beside it (rule 9) |
 
 ### 2.1 App shell and navigation
 
@@ -96,7 +98,7 @@ Field-level content, constraints and copy are defined in the content model v1.1;
 | Written-on date | Optional, collapsed under `When was this written?`; defaults to today with an `Assumed` label. Field label: `I assumed this was written today. Change it if it wasn't.` until the user sets a date, then `Written on` (D47). Dates outside 1900–2100 show the §2.13 field error |
 | Quick-add field | Single line; max 2,000 characters; placeholder `e.g. Send Mike the proposal Friday` |
 | Submit | `Review source` (paste/upload) or `Add` (quick add); disabled while invalid or submitting |
-| AI provider notice (D42) | Conditional on Question #12 (PRD, due Oct 22). If the deployment uses the Gemini free tier: a plain-words notice on all three modes, visible before submit, saying the text is sent to Google, which may use it to improve its products, and that people at Google may read it. Wording pending user approval. If billing is enabled: no notice required here; Settings → Data and PRIVACY.md name Google as the AI provider |
+| AI provider notice (D42) | Conditional on Question #12 (PRD, due Oct 22). If the deployment uses the Gemini free tier: a plain-words notice on all three modes, visible before submit, saying the text is sent to Google, which may use it to improve its products, and that people at Google may read it. Wording pending user approval. If billing is enabled: no notice required here; Settings → Data and PRIVACY.md name Google as the AI provider. *Nov 7 (D81): production uses a billed key, so no notice here* |
 
 ### 2.3 Extraction progress
 
@@ -202,7 +204,7 @@ Field-level content, constraints and copy are defined in the content model v1.1;
 |---|---|
 | Profile | Section heading `Profile`. Display name, aliases (add/remove), timezone (IANA select), analytics toggle labelled `Analytics`, described by the notice sentence `Loose Ends counts which features you use. Analytics never include what you paste.` (ships with the first PostHog event, hidden until then; D40, D46). If settings fail to load: `Settings didn't load. Try again.` + `Try again` (D46) |
 | Data | Sources list with two delete options (source text is kept until the source or account is deleted; no retention toggle, D61); `Export data (JSON)`; `Delete account…` (D14) |
-| Privacy explanation | Matches PRIVACY.md. Names Google (Gemini API) as the AI provider and, if the free tier is used, says Google may use pasted text and Ask-why context to improve its products and people may read it (D42) |
+| Privacy explanation | Matches PRIVACY.md. Names Google (Gemini API) as the AI provider and, if the free tier is used, says Google may use pasted text and Ask-why context to improve its products and people may read it (D42; production uses the paid tier, D81). *Proposed (D82):* a link `Privacy` (PROPOSED) to `/privacy` in the Data section |
 | SHOULD fields | Digest and type toggles only if F15/F17 ship |
 | Sign out | Ends the session in this browser only; there is no "sign out everywhere" (D39). Confirms only after the session has ended |
 
@@ -274,6 +276,30 @@ Errors appear next to the control that caused them (forms) or as an error banner
 | Sign in (D39) | Send button disabled while sending | — | Field errors and `?error=` messages per §2.13; offline banner | Check-your-email state (§2.0); no-JavaScript message |
 | Onboarding (D39) | — | — | Field errors per §2.13; save-failure and offline banners | Skip |
 | Settings | Skeleton form | No sources: `You haven't added anything yet.` | Field / banner errors; load failure `Settings didn't load. Try again.` (D46) | Export in progress; deletion in progress |
+| Privacy (*Proposed*, D82) | — (static) | — | — | Signed out or signed in: same content |
+
+### 2.15 Privacy (*Proposed*, D77, D82)
+
+Nothing here is built, and every user-facing string is PROPOSED until the user approves it.
+
+| Field | Constraints |
+|---|---|
+| Route and access | `/privacy`, public. No sign-in, no redirect, no data reads: the page is static, so it renders the same for everyone and works when Supabase is down |
+| Heading | `Privacy` (PROPOSED). Page title `Privacy · Loose Ends` |
+| Body | The "Proposed text" column of `docs/PRIVACY.md`, sections 1–10 in order, once approved. A sentence marked **Needs checking** there doesn't ship until it is confirmed. Only approved wording appears; no added claims, and none of the phrases rule 9 bans |
+| Way back | Signed out: the `Loose Ends` wordmark links to `/sign-in`. Signed in: the app shell (§1.1) |
+| Links to it | Sign-in page footer (§2.0) and Settings → Data (§2.12), both `Privacy` (PROPOSED) |
+| Keeping it true | A change to what is stored, sent, exported or deleted updates `docs/PRIVACY.md` and this page in the same change. The privacy copy check covers the page |
+
+**Google Auth Platform → Branding (D76).** Google needs these before the consent screen can move from Testing to In production. The user enters them; nothing here changes the code.
+
+| Branding field | Value |
+|---|---|
+| App name | `Loose Ends` |
+| User support email | The address in `docs/PRIVACY.md` P33. **Needs the user** |
+| Application home page | The production site's root URL. `/` redirects signed-out visitors to `/sign-in`, which shows the pitch and the `Privacy` footer link. **Needs checking:** whether Google accepts a home page that is the sign-in page |
+| Application privacy policy link | The production `/privacy` URL, once the page is live |
+| Authorized domain | The production domain. **Needs checking:** what Google accepts for a `vercel.app` subdomain |
 
 ## 3. Behaviour Spec
 
