@@ -31,7 +31,9 @@ export type LogEvent =
   | "export_failed"
   | "cron_sweep_failed"
   | "upload_failed"
-  | "brief_line_unverified";
+  | "brief_line_unverified"
+  | "ai_budget_refused"
+  | "ai_budget_record_failed";
 
 export type LogProps = Record<string, string | number | boolean | null>;
 

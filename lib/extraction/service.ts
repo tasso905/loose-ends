@@ -1,5 +1,6 @@
 import type { LanguageModel } from "ai";
 import { z } from "zod";
+import { budgetRefusal, withBudget, type BudgetDb } from "@/lib/ai/budget";
 import { extract, ExtractionFailedError } from "@/lib/ai/extract";
 import { EXTRACT_PROMPT_VERSION } from "@/lib/ai/prompts";
 import { safeErrorFields } from "@/lib/ai/safeError";
@@ -17,11 +18,14 @@ import { ProposalPayload, toPayload } from "./payload";
  * F2 → F5 extraction lifecycle (S2). Every database step is one SQL function (migration
  * 20261020222601_paste_extraction.sql), called through the user-scoped client so RLS applies:
  *
- *   startExtraction  consume_usage once + sources + extractions(running, stage "reading")
+ *   startExtraction  budget check, then consume_usage once + sources + extractions(running, stage "reading")
  *   runExtraction    stage "finding" → extract() → stage "checking" → processExtraction()
  *                    → complete_extraction (all items, every band, atomically) or fail_extraction
- *   retryExtraction  "Try again": a new attempt on the same source, not counted again (A3)
+ *   retryExtraction  budget check, then "Try again": a new attempt on the same source, not counted again (A3)
  *   readExtraction   poll read; a running row older than 90 s is marked failed (A2)
+ *
+ * When the budget is closed, start and retry refuse with `save_failed` before anything is saved or
+ * used up, so the daily count and the Try again attempts stay as they were (lib/ai/budget.ts).
  *
  * Rule 9: failures are logged with safeErrorFields() only. The model's raw text is stored on the
  * extractions row for debugging and never logged.
@@ -56,12 +60,20 @@ const errCode = (error: unknown): string | null => {
 
 export type StartResult = { ok: true; sourceId: string; extractionId: string } | { ok: false; error: ApiError };
 
+export interface BudgetDeps {
+  /** The budget's own client (lib/ai/budgetDb.ts). Without it, a configured cap refuses every call. */
+  budgetDb?: BudgetDb;
+  /** Environment for the budget configuration (tests); process.env otherwise. */
+  env?: Record<string, string | undefined>;
+}
+
 export async function startExtraction(
   db: RpcDb,
   input: PasteInput & { kind?: "paste" },
-  opts: { now: Date; logger?: Logger },
+  opts: { now: Date; logger?: Logger } & BudgetDeps,
 ): Promise<StartResult> {
   const logger = opts.logger ?? defaultLog;
+  if (await budgetRefusal(opts.budgetDb, { feature: "extract", logger, env: opts.env })) return { ok: false, error: apiError("save_failed") };
   const { data, error } = await db.rpc("start_source_extraction", {
     p_kind: input.kind ?? "paste",
     p_text: input.text,
@@ -107,9 +119,10 @@ export interface UploadStartInput {
 export async function startUploadExtraction(
   db: RpcDb,
   input: UploadStartInput,
-  opts: { now: Date; logger?: Logger },
+  opts: { now: Date; logger?: Logger } & BudgetDeps,
 ): Promise<StartResult> {
   const logger = opts.logger ?? defaultLog;
+  if (await budgetRefusal(opts.budgetDb, { feature: "extract", logger, env: opts.env })) return { ok: false, error: apiError("save_failed") };
   const { data, error } = await db.rpc("start_upload_extraction", {
     p_source_id: input.sourceId,
     p_text: input.text,
@@ -148,8 +161,11 @@ export type RetryResult =
   | { ok: true; extractionId: string; alreadyStarted: boolean }
   | { ok: false; notFound: boolean; error: ApiError };
 
-export async function retryExtraction(db: RpcDb, extractionId: string, opts: { logger?: Logger } = {}): Promise<RetryResult> {
+export async function retryExtraction(db: RpcDb, extractionId: string, opts: { logger?: Logger } & BudgetDeps = {}): Promise<RetryResult> {
   const logger = opts.logger ?? defaultLog;
+  if (await budgetRefusal(opts.budgetDb, { feature: "extract", logger, env: opts.env })) {
+    return { ok: false, notFound: false, error: apiError("save_failed") };
+  }
   const { data, error } = await db.rpc("retry_extraction", {
     p_extraction_id: extractionId,
     p_model: configuredModelLabel(),
@@ -185,7 +201,7 @@ function failureCode(err: unknown): string {
   return `ai_${safeErrorFields(err).kind}`;
 }
 
-export interface RunDeps {
+export interface RunDeps extends BudgetDeps {
   /** Injected model (tests); otherwise extract() resolves AI_PROVIDER / AI_MODEL. */
   model?: LanguageModel;
   /** Label recorded as `extractions.model` for an injected model. */
@@ -273,7 +289,14 @@ export async function runExtraction(db: RpcDb, extractionId: string, deps: RunDe
           timezone: ctx.timezone,
           user: { displayName: ctx.display_name, aliases: ctx.aliases ?? [] },
         },
-        { model: deps.model, modelLabel: deps.modelLabel, logger, extractionId },
+        {
+          model: deps.model,
+          modelLabel: deps.modelLabel,
+          logger,
+          extractionId,
+          // Every model call is checked against, and counted in, DAILY_AI_BUDGET_USD (lib/ai/budget.ts).
+          wrapModel: (m) => withBudget(m, deps.budgetDb, { feature: "extract", logger, env: deps.env }),
+        },
       );
     } catch (err) {
       logger("extraction_failed", { ...safeErrorFields(err), extraction_id: extractionId });

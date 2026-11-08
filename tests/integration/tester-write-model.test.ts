@@ -71,6 +71,14 @@ describe("tester: write-model catalog audit", () => {
     expect(f!.src).toMatch(/auth\.uid\(\)/);
   });
 
+  it.each(["ai_budget_open", "record_ai_cost"])("%s (DAILY_AI_BUDGET_USD): service role only, SECURITY DEFINER, search_path pinned", (name) => {
+    const f = fns.find((x) => x.name === name)!;
+    expect(f, name).toBeDefined();
+    expect(f.auth).toBe(false);
+    expect(f.definer).toBe(true);
+    expect(f.config).toEqual(['search_path=""']);
+  });
+
   it.each(READERS)("%s stays invoker (RLS), read-only, with search_path pinned", (name) => {
     const f = fns.find((x) => x.name === name)!;
     expect(f, name).toBeDefined();

@@ -63,6 +63,8 @@ export class ExtractionFailedError extends Error {
 
 export interface ExtractDeps {
   model?: LanguageModel;
+  /** Applied to the model before any call: the daily budget (lib/ai/budget.ts withBudget). */
+  wrapModel?: (model: LanguageModel) => LanguageModel;
   modelLabel?: string;
   logger?: Logger;
   extractionId?: string;
@@ -86,7 +88,8 @@ export async function extract(input: ExtractInput, deps: ExtractDeps = {}): Prom
     throw new RangeError(`Input is ${input.sourceText.length} characters; the limit is ${MAX_INPUT_CHARS}.`);
   }
   const resolved = deps.model ? null : getModel();
-  const model = deps.model ?? resolved!.model;
+  const base = deps.model ?? resolved!.model;
+  const model = deps.wrapModel ? deps.wrapModel(base) : base;
   const label = deps.modelLabel ?? resolved?.label ?? "injected";
   const logger = deps.logger ?? defaultLog;
   const system = loadPrompt(EXTRACT_PROMPT_VERSION);

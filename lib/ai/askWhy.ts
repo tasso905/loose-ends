@@ -57,6 +57,8 @@ export interface AskWhyAnswer {
 
 export interface AskWhyDeps {
   model?: LanguageModel;
+  /** Applied to the model before any call: the daily budget (lib/ai/budget.ts withBudget). */
+  wrapModel?: (model: LanguageModel) => LanguageModel;
   modelLabel?: string;
   logger?: Logger;
 }
@@ -108,7 +110,8 @@ export async function askWhy(question: string, decisions: RetrievedDecision[], d
   if (decisions.length === 0) return noRecord(false, null, 0);
 
   const resolved = deps.model ? null : getModel();
-  const model = deps.model ?? resolved!.model;
+  const unwrapped = deps.model ?? resolved!.model;
+  const model = deps.wrapModel ? deps.wrapModel(unwrapped) : unwrapped;
   const label = deps.modelLabel ?? resolved?.label ?? "injected";
   const logger = deps.logger ?? defaultLog;
 

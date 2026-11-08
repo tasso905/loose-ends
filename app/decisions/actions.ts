@@ -1,6 +1,7 @@
 "use server";
 import { track } from "@/lib/analytics/track";
 import { addReason, AddReasonInput } from "@/lib/decisions/addReason";
+import { serviceBudgetDb as budgetDb } from "@/lib/ai/budgetDb";
 import { askQuestion } from "@/lib/decisions/ask";
 import { DECISIONS_COPY } from "@/lib/decisions/copy";
 import { AskInput, type AskView } from "@/lib/decisions/view";
@@ -25,7 +26,7 @@ export async function askAction(question: unknown): Promise<AskActionResult> {
   const { data } = await supabase.auth.getUser();
   if (!data.user) return { ok: false, error: apiError("unauthenticated").error };
 
-  const res = await askQuestion(rpcDb(supabase), input.data.question);
+  const res = await askQuestion(rpcDb(supabase), input.data.question, { budgetDb });
   if (!res.ok) return { ok: false, error: res.error.error };
   track(data.user.id, "ask_submitted", { answer_found: res.view.found, parts_by_kind: res.counts });
   return { ok: true, view: res.view };
