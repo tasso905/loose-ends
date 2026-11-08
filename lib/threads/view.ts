@@ -38,6 +38,18 @@ export const KIND_LABEL: Record<ThreadKind, string> = {
   decision: "Decision",
 };
 
+/**
+ * The next action shown as something the user may need to do (CONTENT_MODEL "Suggested next action").
+ * A waiting_on loop is someone else's to act on: its stored action is what they will do ("Send the
+ * venue contract"), so it is never shown as the user's task (D63; Nov 7 production report). The
+ * header's `Waiting on · {counterparty}` and due chip already say who and when. Covers threads
+ * (kind) and proposals (the kind their type and owner map to).
+ */
+export function userNextAction(kind: ThreadKind | null | undefined, action: string | null | undefined): string | null {
+  if (kind === "waiting_on" || kind == null) return null;
+  return action?.trim() ? action : null;
+}
+
 export interface ListRow {
   id: string;
   status: ThreadStatus;
