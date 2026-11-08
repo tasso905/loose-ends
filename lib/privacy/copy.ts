@@ -25,7 +25,7 @@ export const ANALYTICS_OFF_TEXT = "Loose Ends doesn't send analytics right now."
 
 /** P17. Paid tier confirmed (D81; coordinator, Nov 8). */
 export const GEMINI_TIER_TEXT =
-  "Loose Ends uses Gemini's paid tier. Google's terms for it say Google doesn't use what you send, or its answers, to improve its products. Google may keep them for a limited time to detect abuse, as its terms describe: [Gemini API Additional Terms of Service](https://ai.google.dev/gemini-api/terms).";
+  "Loose Ends uses Gemini's paid tier. Google's terms for it say Google doesn't use what you send, or its answers, to improve its products. Google may keep them for a limited time to detect abuse, as its terms describe: [Gemini API Additional Terms of Service](https://aistudio.google.com/docs/terms).";
 
 export interface PrivacySentence {
   id: string;

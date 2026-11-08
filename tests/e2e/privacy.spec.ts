@@ -35,7 +35,7 @@ test("signed out: 200 with no redirect, the same page, no banned phrase", async 
   for (const phrase of BANNED) expect(text).not.toContain(phrase);
 
   const terms = page.getByRole("link", { name: "Gemini API Additional Terms of Service" });
-  await expect(terms).toHaveAttribute("href", "https://ai.google.dev/gemini-api/terms");
+  await expect(terms).toHaveAttribute("href", "https://aistudio.google.com/docs/terms");
   const mail = page.getByRole("link", { name: /@/ });
   await expect(mail).toHaveAttribute("href", /^mailto:/);
   expect(await mail.getAttribute("href")).toBe(`mailto:${await mail.innerText()}`);

@@ -79,7 +79,7 @@ describe("/privacy rendering", () => {
   it("bold becomes <strong>, links keep their text as the accessible name", () => {
     expect(html("**Delete account** deletes")).toBe('<strong class="font-medium text-le-text">Delete account</strong> deletes');
     const p17 = html(privacySections().flatMap((s) => s.sentences).find((p) => p.id === "P17")!.text);
-    expect(p17).toMatch(/<a href="https:\/\/ai\.google\.dev\/gemini-api\/terms" class="[^"]*" rel="noreferrer">Gemini API Additional Terms of Service<\/a>\.$/);
+    expect(p17).toMatch(/<a href="https:\/\/aistudio\.google\.com\/docs\/terms" class="[^"]*" rel="noreferrer">Gemini API Additional Terms of Service<\/a>\.$/);
   });
 
   it("P33 is a mailto link whose visible text is the address", () => {
