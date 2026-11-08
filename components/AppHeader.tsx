@@ -22,7 +22,8 @@ const ITEMS = [
 export function AppHeader({ current }: { current: NavItem }) {
   return (
     <header className="mx-auto flex w-full max-w-column flex-wrap items-center justify-between gap-x-4 gap-y-3 px-4 pt-6 sm:px-6 md:pt-8 lg:px-8">
-      <Link href="/today" className="focus-ring rounded-control" aria-label="Loose Ends, go to Today">
+      {/* 44 px tall below 768 px like the nav links (CLAUDE.md touch targets); the Wordmark alone is 26 px. */}
+      <Link href="/today" className="focus-ring inline-flex items-center rounded-control max-md:min-h-11" aria-label="Loose Ends, go to Today">
         <Wordmark />
       </Link>
       <nav aria-label="Primary" className="flex flex-wrap items-center gap-1">
