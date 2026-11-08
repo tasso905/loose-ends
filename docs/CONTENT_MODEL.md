@@ -171,7 +171,7 @@
 | Forget thread | Permanently removes a thread and associated data: the thread, its evidence, history and decision, the proposal it came from (payload, title and quote), and any Explain-card lines that quote it, even if the source is kept (D35). Only a one-way suppression hash remains, so the same item is not proposed again (D29) | From Thread detail; confirmation with optional `Also delete source`; the confirmation lists what is deleted |
 | Export data | Download user's data | JSON; threads, evidence/provenance, decisions, sources metadata |
 | Delete account | Removes all data and storage (D14) | Confirmation requires typing `delete`; explains backup expiry honestly |
-| Privacy/data explanation | Explains storage and use | Matches PRIVACY.md; no unimplemented promises. Names Google (Gemini API) as the AI provider; free-tier terms disclosed if used (D42; production uses the paid tier, D81). Links to the public `/privacy` page once it ships (*Proposed*, D82) |
+| Privacy/data explanation | Explains storage and use | Matches PRIVACY.md; no unimplemented promises. Names Google (Gemini API) as the AI provider; free-tier terms disclosed if used (D42; production uses the paid tier, D81). Links to the public `/privacy` page once it ships (D82) |
 | Sign out | Ends account session in this browser | Local-only: other browsers and devices stay signed in; there is no "sign out everywhere" (D39). Confirms only after the session has ended |
 | SHOULD-only fields | Digest on/off and hour; per-type toggles | Shown only if F15/F17 ship |
 
