@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Quote } from "lucide-react";
+import { Quote, Sparkle } from "lucide-react";
 import { z } from "zod";
 import { AppHeader } from "@/components/AppHeader";
 import { ErrorBanner } from "@/components/Notice";
@@ -18,7 +18,18 @@ import { DECISIONS_COPY } from "@/lib/decisions/copy";
 import { createClient } from "@/lib/supabase/server";
 import { getThreadDetail, userTimezone, type ThreadDetail } from "@/lib/threads/read";
 import { RESOLVE_COPY } from "@/lib/threads/resolve";
-import { formatDecisionDate, formatHistoryTime, historyLine, KIND_LABEL, sourceCaption, THREADS_COPY as C } from "@/lib/threads/view";
+import { TRAY_COPY } from "@/lib/review/tray";
+import {
+  formatDecisionDate,
+  formatHistoryTime,
+  historyLine,
+  KIND_LABEL,
+  nextActionIsSuggested,
+  sourceCaption,
+  THREADS_COPY as C,
+  userNextAction,
+} from "@/lib/threads/view";
+import { cn } from "@/lib/utils";
 import { getNow, parseInstant } from "@/lib/time";
 
 type Params = Promise<{ id: string }>;
@@ -80,6 +91,9 @@ export default async function ThreadPage({ params, searchParams }: { params: Par
 function Thread({ detail, timezone, openResolve, openWhy }: { detail: ThreadDetail; timezone: string; openResolve: boolean; openWhy: boolean }) {
   const { thread: t, evidence, events, origin, sources, brief, notSure, decision } = detail;
   const now = getNow();
+  // A waiting_on thread's action is someone else's (D63): never shown as the user's next action.
+  const nextAction = userNextAction(t.kind, t.next_action);
+  const suggested = nextActionIsSuggested(events);
 
   return (
     <article aria-labelledby="thread-title">
@@ -106,12 +120,12 @@ function Thread({ detail, timezone, openResolve, openWhy }: { detail: ThreadDeta
         <WhyLink threadId={t.id} surface="detail" autoOpen={openWhy} />
       </div>
 
-      {t.next_action ? (
+      {nextAction ? (
         <section aria-labelledby="next-action" className="mt-6">
           <h2 id="next-action" className="text-eyebrow text-le-text-tertiary uppercase">
             {C.nextAction}
           </h2>
-          <p className="mt-1 text-body text-le-text">{t.next_action}</p>
+          <NextActionText text={nextAction} suggested={suggested} className="mt-1" />
         </section>
       ) : null}
 
@@ -127,7 +141,7 @@ function Thread({ detail, timezone, openResolve, openWhy }: { detail: ThreadDeta
       {brief && parseBrief(brief.brief) ? (
         <ExplainBrief brief={brief.brief} source={sources[brief.sourceId] ?? null} notSure={notSure} className="mt-10" />
       ) : (
-        <CompactExplain thread={t} timezone={timezone} now={now} notSure={notSure} />
+        <CompactExplain thread={t} nextAction={nextAction} suggested={suggested} timezone={timezone} now={now} notSure={notSure} />
       )}
 
       {evidence.length > 0 ? (
@@ -181,27 +195,32 @@ function Thread({ detail, timezone, openResolve, openWhy }: { detail: ThreadDeta
  */
 function CompactExplain({
   thread: t,
+  nextAction,
+  suggested,
   timezone,
   now,
   notSure,
 }: {
   thread: ThreadDetail["thread"];
+  /** userNextAction(): null for a waiting_on thread, whose action is someone else's. */
+  nextAction: string | null;
+  suggested: boolean;
   timezone: string;
   now: Date;
   notSure: string[];
 }) {
   const due = t.due_at && (t.status === "open" || t.status === "waiting" || t.status === "snoozed");
-  if (!t.next_action && !due && notSure.length === 0) return null;
+  if (!nextAction && !due && notSure.length === 0) return null;
   return (
     <section aria-labelledby="explain-title" className="mt-10 rounded-card border border-le-border bg-le-surface p-4 sm:p-5">
       <h2 id="explain-title" className="text-h2 text-le-text">
         {EXPLAIN_COMPACT_TITLE}
       </h2>
       <div className="mt-4 space-y-6">
-        {t.next_action ? (
+        {nextAction ? (
           <div>
             <h3 className="text-eyebrow text-le-text-tertiary uppercase">{EXPLAIN_COPY.whatToDo}</h3>
-            <p className="mt-2 text-body text-le-text">{t.next_action}</p>
+            <NextActionText text={nextAction} suggested={suggested} className="mt-2" />
           </div>
         ) : null}
         {due ? (
@@ -220,6 +239,24 @@ function CompactExplain({
 
 /** PROPOSED. */
 const EXPLAIN_COMPACT_TITLE = "About this";
+
+/**
+ * The next action in the Interpretation voice with its `Suggested` tag (DESIGN_STANDARD Three voices,
+ * Iconography `Sparkle`; CONTENT_MODEL "Next action"), as on the Review Tray card. Once the user has
+ * edited it, it is their own words and drops the tag.
+ */
+function NextActionText({ text, suggested, className }: { text: string; suggested: boolean; className?: string }) {
+  if (!suggested) return <p className={cn("text-body text-le-text", className)}>{text}</p>;
+  return (
+    <div className={cn("border-l-2 border-dashed border-le-border-strong pl-3", className)}>
+      <p className="flex items-center gap-1 text-label text-le-text-secondary">
+        <Sparkle aria-hidden strokeWidth={1.75} className="size-3.5" />
+        {TRAY_COPY.suggested}
+      </p>
+      <p className="text-body text-le-text-secondary">{text}</p>
+    </div>
+  );
+}
 
 /**
  * F11 / CONTENT_MODEL §6 "Decision": the choice and the reason exactly as the user typed them, in

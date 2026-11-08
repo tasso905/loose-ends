@@ -17,7 +17,7 @@ import type { ExtractionView, ProposalView } from "@/lib/extraction/service";
 import { canAccept, groupProposals, initialSelection, TRAY_COPY as C, trayProposals, type TrayBand } from "@/lib/review/tray";
 import type { ReviewStatus, ThreadKind } from "@/lib/schemas";
 import { threadKindFor } from "@/lib/threads/mapping";
-import { sourceCaption, type SourceRef } from "@/lib/threads/view";
+import { sourceCaption, type SourceRef, userNextAction } from "@/lib/threads/view";
 import { parseInstant } from "@/lib/time";
 import { cn } from "@/lib/utils";
 import { ExplainBrief } from "./ExplainBrief";
@@ -359,7 +359,8 @@ function ProposalCard({ proposal: p, status, checked, acceptable, disabled, work
                 ) : null}
               </p>
 
-              {item.action ? (
+              {/* A waiting_on item's action is someone else's (D63): not suggested to the user. */}
+              {userNextAction(kind, item.action) ? (
                 <div className="mt-3 border-l-2 border-dashed border-le-border-strong pl-3">
                   <p className="flex items-center gap-1 text-label text-le-text-secondary">
                     <Sparkle aria-hidden strokeWidth={1.75} className="size-3.5" />
