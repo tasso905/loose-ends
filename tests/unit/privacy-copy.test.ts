@@ -27,20 +27,30 @@ function docSections() {
   return sections;
 }
 
-/** The doc's placeholders, filled the way the page fills them. */
+/** The doc's {date} placeholder and plain P33 address, in the form the copy module holds them. */
 const fill = (t: string) =>
-  t.replace("{date}", PRIVACY_LAST_UPDATED).replace("{support email}", `[${SUPPORT_EMAIL}](mailto:${SUPPORT_EMAIL})`);
+  t.replace("{date}", PRIVACY_LAST_UPDATED).replace(SUPPORT_EMAIL, `[${SUPPORT_EMAIL}](mailto:${SUPPORT_EMAIL})`);
 
 const html = (text: string) => renderToStaticMarkup(createElement(Fragment, null, ...renderInline(text)));
 
 describe("/privacy copy matches docs/PRIVACY.md (D82)", () => {
+  it("every table's second column is the approved text", () => {
+    const headers = DOC.split("\n").filter((l) => l.startsWith("| # |"));
+    expect(headers).toHaveLength(10);
+    for (const h of headers) expect(h).toBe("| # | Text (approved Nov 8) | Evidence | Check |");
+  });
+
+  it("P33 in the doc is the address the page uses", () => {
+    expect(DOC).toContain(`| P33 | Questions or requests: ${SUPPORT_EMAIL}. |`);
+  });
+
   it("the doc has sections 1–10 and P1–P33", () => {
     const s = docSections();
     expect(s.map((x) => x.heading.split(".")[0])).toEqual(["1", "2", "3", "4", "5", "6", "7", "8", "9", "10"]);
     expect(s.flatMap((x) => x.rows.map((r) => r.id))).toEqual(Array.from({ length: 33 }, (_, i) => `P${i + 1}`));
   });
 
-  it("with full analytics, every heading and sentence is the doc's Proposed text, in order", () => {
+  it("with full analytics, every heading and sentence is the doc's approved text, in order", () => {
     const page = privacySections("full").map((s) => ({ heading: s.heading, rows: s.sentences }));
     const doc = docSections().map((s) => ({ heading: s.heading, rows: s.rows.map((r) => ({ id: r.id, text: fill(r.text) })) }));
     expect(page).toEqual(doc);

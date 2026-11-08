@@ -1,7 +1,7 @@
 /**
  * Copy for the public `/privacy` page (D77, D82; SITE_CONTRACT §2.15).
  *
- * Every sentence is the "Proposed text" column of docs/PRIVACY.md, in order, under its section
+ * Every sentence is the "Text (approved Nov 8)" column of docs/PRIVACY.md, in order, under its section
  * headings. The user approved the wording of P1–P33 on Nov 8 (relayed by the coordinator).
  * tests/unit/privacy-copy.test.ts checks this file against the doc, so change both together.
  *
