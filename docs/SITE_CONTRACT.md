@@ -296,7 +296,7 @@ Nothing here is built yet. The user approved the wording on Nov 8: the page text
 | Branding field | Value |
 |---|---|
 | App name | `Loose Ends` |
-| User support email | The address in `docs/PRIVACY.md` P33. **Needs the user** |
+| User support email | `info@piscesparadigm.ca` (user, Nov 8), the same address as `docs/PRIVACY.md` P33 |
 | Application home page | The production site's root URL. `/` redirects signed-out visitors to `/sign-in`, which shows the pitch and the `Privacy` footer link. **Needs checking:** whether Google accepts a home page that is the sign-in page |
 | Application privacy policy link | The production `/privacy` URL, once the page is live |
 | Authorized domain | The production domain. **Needs checking:** what Google accepts for a `vercel.app` subdomain |
