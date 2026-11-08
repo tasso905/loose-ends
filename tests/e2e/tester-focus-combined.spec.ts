@@ -111,6 +111,11 @@ test.beforeAll(async ({ browser }) => {
   await expect(page).toHaveURL(/\/onboarding/);
   await page.getByRole("button", { name: "Skip" }).click();
   await page.getByLabel("Paste a message or document").fill(MIKE);
+  // Written Mon Oct 5, 2026, so "Friday" is Oct 9: overdue by the real clock on any run date, which
+  // keeps the thread in Today's "worth your attention" cut for the Today-row tests. Without a fixed
+  // date, "Friday" from a Saturday is 6 days out (upcoming, below the attention threshold) and the row is absent.
+  await page.getByText("When was this written?").click();
+  await page.getByLabel("I assumed this was written today. Change it if it wasn't.").fill("2026-10-05");
   await page.getByRole("button", { name: "Review source" }).click();
   await expect(page.getByRole("heading", { level: 1, name: "I found 2 things in this" })).toBeVisible({ timeout: 20_000 });
   await page.getByRole("button", { name: "Accept selected" }).click();
