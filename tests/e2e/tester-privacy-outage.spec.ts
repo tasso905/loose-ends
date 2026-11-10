@@ -58,6 +58,10 @@ test(`Supabase stopped: /privacy still renders, signed out and signed in, and do
     console.log(`EVIDENCE outage cookies before ${JSON.stringify(before)} after ${JSON.stringify(await jar())}`);
     // The session cookies are untouched by visiting /privacy during the outage.
     expect(await jar()).toEqual(before);
+    // As shipped, it passes for the right reason: nothing on /privacy fetches /sign-in (no prefetch),
+    // and no response during the visit clears or sets a cookie.
+    if (!blockSignIn) expect(seen.filter((s) => /\/sign-in/.test(s))).toEqual([]);
+    expect(seen.filter((s) => /\((set|cleared)\)/.test(s))).toEqual([]);
 
     const anon = await browser.newContext();
     const anonPage = await anon.newPage();
