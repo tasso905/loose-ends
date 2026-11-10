@@ -2,16 +2,14 @@
 
 **Status: wording approved Nov 8, 2026 (user, "all good for privacy", after reading draft PR #46; relayed by the coordinator; D82).** The approval covers the wording of P1–P33 and of the one alternative noted under P11. Sentences marked *approved Nov 4* reuse wording first approved for the deletion dialogs (`lib/account/copy.ts`).
 
-**Still blocks shipping (Nov 8).** Approving the wording doesn't confirm the facts. A row marked **Needs checking, blocks shipping** stays off the page until it is confirmed.
-- **The user:** nothing. The support email came Nov 8 (P33).
-- **The lead-tester:**
-  - P4: that Supabase stores the Google name and picture.
-  - P11–P13 and P31: that production really sends analytics events.
-  - P17: that the current Gemini API terms still say what P17 says.
-  - P25: a review of every `log(` call site.
-  - P32: a browser check of the cookies.
+**The gate (updated Nov 10).** Approving the wording doesn't confirm the facts. The gate is verification before merge, not a switch in the code: the page renders every row, and the PR that ships it doesn't merge while a row is still marked **Needs checking, blocks shipping** or **False**. The page has no per-row hiding.
 
-Since the Nov 8 answers, P23, P24, P28, P29 and P33 no longer block, and P17's tier is confirmed. The user's words were "3 is done 4. free 5. build it later", "2. paid" and "use info@piscesparadigm.ca", relayed by the coordinator.
+**Still open (Nov 10, after the lead-tester's checks on `feat/privacy-page`):**
+- **P4:** waits on the user's production SQL, which returns key names only.
+- **P11–P13 and P31:** confirmed in code. Delivery in production waits on the user's PostHog check.
+- **P32:** false as worded. A wording change is pending the user.
+
+P17 and P25 are now confirmed. P23, P24, P28, P29 and P33 stopped blocking on Nov 8. The user's Nov 8 words were "3 is done 4. free 5. build it later", "2. paid" and "use info@piscesparadigm.ca", relayed by the coordinator.
 
 **How to read this file.** Each row is one sentence for the page, the code or migration it rests on, and whether it is confirmed. **Needs checking** means the code cannot confirm it. This file is written from the implementation on `main` (Nov 8, after PR #45), not from the PRD (rule 9). It must never use the three phrases rule 9 in CLAUDE.md bans. This file doesn't quote them, so a copy check can scan it.
 
@@ -29,7 +27,7 @@ The page shows the sections in this order, with the "Text" column only.
 | # | Text (approved Nov 8) | Evidence | Check |
 | --- | --- | --- | --- |
 | P3 | Your email address, so you can sign in. | Supabase Auth `auth.users` | Confirmed |
-| P4 | If you sign in with Google, Google shares your name, email address and profile picture. Loose Ends asks for nothing else from your Google account, and it can't read your Gmail, calendar or contacts. | Scopes `openid email profile` only (PRD F1; D76: the consent screen asked only for name, email and profile picture); no Gmail or calendar code (never-build list) | **Needs checking, blocks shipping (lead-tester):** that Supabase stores the name and picture in `auth.identities.identity_data`, as expected |
+| P4 | If you sign in with Google, Google shares your name, email address and profile picture. Loose Ends asks for nothing else from your Google account, and it can't read your Gmail, calendar or contacts. | Scopes `openid email profile` only (PRD F1; D76: the consent screen asked only for name, email and profile picture); no Gmail or calendar code (never-build list) | **Needs checking, blocks shipping:** that Supabase stores the name and picture in `auth.identities.identity_data`. Waits on the user's production SQL, which returns key names only. Also: `handle_new_user` copies Google's `full_name` into `profiles.display_name` (migration `20261018184147`, line 235), which P7 covers |
 | P5 | Everything you add: text you paste, files you upload and the text read from them. | `public.sources.text_content`; files in the private `sources` bucket at `sources/{user id}/{source id}` (`app/add/actions.ts`, comment at line 73; migration `20261018184149_rls_and_storage.sql`) | Confirmed |
 | P6 | What Loose Ends finds in it: suggestions, a summary of each document, the threads you accept, their quotes and history, and any decisions and reasons you record. | Tables `extraction_items`, `extractions`, `threads`, `evidence`, `thread_events`, `decisions` (migration `20261018184147_initial_schema.sql`) | Confirmed |
 | P7 | Your settings: your name, the other names and emails you gave so Loose Ends can tell which tasks are yours, your timezone, and your analytics choice. | `profiles.display_name`, `profiles.aliases`, `profiles.timezone`; `user_settings.analytics_enabled` (migrations `20261018184147`, `20261020195158`) | Confirmed |
@@ -41,7 +39,7 @@ The page shows the sections in this order, with the "Text" column only.
 
 | # | Text (approved Nov 8) | Evidence | Check |
 | --- | --- | --- | --- |
-| P11 | If analytics is on, Loose Ends tells PostHog which features you use. Each event carries IDs, fixed categories and counts. It never includes what you paste, titles, quotes, names or reasons. | `lib/analytics/events.ts`: strict schemas, no free-text property; `lib/analytics/track.ts` | Confirmed in code. The user says `ANALYTICS_ENABLED=true` and `POSTHOG_KEY` are set in Vercel Production (Nov 8), so the page uses P11–P13, not the alternative "Loose Ends doesn't send analytics right now." (approved Nov 8, now unused). The Settings ship flag `SETTINGS_ANALYTICS_TOGGLE_SHIPPED` is already `true` on `main` (`lib/supabase/env.ts`, line 30). **Needs checking, blocks shipping (lead-tester):** that production really sends events |
+| P11 | If analytics is on, Loose Ends tells PostHog which features you use. Each event carries IDs, fixed categories and counts. It never includes what you paste, titles, quotes, names or reasons. | `lib/analytics/events.ts`: strict schemas, no free-text property; `lib/analytics/track.ts` | Confirmed in code. The user says `ANALYTICS_ENABLED=true` and `POSTHOG_KEY` are set in Vercel Production (Nov 8), so the page uses P11–P13, not the alternative "Loose Ends doesn't send analytics right now." (approved Nov 8, now unused). The Settings ship flag `SETTINGS_ANALYTICS_TOGGLE_SHIPPED` is already `true` on `main` (`lib/supabase/env.ts`, line 30). Confirmed in code: the lead-tester's local event catcher received 4 of 4 events. **Needs checking, blocks shipping:** delivery in production, which waits on the user's PostHog check. **Off variant:** with analytics off, the page shows only that one sentence in section 3 and also drops P31 (implemented that way on `feat/privacy-page`) |
 | P12 | Analytics is on unless you turn it off in Settings. | `user_settings.analytics_enabled` defaults to true (migration `20261020195158`); opt-out (D40); toggle in Settings | Confirmed |
 | P13 | Events are sent from the Loose Ends server, tied to your account ID only, with location lookup turned off. | `distinctId: userId`, `disableGeoip: true`, `$process_person_profile: false` (`lib/analytics/track.ts`) | Confirmed |
 
@@ -52,7 +50,7 @@ The page shows the sections in this order, with the "Text" column only.
 | P14 | When you paste text or upload a file, Loose Ends sends its text to Google's Gemini API to find what's still open. With it go the names and emails you gave, your timezone, the date the text was written, and the titles of up to 30 of your open threads. | `buildExtractPrompt` (`lib/ai/extract.ts`, lines 73–83); `MAX_OPEN_THREADS_IN_CONTEXT = 30`; provider `google` (`lib/ai/provider.ts`) | Confirmed |
 | P15 | When you ask why, Loose Ends sends your question and the recorded decisions that match it: each one's thread title, the person involved, what you decided, your reason, the date and its quotes. If nothing matches, nothing is sent. | `buildAskWhyPrompt` (`lib/ai/askWhy.ts`, lines 96–107); zero matches make no model call (`lib/decisions/ask.ts`, line 22; rule 7) | Confirmed |
 | P16 | Loose Ends doesn't remove anything from your text before sending it, so don't paste passwords or full account numbers. | Redaction (F18) is not built: nothing in `lib/` or `app/` redacts. The second half is the approved notice (SITE_CONTRACT §2.0) | Confirmed |
-| P17 | Loose Ends uses Gemini's paid tier. Google's terms for it say Google doesn't use what you send, or its answers, to improve its products. Google may keep them for a limited time to detect abuse, as its terms describe: [Gemini API Additional Terms of Service](https://ai.google.dev/gemini-api/terms). | D81 (user, Nov 7); the paid tier was confirmed by the user in Google AI Studio on Nov 8 | Tier confirmed. **Needs checking, blocks shipping (lead-tester):** that the current Gemini API terms still say this |
+| P17 | Loose Ends uses Gemini's paid tier. Google's terms for it say Google doesn't use what you send, or its answers, to improve its products. Google may keep them for a limited time to detect abuse, as its terms describe: [Gemini API Additional Terms of Service](https://aistudio.google.com/docs/terms). | D81 (user, Nov 7); the paid tier was confirmed by the user in Google AI Studio on Nov 8. Google's terms at https://aistudio.google.com/docs/terms (effective Mar 23, 2026; checked by the coordinator Nov 8) say that under paid services Google "doesn't use your prompts … or responses to improve our products" and "logs prompts and responses for a limited period of time, solely for detecting and preventing violations of" the Prohibited Use Policy | Confirmed (tier and terms) |
 
 ## 5. Deleting
 
@@ -70,7 +68,7 @@ The page shows the sections in this order, with the "Text" column only.
 | --- | --- | --- | --- |
 | P23 | Supabase's own platform logs keep records of requests, including your account ID. Loose Ends can't delete them. They expire on Supabase's schedule. | Seen in production Logs → Auth after a deletion (Nov 7, D77). Supabase's logs guide says only "Retention depends on your pricing plan" (https://supabase.com/docs/guides/platform/logs, checked by the coordinator Nov 8). The project is on the Free plan (user, Nov 8) | Confirmed. The text names no period, so it is true on any plan |
 | P24 | Backups held by our hosting platform expire on its own schedule. | *Approved Nov 4* (`accountBackups`; PRD Privacy & Security). The project is on the Free plan (user, Nov 8). Supabase's backups guide says "We automatically back up all Pro, Team, and Enterprise Plan projects on a daily basis", lists no automatic backups for Free, and Storage objects are never in database backups (https://supabase.com/docs/guides/platform/backups, checked by the coordinator Nov 8) | Confirmed. The text names no period and is true whether or not backups exist |
-| P25 | When something fails, the app logs it with IDs, codes and counts, not your content. Vercel keeps these logs for a limited time. | `lib/log.ts` writes to the console, which Vercel stores; the rule-9 convention is in the comment, not enforced by type. Some entries carry your user ID (for example `account_delete_sweep_failed`) | The retention half names no period, so it is true on any plan. **Needs checking, blocks shipping (lead-tester):** a review of every `log(` call site |
+| P25 | When something fails, the app logs it with IDs, codes and counts, not your content. Vercel keeps these logs for a limited time. | `lib/log.ts` writes to the console, which Vercel stores; the rule-9 convention is in the comment, not enforced by type. Some entries carry your user ID (for example `account_delete_sweep_failed`) | Confirmed in code (lead-tester, Nov 8). The retention half names no period, so it is true on any plan. All 69 `log(` call sites log only enums, codes, error class names, counts and IDs; the user ID appears only in `account_delete_sweep_failed` and `account_delete_audit_failed`. **Residual risk:** an uncaught error from a third-party library could put its own message in Vercel's logs, outside `log(` |
 | P26 | Google, Vercel and PostHog keep what they received under their own terms. Deleting your account doesn't reach them. | Nothing in `lib/account/deleteAccount.ts` calls Google, Vercel or PostHog; the `account_deleted` event itself is sent to PostHog when you were opted in (`app/settings/data-actions.ts`) | Confirmed |
 
 ## 7. Export
@@ -86,7 +84,7 @@ The page shows the sections in this order, with the "Text" column only.
 | P28 | **Supabase:** database, sign-in, file storage and sign-in emails. | `@supabase/ssr`, `@supabase/supabase-js` (`package.json`); built-in email sender (D75) | Confirmed. The text names no region; if a later change names one, check it first |
 | P29 | **Vercel:** hosting, the daily job and app logs. | `vercel.json`; `lib/log.ts` | Confirmed. The text names no region; if a later change names one, check it first |
 | P30 | **Google:** the Gemini API reads what you add and what you ask (section 4), and Google sign-in, if you use it. | `@ai-sdk/google` (`lib/ai/provider.ts`); Google provider on in production (D76) | Confirmed |
-| P31 | **PostHog (US):** analytics, if it is on (section 3). | `posthog-node`; US host `https://us.i.posthog.com` (`lib/supabase/env.ts`, D40) | **Needs checking, blocks shipping (lead-tester):** that production really sends events (see P11) |
+| P31 | **PostHog (US):** analytics, if it is on (section 3). | `posthog-node`; US host `https://us.i.posthog.com` (`lib/supabase/env.ts`, D40) | Confirmed in code. **Needs checking, blocks shipping:** delivery in production, as for P11. Dropped from the page when analytics is off (see P11) |
 
 Not on the page because they aren't used:
 - **Sentry:** planned, not built. The user said "build it later" on Nov 8 (D84). There is no Sentry package or code on `main` (`package.json`). When Sentry ships, the change that ships it adds Sentry to this list and to the page, and the new wording needs the user's approval first (rule 9).
@@ -96,7 +94,7 @@ Not on the page because they aren't used:
 
 | # | Text (approved Nov 8) | Evidence | Check |
 | --- | --- | --- | --- |
-| P32 | Loose Ends uses cookies only to keep you signed in, plus one that lasts two minutes and shows the notice after you delete your account. No advertising or tracking cookies. | `@supabase/ssr` session cookies; `le_account_deleted`, `maxAge: 120` (`app/settings/data-actions.ts`) | **Needs checking, blocks shipping (lead-tester):** a browser check that no other cookie is set |
+| P32 | Loose Ends uses cookies only to keep you signed in, plus one that lasts two minutes and shows the notice after you delete your account. No advertising or tracking cookies. | `@supabase/ssr` session cookies; `le_account_deleted`, `maxAge: 120` (`app/settings/data-actions.ts`) | **False as worded; wording change pending the user.** The lead-tester found: requesting a magic link sets `le_sign_in_email`, holding the email address, for 900 s, httpOnly, path `/sign-in` (`app/sign-in/actions.ts`, line 45; `lib/auth/signIn.ts`). Signed in, the cookies are Supabase's `sb-<ref>-auth-token` and PKCE code-verifier cookies (400 days, not httpOnly). No PostHog cookie. Proposed replacement, not approved: "Loose Ends uses cookies only to keep you signed in, plus two short-lived ones: one that remembers the email you asked a sign-in link for, for 15 minutes, and one that lasts two minutes and shows the notice after you delete your account. No advertising or tracking cookies." |
 
 ## 10. Contact
 
