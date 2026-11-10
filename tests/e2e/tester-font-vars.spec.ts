@@ -6,6 +6,7 @@ import { createClient } from "@supabase/supabase-js";
 import { expect, test, type BrowserContext, type Page } from "@playwright/test";
 import { deleteUsers, magicLinkFor, requestLink, testEmail } from "./helpers";
 import { localSupabase } from "./localSupabase";
+import { settled } from "./settled";
 
 /**
  * Lead-tester, fix/font-vars-stylesheet. Run against a production build (E2E_PROD=1): `next dev` has its
@@ -96,6 +97,7 @@ function write(name: string, data: unknown) {
 }
 
 async function axe(p: Page) {
+  await settled(p);
   const r = await new AxeBuilder({ page: p }).withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"]).analyze();
   expect(r.violations.map((v) => `${v.id}: ${v.nodes.map((n) => n.target.join(" ")).join(", ")}`)).toEqual([]);
 }

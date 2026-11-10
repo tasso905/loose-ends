@@ -5,6 +5,7 @@ import { clinicPdf, encryptedPdf } from "../fixtures/tester-documents";
 import { renewalPdf } from "../fixtures/documents";
 import { deleteUsers, magicLinkFor, requestLink, testEmail } from "./helpers";
 import { localSupabase } from "./localSupabase";
+import { settled } from "./settled";
 
 /**
  * Lead-tester S6/S7 E2E: rules 1, 3, 5 and 10 on the real UI, orphan files, keyboard-only upload,
@@ -34,6 +35,7 @@ const file = (name: string, bytes: Uint8Array | string, mimeType = "application/
   buffer: Buffer.from(typeof bytes === "string" ? new TextEncoder().encode(bytes) : bytes),
 });
 async function axe() {
+  await settled(page);
   const r = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"]).analyze();
   expect(r.violations.map((v) => `${v.id}: ${v.nodes.map((n) => n.target.join(" ")).join(", ")}`)).toEqual([]);
 }

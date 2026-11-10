@@ -1,6 +1,7 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test, type BrowserContext, type Page } from "@playwright/test";
 import { deleteUsers, magicLinkFor, requestLink, testEmail } from "./helpers";
+import { settled } from "./settled";
 
 /**
  * Lead-tester: the AppHeader on every signed-in page (CLAUDE.md: 44 px touch targets below 768 px).
@@ -64,6 +65,7 @@ for (const p of PAGES) {
     console.log(`EVIDENCE 375 ${p.path}: ${JSON.stringify(targets)}`);
     expect(targets.length).toBeGreaterThanOrEqual(6);
     expect(targets.filter((t) => t.w < 44 || t.h < 44)).toEqual([]);
+    await settled(page);
     const r = await new AxeBuilder({ page }).include("header").withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"]).analyze();
     expect(r.violations.map((v) => v.id)).toEqual([]);
     expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(0);

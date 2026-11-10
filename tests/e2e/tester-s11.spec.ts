@@ -6,6 +6,7 @@ import { createClient } from "@supabase/supabase-js";
 import { expect, test, type Browser, type BrowserContext, type Page } from "@playwright/test";
 import { deleteUsers, magicLinkFor, requestLink, testEmail } from "./helpers";
 import { localSupabase } from "./localSupabase";
+import { settled } from "./settled";
 
 /**
  * Lead-tester, S11 (F13, F9 Forget, D8, D14; rules 8, 9, 10), independent of the developer's
@@ -71,9 +72,7 @@ const fileExists = async (path: string) => {
 };
 
 async function axe(page: Page, label: string) {
-  await page.evaluate(() =>
-    Promise.all(document.getAnimations().filter((a) => a.effect?.getComputedTiming().endTime !== Infinity).map((a) => a.finished.catch(() => undefined))),
-  );
+  await settled(page);
   const r = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"]).analyze();
   expect(r.violations.map((v) => `${v.id}: ${v.nodes.map((n) => n.target.join(" ")).join(", ")}`), label).toEqual([]);
 }

@@ -1,7 +1,8 @@
 import { createClient } from "@supabase/supabase-js";
-import { expect, test, type BrowserContext, type Page } from "@playwright/test";
+import { expect, test, type BrowserContext, type Locator, type Page } from "@playwright/test";
 import { deleteUsers, magicLinkFor, requestLink, testEmail } from "./helpers";
 import { localSupabase } from "./localSupabase";
+import { settled } from "./settled";
 
 /**
  * Lead-tester, independent of the developer's specs: the Undo toast's hard limit (D49, Oct 21).
@@ -67,6 +68,22 @@ async function watchRemoval(label: string) {
     obs.observe(document.body, { childList: true, subtree: true });
   }, label);
 }
+/**
+ * Hovers the toast the way a real pointer arrives. CI run 42884254468 (attempt 1): a one-step
+ * `hover()` jumped from where Done had been (that button had just left the DOM) onto a toast still
+ * entering; the button matched :hover in the trace, yet the toast closed at 8 s, so the pause never
+ * started. Not reproduced locally (throttled, loaded, delayed refresh). Here the toast has finished
+ * entering (settled), the pointer first rests on the page heading (a live element), then travels to
+ * the button in steps, so the browser sends the usual mouseout/mouseover pairs, as for a user.
+ */
+async function hoverLikeAPointer(undo: Locator) {
+  await settled(page);
+  const h1 = (await page.getByRole("heading", { level: 1 }).boundingBox())!;
+  await page.mouse.move(h1.x + 4, h1.y + h1.height / 2);
+  const b = (await undo.boundingBox())!;
+  await page.mouse.move(b.x + b.width / 2, b.y + b.height / 2, { steps: 8 });
+  await expect.poll(() => undo.evaluate((el) => el.matches(":hover")), { timeout: 2_000 }).toBe(true);
+}
 const goneAt = () => page.evaluate(() => (window as unknown as { __goneAt?: number }).__goneAt ?? null);
 const pageNow = () => page.evaluate(() => performance.now());
 async function waitUntil(clickAt: number, ms: number) {
@@ -115,7 +132,7 @@ test("hover-paused: the toast closes 11 s after the Done click (not later), focu
   const undo = page.getByRole("button", { name: label });
   await expect(undo).toBeVisible();
   await watchRemoval(label);
-  await undo.hover();
+  await hoverLikeAPointer(undo);
   await waitUntil(at, 9_500);
   await expect(undo).toBeVisible(); // paused past 8 s
   await expect.poll(goneAt, { timeout: 5_000 }).not.toBeNull();

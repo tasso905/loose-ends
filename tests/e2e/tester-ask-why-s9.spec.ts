@@ -3,6 +3,7 @@ import { createClient } from "@supabase/supabase-js";
 import { expect, test, type BrowserContext, type Page } from "@playwright/test";
 import { deleteUsers, magicLinkFor, requestLink, testEmail } from "./helpers";
 import { localSupabase } from "./localSupabase";
+import { settled } from "./settled";
 
 /**
  * Lead-tester S9 (F12 Ask why) on the page, against local Supabase and recorded LLM fixtures
@@ -38,6 +39,7 @@ function admin() {
 }
 
 async function axe(p: Page) {
+  await settled(p);
   const results = await new AxeBuilder({ page: p }).withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"]).analyze();
   expect(results.violations.map((v) => `${v.id}: ${v.nodes.map((n) => n.target.join(" ")).join(", ")}`)).toEqual([]);
 }
