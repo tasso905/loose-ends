@@ -4,6 +4,7 @@ import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { expect, test, type BrowserContext, type Page } from "@playwright/test";
 import { deleteUsers, magicLinkFor, requestLink, testEmail } from "./helpers";
 import { localSupabase } from "./localSupabase";
+import { settled } from "./settled";
 
 /**
  * Lead-tester S10 (F10 Today, F8 Why) and S9b (Add a reason now, D58) on the page, against local
@@ -34,6 +35,7 @@ function admin() {
   return createClient(sb.url, sb.serviceRoleKey, { auth: { persistSession: false, autoRefreshToken: false } });
 }
 async function axe(p: Page, include?: string) {
+  await settled(p);
   let b = new AxeBuilder({ page: p }).withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"]);
   if (include) b = b.include(include);
   const results = await b.analyze();

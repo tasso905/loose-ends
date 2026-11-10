@@ -3,6 +3,7 @@ import { createClient } from "@supabase/supabase-js";
 import { expect, test, type BrowserContext, type Page } from "@playwright/test";
 import { deleteUsers, magicLinkFor, requestLink, testEmail } from "./helpers";
 import { localSupabase } from "./localSupabase";
+import { settled } from "./settled";
 
 /**
  * Lead-tester, fix/reason-save-failure-focus (T-F1): after a reason save fails at the network, focus is on
@@ -71,6 +72,7 @@ test("a failed save: focus on the field, text kept, error tied to it, nothing st
   await expect(field).toHaveAttribute("aria-invalid", "true");
   await expect(page.getByText("You added a reason for your decision.")).toHaveCount(0);
   expect((await admin().from("decisions").select("reason_user").eq("id", decisionId).single()).data!.reason_user).toBeNull();
+  await settled(page);
   const r = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"]).analyze();
   expect(r.violations.map((v) => v.id)).toEqual([]);
   await page.unrouteAll({ behavior: "ignoreErrors" });

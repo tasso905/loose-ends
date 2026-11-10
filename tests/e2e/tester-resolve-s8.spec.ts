@@ -3,6 +3,7 @@ import { createClient } from "@supabase/supabase-js";
 import { expect, test, type BrowserContext, type Page } from "@playwright/test";
 import { deleteUsers, magicLinkFor, requestLink, testEmail } from "./helpers";
 import { localSupabase } from "./localSupabase";
+import { settled } from "./settled";
 
 /**
  * Lead-tester S8 (F11 Resolve sheet) E2E attacks: keyboard-only path, focus after Save / scrim /
@@ -32,19 +33,10 @@ const reopen = async () => {
 };
 const sheet = () => page.getByRole("dialog", { name: "How did this end?" });
 const isServerAction = (method: string, headers: Record<string, string>) => method === "POST" && "next-action" in headers;
-// axe samples colours as rendered: run it only after finite animations (the sheet's fade-in) end,
-// so a half-faded label is not reported as low contrast. Infinite ones (spinners) are skipped.
-const animationsSettled = () =>
-  page.evaluate(() =>
-    Promise.all(
-      document
-        .getAnimations()
-        .filter((a) => a.effect?.getComputedTiming().endTime !== Infinity)
-        .map((a) => a.finished.catch(() => undefined)),
-    ),
-  );
+// axe samples colours as rendered: settled() waits for the sheet's fade-in (and a toast's, including
+// one that starts on the next frame) so a half-faded label is not reported as low contrast.
 async function axe() {
-  await animationsSettled();
+  await settled(page);
   const r = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"]).analyze();
   expect(r.violations.map((v) => `${v.id}: ${v.nodes.map((n) => n.target.join(" ")).join(", ")}`)).toEqual([]);
 }

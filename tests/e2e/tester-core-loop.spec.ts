@@ -4,6 +4,7 @@ import { createClient } from "@supabase/supabase-js";
 import { expect, test, type BrowserContext, type Locator, type Page } from "@playwright/test";
 import { deleteUsers, magicLinkFor, requestLink, testEmail } from "./helpers";
 import { localSupabase } from "./localSupabase";
+import { settled } from "./settled";
 
 /**
  * Lead-tester, independent of the developer's specs: the core loop sign in → paste → review → accept
@@ -41,6 +42,7 @@ async function eventTypes(threadId: string) {
   return (data ?? []).map((e) => e.type as string);
 }
 async function axe(p: Page = page) {
+  await settled(p);
   const r = await new AxeBuilder({ page: p }).withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"]).analyze();
   expect(r.violations.map((v) => `${v.id}: ${v.nodes.map((n) => n.target.join(" ")).join(", ")}`)).toEqual([]);
 }

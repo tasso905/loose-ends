@@ -23,9 +23,15 @@ const admin = () => {
   const sb = localSupabase();
   return createClient(sb.url, sb.serviceRoleKey, { auth: { persistSession: false, autoRefreshToken: false } });
 };
+const threadStatus = async () => (await admin().from("threads").select("status").eq("id", threadId).single()).data?.status;
+/** Reopens the thread and loads it; fails fast (not at the 2 min timeout) if Resolve… is missing. */
 const reopen = async () => {
-  await admin().from("decisions").delete().eq("thread_id", threadId);
-  await admin().from("threads").update({ status: "open", resolution: null, resolved_at: null, kind: "commitment" }).eq("id", threadId);
+  const d = await admin().from("decisions").delete().eq("thread_id", threadId);
+  expect(d.error).toBeNull();
+  const t = await admin().from("threads").update({ status: "open", resolution: null, resolved_at: null, kind: "commitment" }).eq("id", threadId);
+  expect(t.error).toBeNull();
+  await page.goto(threadUrl);
+  await expect(page.getByRole("button", { name: "Resolve…" }), `thread ${threadId} is open (status now: ${await threadStatus()})`).toBeVisible({ timeout: 10_000 });
 };
 const sheet = () => page.getByRole("dialog", { name: "How did this end?" });
 const isServerAction = (method: string, headers: Record<string, string>) => method === "POST" && "next-action" in headers;
@@ -82,7 +88,6 @@ test.afterAll(async () => {
 for (const how of ["Cancel", "Escape", "scrim"] as const) {
   test(`closed with ${how} after Decided + a field error: the sheet is reset while closed and reopens fresh`, async () => {
     await reopen();
-    await page.goto(threadUrl);
     await page.getByRole("button", { name: "Resolve…" }).click();
     await sheet().getByRole("radio", { name: "Decided" }).check();
     await sheet().getByRole("button", { name: "Save" }).click(); // blank decision: field error
@@ -111,7 +116,6 @@ for (const how of ["Cancel", "Escape", "scrim"] as const) {
 // parent's `open` stays true. Fix: closedby="none" while pending, and a native close re-opens it.
 test("rule 10: a second Escape while Save is in flight does not close the sheet before the server confirms", async () => {
   await reopen();
-  await page.goto(threadUrl);
   const release = await holdSave(false);
   await page.getByRole("button", { name: "Resolve…" }).click();
   await sheet().getByRole("radio", { name: "Decided" }).check();
@@ -123,6 +127,12 @@ test("rule 10: a second Escape while Save is in flight does not close the sheet 
   const during = await sheetState();
   release();
   expect(during).toBe("open|decided|fields:2|invalid:0");
+  // The released save must land inside this test. Without this wait it was still in flight when the
+  // test ended (thread still open in 8 of 8 local runs), and on a slow runner it landed after the next
+  // test's reopen(), so that test found a resolved thread with no Resolve… and waited out the 2 min
+  // timeout. Rule 10 as well: the sheet closes only once the server has confirmed.
+  await expect(sheet()).toBeHidden({ timeout: 10_000 });
+  await expect.poll(threadStatus, { timeout: 10_000 }).toBe("resolved");
 });
 
 // FIXED (was OPEN DEFECT; rule 10; pre-existing): same native close, and then the save fails. The failure is
@@ -131,7 +141,6 @@ test("rule 10: a second Escape while Save is in flight does not close the sheet 
 // error shows in it; it closes with Cancel and Resolve… opens it again (adapted by lead-developer).
 test("rule 10: after a native close during a failing save, the error is shown and Resolve… opens the sheet again", async () => {
   await reopen();
-  await page.goto(threadUrl);
   const release = await holdSave(true);
   await page.getByRole("button", { name: "Resolve…" }).click();
   await sheet().getByRole("radio", { name: "Decided" }).check();
