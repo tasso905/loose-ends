@@ -7,6 +7,7 @@ import { AuthNotices } from "@/components/auth/Notices";
 import { ErrorBanner } from "@/components/Notice";
 import { ACCOUNT_DELETED_HEADER, accountDeletedNotice } from "@/lib/account/copy";
 import { SIGN_IN_COPY as C, signInErrorMessage } from "@/lib/auth/copy";
+import { PRIVACY_COPY } from "@/lib/privacy/copy";
 import { safeNext, signInPath } from "@/lib/auth/next";
 import { SIGN_IN_EMAIL_COOKIE } from "@/lib/auth/signIn";
 import { isGoogleSignInEnabled } from "@/lib/supabase/env";
@@ -59,6 +60,16 @@ export default async function SignInPage({ searchParams }: { searchParams: Searc
       </section>
 
       <AuthNotices />
+
+      {/* A link, not a claim: no privacy wording beside it (SITE_CONTRACT §2.0, rule 9). */}
+      <footer className="mt-10">
+        <Link
+          href="/privacy"
+          className="focus-ring inline-flex items-center rounded-control text-body text-le-accent underline-offset-3 hover:underline max-md:min-h-11"
+        >
+          {PRIVACY_COPY.linkLabel}
+        </Link>
+      </footer>
     </AuthPage>
   );
 }

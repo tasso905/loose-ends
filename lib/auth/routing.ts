@@ -6,7 +6,13 @@ import { DEFAULT_NEXT, onboardingPath, safeNext, signInPath } from "@/lib/auth/n
  */
 
 /** Routes reachable while signed out. Everything else is a Signed in route. */
-const PUBLIC_PREFIXES = ["/sign-in", "/auth"];
+const PUBLIC_PREFIXES = ["/sign-in", "/auth", "/privacy"];
+
+/**
+ * Static pages that render the same for everyone and never redirect (SITE_CONTRACT §1.2, §2.15).
+ * The proxy makes no Supabase call for them, so they work while Supabase is down.
+ */
+const ALWAYS_OPEN_PREFIXES = ["/privacy"];
 
 /** Route handlers answer for themselves with the JSON error envelope; never redirect them. */
 const SELF_GUARDED_PREFIXES = ["/api"];
@@ -15,6 +21,10 @@ const matches = (pathname: string, prefix: string) => pathname === prefix || pat
 
 export function isPublicPath(pathname: string): boolean {
   return PUBLIC_PREFIXES.some((p) => matches(pathname, p));
+}
+
+export function isAlwaysOpenPath(pathname: string): boolean {
+  return ALWAYS_OPEN_PREFIXES.some((p) => matches(pathname, p));
 }
 
 export type RouteDecision = { kind: "continue" } | { kind: "redirect"; to: string };
@@ -28,6 +38,7 @@ export interface RouteInput {
 
 export function decideRoute({ pathname, search, signedIn }: RouteInput): RouteDecision {
   if (SELF_GUARDED_PREFIXES.some((p) => matches(pathname, p))) return { kind: "continue" };
+  if (isAlwaysOpenPath(pathname)) return { kind: "continue" };
 
   // `/` never carries `next`: signed out it goes to sign-in, signed in to Today (D38).
   if (pathname === "/") return { kind: "redirect", to: signedIn ? DEFAULT_NEXT : "/sign-in" };
