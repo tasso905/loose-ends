@@ -35,7 +35,7 @@ async function axe(page: Page) {
 async function smallTargets(page: Page) {
   return page.$$eval("main a, main button, main input:not([type=hidden]), main textarea, header a, header button", (els) =>
     els
-      .map((el) => ({ el: el.outerHTML.slice(0, 60), r: el.getBoundingClientRect() }))
+      .map((el) => ({ el: el.outerHTML.slice(0, 160), r: el.getBoundingClientRect() }))
       .filter(({ r }) => r.width > 0 && (r.height < 44 || r.width < 44))
       .map(({ el, r }) => `${el} (${Math.round(r.width)}x${Math.round(r.height)})`),
   );
@@ -380,6 +380,10 @@ test("375 px: sent state and Today header meet 44 px targets and pass axe", asyn
   await page.goto(await magicLinkFor(email, since));
   await page.getByRole("button", { name: "Skip" }).click();
   await expect(page).toHaveURL(/\/today$/);
+  // Skip is a client navigation: the URL changes before Today's header and title have rendered, so
+  // measuring right away sometimes saw no header (missing the 26 px wordmark) or an empty title.
+  await expect(page.getByRole("banner").getByRole("link", { name: "Loose Ends, go to Today" })).toBeVisible();
+  await expect(page).toHaveTitle("Today · Loose Ends");
   expect(await smallTargets(page)).toEqual([]);
   await axe(page);
 });
