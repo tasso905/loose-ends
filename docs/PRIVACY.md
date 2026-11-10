@@ -4,10 +4,7 @@
 
 **The gate (updated Nov 10).** Approving the wording doesn't confirm the facts. The gate is verification before merge, not a switch in the code: the page renders every row, and the PR that ships it doesn't merge while a row is still marked **Needs checking, blocks shipping** or **False**. The page has no per-row hiding.
 
-**Still open (Nov 10, after the lead-tester's checks on `feat/privacy-page`):**
-- **P11–P13 and P31:** confirmed in code. Delivery in production waits on the user's PostHog check.
-
-P17 and P25 are now confirmed. P32 is confirmed, with new wording the user approved on Nov 10. P4 is confirmed by the user's production SQL (Nov 10). P23, P24, P28, P29 and P33 stopped blocking on Nov 8. The user's Nov 8 words were "3 is done 4. free 5. build it later", "2. paid" and "use info@piscesparadigm.ca", relayed by the coordinator.
+**Every row is confirmed (Nov 10).** No row is marked **Needs checking, blocks shipping** or **False**. P11–P13 and P31: production delivery confirmed by the user in PostHog on Nov 10. P17 and P25 are confirmed. P32 is confirmed, with new wording the user approved on Nov 10. P4 is confirmed by the user's production SQL (Nov 10). P23, P24, P28, P29 and P33 stopped blocking on Nov 8. The user's Nov 8 words were "3 is done 4. free 5. build it later", "2. paid" and "use info@piscesparadigm.ca", relayed by the coordinator.
 
 **How to read this file.** Each row is one sentence for the page, the code or migration it rests on, and whether it is confirmed. **Needs checking** means the code cannot confirm it. This file is written from the implementation on `main` (Nov 8, after PR #45), not from the PRD (rule 9). It must never use the three phrases rule 9 in CLAUDE.md bans. This file doesn't quote them, so a copy check can scan it.
 
@@ -37,9 +34,11 @@ The page shows the sections in this order, with the "Text" column only.
 
 | # | Text (approved Nov 8) | Evidence | Check |
 | --- | --- | --- | --- |
-| P11 | If analytics is on, Loose Ends tells PostHog which features you use. Each event carries IDs, fixed categories and counts. It never includes what you paste, titles, quotes, names or reasons. | `lib/analytics/events.ts`: strict schemas, no free-text property; `lib/analytics/track.ts` | Confirmed in code. The user says `ANALYTICS_ENABLED=true` and `POSTHOG_KEY` are set in Vercel Production (Nov 8), so the page uses P11–P13, not the alternative "Loose Ends doesn't send analytics right now." (approved Nov 8, now unused). The Settings ship flag `SETTINGS_ANALYTICS_TOGGLE_SHIPPED` is already `true` on `main` (`lib/supabase/env.ts`, line 30). Confirmed in code: the lead-tester's local event catcher received 4 of 4 events. **Needs checking, blocks shipping:** delivery in production, which waits on the user's PostHog check. **Off variant:** with analytics off, the page shows only that one sentence in section 3 and also drops P31 (implemented that way on `feat/privacy-page`) |
-| P12 | Analytics is on unless you turn it off in Settings. | `user_settings.analytics_enabled` defaults to true (migration `20261020195158`); opt-out (D40); toggle in Settings | Confirmed |
-| P13 | Events are sent from the Loose Ends server, tied to your account ID only, with location lookup turned off. | `distinctId: userId`, `disableGeoip: true`, `$process_person_profile: false` (`lib/analytics/track.ts`) | Confirmed |
+| P11 | If analytics is on, Loose Ends tells PostHog which features you use. Each event carries IDs, fixed categories and counts. It never includes what you paste, titles, quotes, names or reasons. | `lib/analytics/events.ts`: strict schemas, no free-text property; `lib/analytics/track.ts` | Confirmed: code and local catcher (lead tester, Nov 8); production delivery confirmed by the user in PostHog Nov 10 (server-side posthog-node events, account UUID only, no URL) |
+| P12 | Analytics is on unless you turn it off in Settings. | `user_settings.analytics_enabled` defaults to true (migration `20261020195158`); opt-out (D40); toggle in Settings | Confirmed: code and local catcher (lead tester, Nov 8); production delivery confirmed by the user in PostHog Nov 10 (server-side posthog-node events, account UUID only, no URL) |
+| P13 | Events are sent from the Loose Ends server, tied to your account ID only, with location lookup turned off. | `distinctId: userId`, `disableGeoip: true`, `$process_person_profile: false` (`lib/analytics/track.ts`) | Confirmed: code and local catcher (lead tester, Nov 8); production delivery confirmed by the user in PostHog Nov 10 (server-side posthog-node events, account UUID only, no URL) |
+
+**Off variant** (approved Nov 8, not used while analytics is on): with analytics off, section 3 shows only "Loose Ends doesn't send analytics right now." and the page also drops P31 (`ANALYTICS_COPY` in `lib/privacy/copy.ts`).
 
 ## 4. What the AI sees
 
@@ -82,7 +81,7 @@ The page shows the sections in this order, with the "Text" column only.
 | P28 | **Supabase:** database, sign-in, file storage and sign-in emails. | `@supabase/ssr`, `@supabase/supabase-js` (`package.json`); built-in email sender (D75) | Confirmed. The text names no region; if a later change names one, check it first |
 | P29 | **Vercel:** hosting, the daily job and app logs. | `vercel.json`; `lib/log.ts` | Confirmed. The text names no region; if a later change names one, check it first |
 | P30 | **Google:** the Gemini API reads what you add and what you ask (section 4), and Google sign-in, if you use it. | `@ai-sdk/google` (`lib/ai/provider.ts`); Google provider on in production (D76) | Confirmed |
-| P31 | **PostHog (US):** analytics, if it is on (section 3). | `posthog-node`; US host `https://us.i.posthog.com` (`lib/supabase/env.ts`, D40) | Confirmed in code. **Needs checking, blocks shipping:** delivery in production, as for P11. Dropped from the page when analytics is off (see P11) |
+| P31 | **PostHog (US):** analytics, if it is on (section 3). | `posthog-node`; US host `https://us.i.posthog.com` (`lib/supabase/env.ts`, D40) | Confirmed: code and local catcher (lead tester, Nov 8); production delivery confirmed by the user in PostHog Nov 10 (server-side posthog-node events, account UUID only, no URL) |
 
 Not on the page because they aren't used:
 - **Sentry:** planned, not built. The user said "build it later" on Nov 8 (D84). There is no Sentry package or code on `main` (`package.json`). When Sentry ships, the change that ships it adds Sentry to this list and to the page, and the new wording needs the user's approval first (rule 9).
