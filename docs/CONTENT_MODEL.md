@@ -56,7 +56,7 @@
 | Groups | Proposals by confidence | `Likely` (High, pre-checked), `Maybe` (Medium, unchecked), `Also noticed` (Low, collapsed, unchecked); Ignore never shown (D3) |
 | Proposal title | Short label for a candidate open loop | Prefer source wording; aim for 3–10 words; max 80 characters |
 | Loop type | Candidate category | `Commitment`, `Request`, `Waiting on`, `Admin`, or `Decision`; set by the type → kind mapping (D5); user can change. `Commitment` is only something the user promised; something another person promised the user ("Mike said he'll send the contract") or a group the user belongs to ("Ruth will bring cups for whoever needs one") is `Waiting on` (D63, D64) |
-| Suggested next action | What the user may need to do | Specific, actionable, concise; labelled `Suggested` |
+| Suggested next action | What the user may need to do | Specific, actionable, concise; labelled `Suggested`. Not shown for `Waiting on` items, whose action is the other person's (D63, D83(a)) |
 | Counterparty | Person or organization involved | Optional; use only when supported by source; flag ambiguous identity |
 | Due date | Candidate date or deadline | Explicit dates plain; inferred dates carry an `Assumed` chip with the resolution explained; never invent a precise date. A month-day with no year is in the past only if it falls within 30 days before the written-on date, otherwise the next occurrence (D28) |
 | Confidence label | Strength of extraction | Dot + word + reason, e.g. `Likely · Clear commitment with a date`; colour never the only signal |
@@ -100,7 +100,7 @@
 | Loop type | Classification | Same allowed values as Review Tray |
 | Status | Current lifecycle state | `Open`, `Waiting`, `Snoozed`, `Resolved`, `Dismissed`; overdue is derived, never a status (D2) |
 | Section headings | Labels on Thread detail | `Next action`, `Evidence`, `History` (D47) |
-| Next action | Next unresolved action | Specific; user-editable; `Suggested` label until the user edits or accepts it |
+| Next action | Next unresolved action | Specific; user-editable. No `Suggested` label: accepting the proposal confirmed it (D83(b)). Not shown for `Waiting on` threads (D63, D83(a)). *Was:* "`Suggested` label until the user edits or accepts it" |
 | Due date and certainty | When action is due, if known | Explicit, assumed (inferred), or none; never fabricate |
 | Counterparty / waiting-on | Person or entity involved | Optional; grounded in source or user correction; `expected by` date when waiting |
 | Confidence label | Origin confidence | Same dot + word + reason as the tray |
