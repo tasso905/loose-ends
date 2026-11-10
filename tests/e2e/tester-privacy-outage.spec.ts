@@ -18,11 +18,10 @@ const docker = (...args: string[]) => execFileSync("docker", args, { encoding: "
 
 for (const blockSignIn of [true, false]) {
 test(`Supabase stopped: /privacy still renders, signed out and signed in, and doesn't sign anyone out (${blockSignIn ? "/sign-in prefetch blocked" : "as shipped"})`, async ({ browser }) => {
-  // OPEN (lead-tester, Nov 8): as shipped, the wordmark <Link href="/sign-in"> is prefetched; the
-  // proxy treats the failed Auth check on that prefetch as a dead session and clears the Supabase
-  // cookies, so opening /privacy during an outage signs the visitor out (same root cause as the
-  // tester-s11.spec.ts:957 pin). Assertions unchanged, so a fix turns this red.
-  test.fail(!blockSignIn, "OPEN: /sign-in prefetch from /privacy signs the visitor out during an Auth outage");
+  // FIXED (lead-developer, Nov 10): the wordmark <Link href="/sign-in"> was prefetched, and the
+  // proxy treated the failed Auth check on that prefetch as a dead session and cleared the Supabase
+  // cookies. The link now has prefetch={false}. The proxy's sign-out on a transient Auth failure
+  // (the tester-s11.spec.ts:957 pin) is still open and separate. Assertions unchanged.
   test.setTimeout(240_000);
   const email = testEmail();
   const context = await browser.newContext();

@@ -12,14 +12,18 @@ export const dynamic = "force-static";
 
 /**
  * Privacy (D77, D82; SITE_CONTRACT §2.15). Sections 1–10 of docs/PRIVACY.md, Proposed text only.
- * The wordmark links to /sign-in, which sends a signed-in visitor on to Today.
+ * The wordmark links to /sign-in, which sends a signed-in visitor on to Today. Any next/link on
+ * this page takes prefetch={false} (see below); the content links are plain <a> and never prefetch.
  */
 export default function PrivacyPage() {
   const sections = privacySections();
   return (
     <main className="mx-auto w-full max-w-column px-4 pt-6 pb-16 sm:px-6 md:pt-8 lg:px-8">
+      {/* No prefetch: a prefetched /sign-in during an Auth outage made the proxy clear the session
+          (lead-tester, Nov 8), so opening /privacy signed the visitor out. Fetched on click only. */}
       <Link
         href="/sign-in"
+        prefetch={false}
         className="focus-ring inline-flex rounded-control max-md:min-h-11 max-md:items-center"
       >
         <Wordmark />
