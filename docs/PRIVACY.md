@@ -5,11 +5,9 @@
 **The gate (updated Nov 10).** Approving the wording doesn't confirm the facts. The gate is verification before merge, not a switch in the code: the page renders every row, and the PR that ships it doesn't merge while a row is still marked **Needs checking, blocks shipping** or **False**. The page has no per-row hiding.
 
 **Still open (Nov 10, after the lead-tester's checks on `feat/privacy-page`):**
-- **P4:** waits on the user's production SQL, which returns key names only.
 - **P11–P13 and P31:** confirmed in code. Delivery in production waits on the user's PostHog check.
-- **P32:** false as worded. A wording change is pending the user.
 
-P17 and P25 are now confirmed. P23, P24, P28, P29 and P33 stopped blocking on Nov 8. The user's Nov 8 words were "3 is done 4. free 5. build it later", "2. paid" and "use info@piscesparadigm.ca", relayed by the coordinator.
+P17 and P25 are now confirmed. P32 is confirmed, with new wording the user approved on Nov 10. P4 is confirmed by the user's production SQL (Nov 10). P23, P24, P28, P29 and P33 stopped blocking on Nov 8. The user's Nov 8 words were "3 is done 4. free 5. build it later", "2. paid" and "use info@piscesparadigm.ca", relayed by the coordinator.
 
 **How to read this file.** Each row is one sentence for the page, the code or migration it rests on, and whether it is confirmed. **Needs checking** means the code cannot confirm it. This file is written from the implementation on `main` (Nov 8, after PR #45), not from the PRD (rule 9). It must never use the three phrases rule 9 in CLAUDE.md bans. This file doesn't quote them, so a copy check can scan it.
 
@@ -27,7 +25,7 @@ The page shows the sections in this order, with the "Text" column only.
 | # | Text (approved Nov 8) | Evidence | Check |
 | --- | --- | --- | --- |
 | P3 | Your email address, so you can sign in. | Supabase Auth `auth.users` | Confirmed |
-| P4 | If you sign in with Google, Google shares your name, email address and profile picture. Loose Ends asks for nothing else from your Google account, and it can't read your Gmail, calendar or contacts. | Scopes `openid email profile` only (PRD F1; D76: the consent screen asked only for name, email and profile picture); no Gmail or calendar code (never-build list) | **Needs checking, blocks shipping:** that Supabase stores the name and picture in `auth.identities.identity_data`. Waits on the user's production SQL, which returns key names only. Also: `handle_new_user` copies Google's `full_name` into `profiles.display_name` (migration `20261018184147`, line 235), which P7 covers |
+| P4 | If you sign in with Google, Google shares your name, email address and profile picture. Loose Ends asks for nothing else from your Google account, and it can't read your Gmail, calendar or contacts. | Scopes `openid email profile` only (PRD F1; D76: the consent screen asked only for name, email and profile picture); no Gmail or calendar code (never-build list) | Confirmed Nov 10 (user's production SQL, key names only): identity_data and raw_user_meta_data hold avatar_url, email, email_verified, full_name, iss, name, phone_verified, picture, provider_id, sub; nothing beyond the openid/email/profile scopes |
 | P5 | Everything you add: text you paste, files you upload and the text read from them. | `public.sources.text_content`; files in the private `sources` bucket at `sources/{user id}/{source id}` (`app/add/actions.ts`, comment at line 73; migration `20261018184149_rls_and_storage.sql`) | Confirmed |
 | P6 | What Loose Ends finds in it: suggestions, a summary of each document, the threads you accept, their quotes and history, and any decisions and reasons you record. | Tables `extraction_items`, `extractions`, `threads`, `evidence`, `thread_events`, `decisions` (migration `20261018184147_initial_schema.sql`) | Confirmed |
 | P7 | Your settings: your name, the other names and emails you gave so Loose Ends can tell which tasks are yours, your timezone, and your analytics choice. | `profiles.display_name`, `profiles.aliases`, `profiles.timezone`; `user_settings.analytics_enabled` (migrations `20261018184147`, `20261020195158`) | Confirmed |
@@ -94,7 +92,7 @@ Not on the page because they aren't used:
 
 | # | Text (approved Nov 8) | Evidence | Check |
 | --- | --- | --- | --- |
-| P32 | Loose Ends uses cookies only to keep you signed in, plus one that lasts two minutes and shows the notice after you delete your account. No advertising or tracking cookies. | `@supabase/ssr` session cookies; `le_account_deleted`, `maxAge: 120` (`app/settings/data-actions.ts`) | **False as worded; wording change pending the user.** The lead-tester found: requesting a magic link sets `le_sign_in_email`, holding the email address, for 900 s, httpOnly, path `/sign-in` (`app/sign-in/actions.ts`, line 45; `lib/auth/signIn.ts`). Signed in, the cookies are Supabase's `sb-<ref>-auth-token` and PKCE code-verifier cookies (400 days, not httpOnly). No PostHog cookie. Proposed replacement, not approved: "Loose Ends uses cookies only to keep you signed in, plus two short-lived ones: one that remembers the email you asked a sign-in link for, for 15 minutes, and one that lasts two minutes and shows the notice after you delete your account. No advertising or tracking cookies." |
+| P32 | Loose Ends uses cookies only to keep you signed in, plus two short-lived ones: one that remembers the email you asked a sign-in link for, for 15 minutes, and one that lasts two minutes and shows the notice after you delete your account. No advertising or tracking cookies. | `@supabase/ssr` session cookies; `le_sign_in_email`, `SIGN_IN_EMAIL_MAX_AGE` 900 s, path `/sign-in` (`app/sign-in/actions.ts`, line 45; `lib/auth/signIn.ts`); `le_account_deleted`, `maxAge: 120` (`app/settings/data-actions.ts`) | Confirmed by the lead tester (Nov 8 browser check: `le_sign_in_email` 900 s, `le_account_deleted` 120 s, Supabase `sb-*` only, no PostHog cookie); wording approved by the user Nov 10 |
 
 ## 10. Contact
 

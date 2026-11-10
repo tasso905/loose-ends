@@ -166,9 +166,12 @@ test("P32 cookies, signed out: /privacy and /sign-in set none; asking for a link
   await requestLink(page, email);
   const after = await context.cookies();
   console.log(`EVIDENCE cookies after link request: ${JSON.stringify(after.map((c) => ({ name: c.name, path: c.path, httpOnly: c.httpOnly, expiresInS: Math.round(c.expires - Date.now() / 1000) })))}`);
-  // Recorded as found (not allowed by P32 as worded): the email address, 15 min, path /sign-in.
+  // P32 (wording approved Nov 10): the email you asked a link for, kept 15 minutes, path /sign-in.
   expect(names(after).filter((n) => !SUPABASE_COOKIE.test(n))).toEqual(["le_sign_in_email"]);
   const mail = after.find((c) => c.name === "le_sign_in_email")!;
+  const lifetimeS = mail.expires - Date.now() / 1000;
+  expect(lifetimeS, "le_sign_in_email lasts 15 minutes").toBeGreaterThan(15 * 60 - 60);
+  expect(lifetimeS, "le_sign_in_email lasts 15 minutes").toBeLessThanOrEqual(15 * 60 + 1);
   expect(decodeURIComponent(mail.value)).toBe(email);
   expect(mail.httpOnly).toBe(true);
   expect(mail.path).toBe("/sign-in");

@@ -176,7 +176,7 @@ export function privacySections(analytics: "full" | "off" = ANALYTICS_COPY): Pri
       sentences: [
         {
           id: "P32",
-          text: "Loose Ends uses cookies only to keep you signed in, plus one that lasts two minutes and shows the notice after you delete your account. No advertising or tracking cookies.",
+          text: "Loose Ends uses cookies only to keep you signed in, plus two short-lived ones: one that remembers the email you asked a sign-in link for, for 15 minutes, and one that lasts two minutes and shows the notice after you delete your account. No advertising or tracking cookies.",
         },
       ],
     },
