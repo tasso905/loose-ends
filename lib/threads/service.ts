@@ -21,7 +21,7 @@ const UndoOut = z.union([
     thread_id: z.uuid(),
     event_id: z.number().int(),
     undone_event_id: z.number().int(),
-    undone_action: z.enum(["done", "resolve"]),
+    undone_action: z.enum(["done", "resolve", "mark_waiting", "snooze", "dismiss", "back_to_me", "wake", "edit"]),
     from_status: ThreadStatus,
     to_status: ThreadStatus,
   }),
@@ -50,7 +50,14 @@ const errCode = (error: unknown): string | null => {
   return typeof c === "string" && /^[\w.-]{1,32}$/.test(c) ? c : null;
 };
 
-async function call<T extends typeof DoneOut | typeof UndoOut | typeof ResolveOut>(
+/** S12 actions (migration 20261110120000). `event_id` is null when an Edit changed nothing. */
+const ActionOut = z.union([
+  z.object({ ok: z.literal(true), thread_id: z.uuid(), event_id: z.number().int().nullable(), from_status: ThreadStatus, to_status: ThreadStatus }),
+  Refused,
+]);
+export type ActionResult = Extract<z.infer<typeof ActionOut>, { ok: true }> | ThreadFailure;
+
+async function call<T extends typeof DoneOut | typeof UndoOut | typeof ResolveOut | typeof ActionOut>(
   db: RpcDb,
   fn: string,
   args: Record<string, unknown>,
@@ -112,4 +119,46 @@ export function resolveThread(
     ResolveOut,
     opts.logger ?? defaultLog,
   );
+}
+
+/**
+ * S12 (F9): Mark waiting, Snooze, Dismiss, Back to me, Wake now, Reopen and Edit, each through its
+ * SQL function in migration 20261110120000 (one transaction: the thread update and its
+ * thread_events row). Each mirrors transition() for the same action. `fromStatus` is the status
+ * the page showed; a different current status is stale → invalid_transition.
+ */
+export type StatusAction =
+  | { type: "mark_waiting"; waitingOn: string; expectedBy: string | null }
+  | { type: "snooze"; until: string }
+  | { type: "dismiss" }
+  | { type: "back_to_me" }
+  | { type: "wake" }
+  | { type: "reopen" }
+  | { type: "edit"; fields: Record<string, unknown> };
+
+export function threadAction(
+  db: RpcDb,
+  threadId: string,
+  fromStatus: ThreadStatus,
+  action: StatusAction,
+  opts: { now: Date; logger?: Logger },
+): Promise<ActionResult> {
+  const base = { p_thread_id: threadId, p_from_status: fromStatus, p_now: opts.now.toISOString() };
+  const logger = opts.logger ?? defaultLog;
+  switch (action.type) {
+    case "mark_waiting":
+      return call(db, "thread_mark_waiting", { ...base, p_waiting_on: action.waitingOn, p_expected_by: action.expectedBy }, ActionOut, logger);
+    case "snooze":
+      return call(db, "thread_snooze", { ...base, p_until: action.until }, ActionOut, logger);
+    case "edit":
+      return call(db, "thread_edit", { ...base, p_fields: action.fields }, ActionOut, logger);
+    case "dismiss":
+      return call(db, "thread_dismiss", base, ActionOut, logger);
+    case "back_to_me":
+      return call(db, "thread_back_to_me", base, ActionOut, logger);
+    case "wake":
+      return call(db, "thread_wake", base, ActionOut, logger);
+    case "reopen":
+      return call(db, "thread_reopen", base, ActionOut, logger);
+  }
 }

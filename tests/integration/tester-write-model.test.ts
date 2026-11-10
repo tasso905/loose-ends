@@ -28,6 +28,14 @@ const WRITERS = [
   "storage_deletions_settle", // S11 (F13): clears the caller's Storage deletion queue entries whose file is gone
   "thread_resolve", // S8 (F11): writes threads, thread_events and decisions
   "thread_undo",
+  // S12 (F9): each writes threads and thread_events; dismiss and reopen also write suppressions
+  "thread_back_to_me",
+  "thread_dismiss",
+  "thread_edit",
+  "thread_mark_waiting",
+  "thread_reopen",
+  "thread_snooze",
+  "thread_wake",
   "undo_reject_proposals",
 ].sort();
 

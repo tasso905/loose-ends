@@ -301,7 +301,9 @@ test("Forget permanently: More actions → confirm (no source left, so no Also d
   await page.goto(`/threads/${pasteThreadId}`);
   const more = page.getByRole("button", { name: "More actions" });
   await more.click();
-  await expect(page.getByRole("menuitem", { name: "Forget permanently…" })).toBeFocused();
+  // S12: the menu opens on its first item; Forget permanently… is last, after the divider.
+  await expect(page.getByRole("menuitem").first()).toBeFocused();
+  await expect(page.getByRole("menuitem").last()).toHaveText("Forget permanently…");
   await page.keyboard.press("Escape");
   await expect(more).toBeFocused();
   await more.click();
