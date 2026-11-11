@@ -81,3 +81,19 @@ export async function requestLink(page: Page, email: string): Promise<Date> {
   await expect(page.getByText(email)).toBeVisible();
   return since;
 }
+
+/**
+ * Opens the Resolve sheet from Thread detail on either layout: the `Resolve…` button at 768 px and
+ * up, or `More actions` → `Resolve…` below it, where only Done and Snooze are buttons (SITE_CONTRACT
+ * §3.4, S12 D2). On a decision thread Resolve… stands in for Done and is a button on both layouts.
+ */
+export async function openResolveSheet(page: Page) {
+  const mobile = (page.viewportSize()?.width ?? 1280) < 768;
+  const button = page.getByRole("button", { name: "Resolve…", exact: true });
+  const more = page.getByRole("button", { name: "More actions" });
+  // The page streams in after `load`; wait for the actions row before asking what it holds.
+  await expect(more).toBeVisible();
+  if (!mobile || (await page.getByRole("button", { name: "Done", exact: true }).count()) === 0) return button.click();
+  await more.click();
+  await page.getByRole("menu", { name: "More actions" }).getByRole("menuitem", { name: "Resolve…" }).click();
+}

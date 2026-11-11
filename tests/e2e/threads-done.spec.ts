@@ -4,6 +4,7 @@ import { createClient } from "@supabase/supabase-js";
 import { expect, test, type BrowserContext, type Page } from "@playwright/test";
 import { deleteUsers, magicLinkFor, requestLink, testEmail } from "./helpers";
 import { localSupabase } from "./localSupabase";
+import { settled } from "./settled";
 
 /**
  * S4 core loop against local Supabase and recorded LLM fixtures (AI_PROVIDER=fake; synthetic Mike
@@ -43,6 +44,8 @@ function admin() {
 }
 
 async function expectNoViolations() {
+  // A toast or sheet still fading in reads as low contrast; let it finish first.
+  await settled(page);
   const results = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"]).analyze();
   expect(results.violations.map((v) => `${v.id}: ${v.nodes.map((n) => n.target.join(" ")).join(", ")}`)).toEqual([]);
 }

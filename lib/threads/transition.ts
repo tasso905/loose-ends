@@ -125,11 +125,14 @@ export const UNDO_WINDOW_MS = 8_000;
 export const UNDO_GRACE_MS = 4_000;
 
 /**
- * Event types an Undo may reverse. Only Done exists so far (S4); mirrored by public.thread_undo().
- * Each reversible action joins this list when it ships, with its effects reversed too (Dismiss must
- * delete its suppression; Resolve as Decided must delete its decision row).
+ * Event types an Undo may reverse; mirrored by private.thread_undo_unguarded() (migration
+ * 20261110120000). `resolved`: Done and Resolve (S4, S8). `status_changed`: Mark waiting, Dismiss,
+ * Back to me and Wake now (S12). `snoozed`: Snooze. `edited`: Edit. Effects are reversed too:
+ * undoing a Dismiss deletes its suppression; undoing a Decided resolve deletes its decision row.
+ * `reopened` is not undoable: Reopen is not in D8's list of reversible actions, and undoing a
+ * Reopen of a dismissed thread would have to restore the suppression it deleted.
  */
-export const UNDOABLE_EVENT_TYPES: ReadonlyArray<ThreadEventType> = ["resolved"];
+export const UNDOABLE_EVENT_TYPES: ReadonlyArray<ThreadEventType> = ["resolved", "status_changed", "snoozed", "edited"];
 
 /** Every ThreadState key; Undo restores only these. */
 export const THREAD_STATE_KEYS: ReadonlyArray<keyof ThreadState> = [
@@ -229,6 +232,15 @@ const nonEmpty = (s: string | null | undefined): s is string => typeof s === "st
 const BLANK = /^[\s\u00a0\u1680\u2000-\u200b\u2028\u2029\u202f\u205f\u3000\ufeff]*$/u;
 export const isBlankText = (s: string | null | undefined): boolean => typeof s !== "string" || BLANK.test(s);
 
+/**
+ * S12 limits for text the user types into Mark waiting and Edit, in characters (code points).
+ * PROPOSED (not in the docs): the title reuses the approved 120 of D47; the others are new. The
+ * fields stop at the limit as the user types, so the limits are only enforced against forged
+ * requests. Mirrored by the SQL functions in migration 20261110120000.
+ */
+export const EDIT_LIMITS = { title: 120, next_action: 300, counterparty: 100, waiting_on: 100, consequence: 300 } as const;
+const fits = (s: unknown, max: number): s is string => typeof s === "string" && charCount(s) <= max;
+
 const validInstant = (s: string | null | undefined): s is string =>
   typeof s === "string" && !Number.isNaN(new Date(s).getTime());
 
@@ -309,7 +321,7 @@ export function transition(thread: ThreadState | null, action: ThreadAction, ctx
 
   switch (action.type) {
     case "mark_waiting": {
-      if (!nonEmpty(action.waitingOn)) return invalid();
+      if (!fits(action.waitingOn, EDIT_LIMITS.waiting_on) || isBlankText(action.waitingOn)) return invalid();
       const expectedBy = action.expectedBy ?? null;
       if (expectedBy !== null && !validInstant(expectedBy)) return invalid();
       return changed(t, { ...t, status: "waiting", waiting_on: action.waitingOn, expected_by: expectedBy }, "status_changed", actor);
@@ -407,8 +419,10 @@ function undo(t: ThreadState, target: UndoTarget, actor: Actor, now: Date): Tran
 
   const restored: ThreadState = { ...t, ...(before as Partial<ThreadState>) };
   const d = diff(t, restored);
-  const effects: TransitionEffect[] =
-    target.type === "resolved" && after.resolution === "decided" ? [{ type: "delete_decision", resolutionEventId: target.id }] : [];
+  const effects: TransitionEffect[] = [];
+  if (target.type === "resolved" && after.resolution === "decided") effects.push({ type: "delete_decision", resolutionEventId: target.id });
+  // Undoing a Dismiss: the thread is a real loop again, so its suppression goes (as Reopen does).
+  if (target.type === "status_changed" && after.status === "dismissed") effects.push({ type: "delete_suppression" });
   return {
     ok: true,
     thread: restored,
@@ -432,7 +446,7 @@ function edit(t: ThreadState, fields: EditableFields, actor: Actor, now: Date): 
   const next: ThreadState = { ...t };
 
   if (fields.title !== undefined) {
-    if (!nonEmpty(fields.title)) return invalid();
+    if (isBlankText(fields.title) || !fits(fields.title, EDIT_LIMITS.title)) return invalid();
     next.title = fields.title;
   }
   if (fields.kind !== undefined) {
@@ -440,9 +454,16 @@ function edit(t: ThreadState, fields: EditableFields, actor: Actor, now: Date): 
     if ((fields.kind === "waiting_on") !== (t.kind === "waiting_on") && t.status === "waiting") return invalid();
     next.kind = fields.kind;
   }
-  if (fields.next_action !== undefined) next.next_action = fields.next_action;
-  if (fields.counterparty !== undefined) next.counterparty = fields.counterparty;
+  if (fields.next_action !== undefined) {
+    if (fields.next_action !== null && !fits(fields.next_action, EDIT_LIMITS.next_action)) return invalid();
+    next.next_action = fields.next_action;
+  }
+  if (fields.counterparty !== undefined) {
+    if (fields.counterparty !== null && !fits(fields.counterparty, EDIT_LIMITS.counterparty)) return invalid();
+    next.counterparty = fields.counterparty;
+  }
   if (fields.consequence !== undefined) {
+    if (fields.consequence !== null && !fits(fields.consequence, EDIT_LIMITS.consequence)) return invalid();
     next.consequence = fields.consequence;
     // Text the user typed is theirs, not the source's and not an interpretation; the event records it.
     if (fields.consequence === null) next.consequence_basis = null;
@@ -460,7 +481,7 @@ function edit(t: ThreadState, fields: EditableFields, actor: Actor, now: Date): 
   if (fields.waiting_on !== undefined || fields.expected_by !== undefined) {
     if (t.status !== "waiting") return invalid();
     if (fields.waiting_on !== undefined) {
-      if (!nonEmpty(fields.waiting_on)) return invalid();
+      if (isBlankText(fields.waiting_on) || !fits(fields.waiting_on, EDIT_LIMITS.waiting_on)) return invalid();
       next.waiting_on = fields.waiting_on;
     }
     if (fields.expected_by !== undefined) {

@@ -8,7 +8,7 @@ import { ErrorBanner } from "@/components/Notice";
 import { EXPLAIN_COPY, ExplainBrief, NotSureList, parseBrief } from "@/components/review/ExplainBrief";
 import { ConfidenceLabel } from "@/components/review/ReviewTray";
 import { DecisionReason } from "@/components/threads/DecisionReason";
-import { ForgetThread } from "@/components/threads/ForgetThread";
+import type { EditPrefill } from "@/components/threads/EditSheet";
 import { ThreadActions } from "@/components/threads/ThreadActions";
 import { DueChip, StatusChip } from "@/components/threads/ThreadBits";
 import { WhyLink } from "@/components/threads/WhySheet";
@@ -16,6 +16,7 @@ import { buttonVariants } from "@/components/ui/button";
 import { requireUser } from "@/lib/auth/session";
 import { DECISIONS_COPY } from "@/lib/decisions/copy";
 import { createClient } from "@/lib/supabase/server";
+import { localDate, localTime, snoozeMenuDates } from "@/lib/threads/actions";
 import { getThreadDetail, userTimezone, type ThreadDetail } from "@/lib/threads/read";
 import { RESOLVE_COPY } from "@/lib/threads/resolve";
 import { formatDecisionDate, formatHistoryTime, historyLine, KIND_LABEL, sourceCaption, THREADS_COPY as C, userNextAction } from "@/lib/threads/view";
@@ -38,8 +39,9 @@ export async function generateMetadata({ params }: { params: Params }): Promise<
 /**
  * /threads/[id] (SITE_CONTRACT §2.7, CONTENT_MODEL §6): header, Done and Resolve… (F11; `?sheet=resolve`
  * opens the sheet), the decision when resolved as Decided, Explain card (F7), evidence and
- * append-only history, and the F8 `Why?` link (`?panel=why` opens the Why panel). The Source viewer
- * link and F9's remaining actions arrive later.
+ * append-only history, and the F8 `Why?` link (`?panel=why` opens the Why panel). F9's actions
+ * (S12: Mark waiting, Snooze, Edit, Dismiss, Reopen, Back to me, Wake now, Forget) are in
+ * ThreadActions. The Source viewer link arrives later.
  * Unknown and other users' ids render the not-found page (RLS; never reveals existence).
  */
 export default async function ThreadPage({ params, searchParams }: { params: Params; searchParams: SearchParams }) {
@@ -119,11 +121,18 @@ function Thread({ detail, timezone, openResolve, openWhy }: { detail: ThreadDeta
         </section>
       ) : null}
 
-      <div className="mt-6 flex items-start gap-2">
-        <div className="min-w-0 flex-1">
-          <ThreadActions threadId={t.id} title={t.title} status={t.status} kind={t.kind} openResolve={openResolve} />
-        </div>
-        <ForgetThread threadId={t.id} hasSource={t.primary_source_id !== null} />
+      <div className="mt-6">
+        <ThreadActions
+          threadId={t.id}
+          title={t.title}
+          status={t.status}
+          kind={t.kind}
+          openResolve={openResolve}
+          counterparty={t.counterparty}
+          snoozeDates={snoozeMenuDates(now, timezone)}
+          edit={editPrefill(t, timezone, now)}
+          forget={{ hasSource: t.primary_source_id !== null }}
+        />
       </div>
 
       {decision ? <DecisionBlock decision={decision} title={t.title} timezone={timezone} /> : null}
@@ -227,6 +236,22 @@ function CompactExplain({
 
 /** PROPOSED. */
 const EXPLAIN_COMPACT_TITLE = "About this";
+
+/** Edit's form values (S12): the thread's fields, with instants as the user's local date and time. */
+function editPrefill(t: ThreadDetail["thread"], timezone: string, now: Date): EditPrefill {
+  return {
+    title: t.title,
+    kind: t.kind,
+    nextAction: t.next_action ?? "",
+    counterparty: t.counterparty ?? "",
+    dueDate: t.due_at ? localDate(t.due_at, timezone) : "",
+    dueTime: t.due_at && t.due_time_known ? localTime(t.due_at, timezone) : "",
+    waitingOn: t.waiting_on ?? "",
+    expectedBy: t.expected_by ? localDate(t.expected_by, timezone) : "",
+    snoozedUntil: t.snoozed_until ? localDate(t.snoozed_until, timezone) : "",
+    minSnoozeDate: snoozeMenuDates(now, timezone).minDate,
+  };
+}
 
 /**
  * F11 / CONTENT_MODEL §6 "Decision": the choice and the reason exactly as the user typed them, in

@@ -1,7 +1,7 @@
 import AxeBuilder from "@axe-core/playwright";
 import { createClient } from "@supabase/supabase-js";
 import { expect, test, type BrowserContext, type Page } from "@playwright/test";
-import { deleteUsers, magicLinkFor, requestLink, testEmail } from "./helpers";
+import { deleteUsers, magicLinkFor, openResolveSheet, requestLink, testEmail } from "./helpers";
 import { localSupabase } from "./localSupabase";
 
 /**
@@ -223,7 +223,8 @@ test("375 px: the sheet is a bottom sheet with 44 px targets, no horizontal scro
   await admin().from("threads").update({ status: "open", resolution: null, resolved_at: null, kind: "commitment" }).eq("id", threadId);
   await page.setViewportSize({ width: 375, height: 740 });
   await page.goto(threadUrl);
-  await page.getByRole("button", { name: "Resolve…" }).click();
+  // Below 768 px Resolve… is in More actions (SITE_CONTRACT §3.4, S12 D2).
+  await openResolveSheet(page);
   await expect(sheet()).toBeVisible();
   const box = (await sheet().boundingBox())!;
   expect(Math.round(box.y + box.height)).toBe(740);

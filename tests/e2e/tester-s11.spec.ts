@@ -256,6 +256,8 @@ test.describe("Forget permanently", () => {
     const more = page.getByRole("button", { name: "More actions" });
     await more.focus();
     await page.keyboard.press("Enter");
+    // S12: the menu opens on its first item; End reaches Forget permanently…, the last item.
+    await page.keyboard.press("End");
     await expect(page.getByRole("menuitem", { name: "Forget permanently…" })).toBeFocused();
     await page.keyboard.press("Enter");
     const d = page.getByRole("dialog", { name: "Forget this thread permanently?" });
@@ -266,6 +268,7 @@ test.describe("Forget permanently", () => {
     expect((await admin().from("threads").select("id").eq("id", s.threadId)).data).toHaveLength(1);
 
     await page.keyboard.press("Enter");
+    await page.keyboard.press("End");
     await page.keyboard.press("Enter");
     await expect(d).toBeVisible();
     await page.keyboard.press("Escape");

@@ -1,7 +1,7 @@
 import AxeBuilder from "@axe-core/playwright";
 import { createClient } from "@supabase/supabase-js";
 import { expect, test, type BrowserContext, type CDPSession, type Page, type Route } from "@playwright/test";
-import { deleteUsers, magicLinkFor, requestLink, testEmail } from "./helpers";
+import { deleteUsers, magicLinkFor, openResolveSheet, requestLink, testEmail } from "./helpers";
 import { localSupabase } from "./localSupabase";
 import { settled } from "./settled";
 
@@ -99,7 +99,8 @@ async function seedDecision(title: string, id?: string) {
 async function openDecided() {
   await reopen();
   await page.goto(threadUrl);
-  await resolveBtn().click();
+  // Below 768 px Resolve… is in More actions (SITE_CONTRACT §3.4, S12 D2).
+  await openResolveSheet(page);
   await sheet().getByRole("radio", { name: "Decided" }).check();
   await sheet().getByLabel("What did you decide?").fill("Synthetic decision K3");
 }

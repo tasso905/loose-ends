@@ -1,4 +1,4 @@
-import { formatInTimeZone } from "date-fns-tz";
+import { formatInTimeZone, fromZonedTime, getTimezoneOffset } from "date-fns-tz";
 import { parseInstant } from "@/lib/time";
 
 /**
@@ -17,4 +17,16 @@ export function formatDue(dueAt: string, opts: { timeKnown: boolean; timezone: s
   if (days <= 6) return `Due ${formatInTimeZone(due, opts.timezone, "EEE")}${time}`;
   const sameYear = formatInTimeZone(due, opts.timezone, "yyyy") === formatInTimeZone(opts.now, opts.timezone, "yyyy");
   return `${formatInTimeZone(due, opts.timezone, sameYear ? "EEE MMM d" : "EEE MMM d, yyyy")}${time}`;
+}
+
+/**
+ * Wall-clock date/time in an IANA zone → instant. A time inside a spring-forward gap
+ * (e.g. 2:30 AM on the US change day) does not exist; it moves forward by the gap (3:30 AM).
+ */
+export function zonedInstant(date: string, hhmm: string, timezone: string): Date {
+  const candidate = fromZonedTime(`${date}T${hhmm}:00`, timezone);
+  if (formatInTimeZone(candidate, timezone, "yyyy-MM-dd HH:mm") === `${date} ${hhmm}`) return candidate;
+  const before = getTimezoneOffset(timezone, new Date(candidate.getTime() - 12 * 3600_000));
+  const after = getTimezoneOffset(timezone, new Date(candidate.getTime() + 12 * 3600_000));
+  return new Date(candidate.getTime() + Math.max(0, after - before));
 }

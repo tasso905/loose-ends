@@ -1,7 +1,7 @@
 import AxeBuilder from "@axe-core/playwright";
 import { createClient } from "@supabase/supabase-js";
 import { expect, test, type BrowserContext, type Page } from "@playwright/test";
-import { deleteUsers, magicLinkFor, requestLink, testEmail } from "./helpers";
+import { deleteUsers, magicLinkFor, openResolveSheet, requestLink, testEmail } from "./helpers";
 import { localSupabase } from "./localSupabase";
 import { settled } from "./settled";
 
@@ -74,7 +74,8 @@ async function startDecidedSave(fail: boolean) {
   await reopen();
   await page.goto(threadUrl);
   const h = await holdSave(fail);
-  await page.getByRole("button", { name: "Resolve…" }).click();
+  // Below 768 px Resolve… is in More actions (SITE_CONTRACT §3.4, S12 D2).
+  await openResolveSheet(page);
   await expect(sheet()).toBeVisible();
   expect(await closedBy()).toBe("closerequest");
   await sheet().getByRole("radio", { name: "Decided" }).check();

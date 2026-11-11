@@ -19,7 +19,8 @@ type State = { kind: "loading" } | { kind: "error" } | { kind: "ready"; view: Wh
  * Loading shows an inline spinner; a failure shows `Couldn't load this explanation.` + Try again.
  * Escape, Close and the scrim close it, and focus returns to the `Why?` link (§3.1).
  *
- * `This is wrong` links to Thread detail until Edit and Dismiss ship (S12). `Open source` is left
+ * `This is wrong` links to Thread detail, where Edit and Dismiss now are (S12); the in-panel choice
+ * of Edit or Dismiss (§2.8) and its `marked_wrong` event are not built yet. `Open source` is left
  * out until the Source viewer (/sources/[id]) exists; a deleted source shows its line instead.
  */
 export function WhyLink({
@@ -256,7 +257,7 @@ function WhyBody({ view: v }: { view: WhyView }) {
       ) : null}
 
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2 pt-1">
-        {/* Until Edit and Dismiss ship (S12), This is wrong opens the thread, where they will live. */}
+        {/* This is wrong opens the thread, where Edit and Dismiss are (S12). */}
         <Link href={`/threads/${v.threadId}`} className={buttonVariants({ variant: "secondary", size: "small" })}>
           {W.thisIsWrong}
         </Link>

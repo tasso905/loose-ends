@@ -430,9 +430,47 @@ describe("transition(): undo (D44 option a, approved Oct 21)", () => {
     const d = done(thread("open"));
     expect(transition(d.thread, undoOf(d.event, { latest: false }), { now: NOW }).ok).toBe(false);
     expect(transition(d.thread, undoOf(d.event, { actor: "system" }), { now: NOW }).ok).toBe(false);
-    for (const type of ["created", "edited", "status_changed", "snoozed", "reopened", "undone"] as const) {
+    for (const type of ["created", "reopened", "undone", "reason_added"] as const) {
       expect(transition(d.thread, undoOf(d.event, { type }), { now: NOW }).ok, type).toBe(false);
     }
+  });
+
+  it("S12: undoes Mark waiting, Snooze, Dismiss (deleting its suppression), Back to me, Wake now and Edit exactly", () => {
+    const cases: Array<[ThreadState, ThreadAction]> = [
+      [thread("open"), { type: "mark_waiting", waitingOn: "Mike", expectedBy: LATER }],
+      [thread("open"), { type: "snooze", until: LATER }],
+      [thread("open"), { type: "dismiss" }],
+      [thread("waiting"), { type: "back_to_me" }],
+      [thread("snoozed"), { type: "wake" }],
+      [thread("open"), { type: "edit", fields: { title: "Renamed", due_at: null } }],
+    ];
+    for (const [original, action] of cases) {
+      const r = transition(original, action, { now: NOW });
+      if (!r.ok || !r.event) throw new Error(action.type);
+      const u = transition(r.thread, undoOf(r.event), { now: at(5000) });
+      expect(u.ok, action.type).toBe(true);
+      if (!u.ok) continue;
+      expect(u.thread, action.type).toEqual(original);
+      expect(u.effects, action.type).toEqual(action.type === "dismiss" ? [{ type: "delete_suppression" }] : []);
+    }
+  });
+
+  it("S12: Reopen is not undoable", () => {
+    const r = transition(thread("dismissed"), { type: "reopen" }, { now: NOW });
+    if (!r.ok || !r.event) throw new Error("reopen");
+    expect(transition(r.thread, undoOf(r.event), { now: at(1000) }).ok).toBe(false);
+  });
+
+  it("S12: Edit and Mark waiting refuse blank names and text over EDIT_LIMITS", () => {
+    const o = thread("open");
+    expect(transition(o, { type: "edit", fields: { title: "​ " } }, { now: NOW }).ok).toBe(false);
+    expect(transition(o, { type: "edit", fields: { title: "x".repeat(121) } }, { now: NOW }).ok).toBe(false);
+    expect(transition(o, { type: "edit", fields: { title: "x".repeat(120) } }, { now: NOW }).ok).toBe(true);
+    expect(transition(o, { type: "edit", fields: { next_action: "x".repeat(301) } }, { now: NOW }).ok).toBe(false);
+    expect(transition(o, { type: "edit", fields: { counterparty: "x".repeat(101) } }, { now: NOW }).ok).toBe(false);
+    expect(transition(o, { type: "edit", fields: { consequence: "x".repeat(301) } }, { now: NOW }).ok).toBe(false);
+    expect(transition(o, { type: "mark_waiting", waitingOn: "x".repeat(101) }, { now: NOW }).ok).toBe(false);
+    expect(transition(o, { type: "mark_waiting", waitingOn: " " }, { now: NOW }).ok).toBe(false);
   });
 
   it("refuses when the thread no longer holds the event's after values, or the event names unknown keys", () => {

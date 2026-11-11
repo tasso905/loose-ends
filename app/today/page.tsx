@@ -9,6 +9,7 @@ import { WhyLink } from "@/components/threads/WhySheet";
 import { buttonVariants } from "@/components/ui/button";
 import { requireUser } from "@/lib/auth/session";
 import { createClient } from "@/lib/supabase/server";
+import { snoozeMenuDates, type SnoozeMenuDates } from "@/lib/threads/actions";
 import { userTimezone } from "@/lib/threads/read";
 import { getToday, type TodayThread } from "@/lib/threads/today";
 import { greeting, THREADS_COPY as C, TODAY_COPY as T } from "@/lib/threads/view";
@@ -26,7 +27,8 @@ type SearchParams = Promise<Record<string, string | string[] | undefined>>;
  * fields with getNow() and the user's timezone; nothing calls a model (rule 6). Only accepted
  * threads are read, so an unaccepted Low proposal never appears (rule 4).
  *
- * Not here yet: Snooze (F9, not built) and the "Still relevant?" prompt (D20(c), deferred).
+ * Rows offer Done (or Resolve…) and Snooze (S12; open threads only, PRD lifecycle table). Not here
+ * yet: the "Still relevant?" prompt (D20(c), deferred).
  */
 export default async function TodayPage({ searchParams }: { searchParams: SearchParams }) {
   const params = new URLSearchParams();
@@ -38,6 +40,7 @@ export default async function TodayPage({ searchParams }: { searchParams: Search
   const timezone = await userTimezone(supabase, user.id);
   const now = getNow();
   const data = await getToday(supabase, timezone, now);
+  const snoozeDates = snoozeMenuDates(now, timezone);
 
   return (
     <>
@@ -90,7 +93,7 @@ export default async function TodayPage({ searchParams }: { searchParams: Search
                     </p>
                     <ul className="mt-3 space-y-2">
                       {data.sections.attention.map((t) => (
-                        <AttentionRow key={t.id} t={t} reason={data.reasons[t.id]} timezone={timezone} now={now} />
+                        <AttentionRow key={t.id} t={t} reason={data.reasons[t.id]} timezone={timezone} now={now} snoozeDates={snoozeDates} />
                       ))}
                     </ul>
                   </>
@@ -112,9 +115,21 @@ export default async function TodayPage({ searchParams }: { searchParams: Search
 
 /**
  * Thread row (DESIGN_STANDARD "Thread row"): title and due chip, then the reason line ending in
- * `Why?`, then the quick actions (Done, or Resolve… for decision threads, D6).
+ * `Why?`, then the quick actions (Done, or Resolve… for decision threads, D6; Snooze).
  */
-function AttentionRow({ t, reason, timezone, now }: { t: TodayThread; reason: string | undefined; timezone: string; now: Date }) {
+function AttentionRow({
+  t,
+  reason,
+  timezone,
+  now,
+  snoozeDates,
+}: {
+  t: TodayThread;
+  reason: string | undefined;
+  timezone: string;
+  now: Date;
+  snoozeDates: SnoozeMenuDates;
+}) {
   return (
     <li data-testid="attention-row" className="rounded-card border border-le-border bg-le-surface px-4 py-3">
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
@@ -134,7 +149,16 @@ function AttentionRow({ t, reason, timezone, now }: { t: TodayThread; reason: st
         <WhyLink threadId={t.id} surface="today" describedBy={`title-${t.id}`} />
       </div>
       <div className="mt-2">
-        <ThreadActions threadId={t.id} title={t.title} status={t.status} kind={t.kind} compact surface="today" focusTargetId="today-heading" />
+        <ThreadActions
+          threadId={t.id}
+          title={t.title}
+          status={t.status}
+          kind={t.kind}
+          compact
+          surface="today"
+          focusTargetId="today-heading"
+          snoozeDates={snoozeDates}
+        />
       </div>
     </li>
   );

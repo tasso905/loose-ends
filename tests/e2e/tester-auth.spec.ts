@@ -321,10 +321,12 @@ test("keyboard only: sign in → onboarding → skip → Today → sign out, wit
   await expect(page.getByRole("button", { name: "Skip" })).toBeFocused();
   await page.keyboard.press("Enter");
   await expect(page).toHaveURL(/\/today$/);
-  // S4 app header: wordmark (Today), Today, Threads, Add, then Sign out. `next dev` also injects the
-  // Next.js dev-tools button (NEXTJS-PORTAL) as a tab stop; it is not in production.
+  // App header: wordmark (Today), Today, Threads, Decisions (S9), Add, Settings (S11), then Sign out:
+  // 7 tab stops. `next dev` also injects the Next.js dev-tools button (NEXTJS-PORTAL) as a tab stop
+  // before them; it is not in production. The bound was 7 before Settings joined the header, which
+  // made this fail under `next dev` only (8 stops). 12 leaves room without letting focus wrap past.
   const out = page.getByRole("button", { name: "Sign out" });
-  for (let i = 0; i < 7 && !(await out.evaluate((el) => el === document.activeElement)); i++) await page.keyboard.press("Tab");
+  for (let i = 0; i < 12 && !(await out.evaluate((el) => el === document.activeElement)); i++) await page.keyboard.press("Tab");
   await expect(out).toBeFocused();
   expect(await out.evaluate((el) => getComputedStyle(el).outlineStyle)).toBe("solid");
   await axe(page);

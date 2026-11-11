@@ -1,5 +1,6 @@
 import * as chrono from "chrono-node";
 import { formatInTimeZone, fromZonedTime, getTimezoneOffset } from "date-fns-tz";
+import { zonedInstant } from "@/lib/dates";
 import type { DueCertainty } from "@/lib/schemas";
 
 /**
@@ -412,18 +413,6 @@ function formatWall(w: Wall, refYear: number): string {
 function sameWall(a: Wall, b: Wall): boolean {
   if (a.date !== b.date) return false;
   return a.time === null || b.time === null || a.time === b.time;
-}
-
-/**
- * Wall-clock date/time in an IANA zone → instant. A time inside a spring-forward gap
- * (e.g. 2:30 AM on the US change day) does not exist; it moves forward by the gap (3:30 AM).
- */
-function zonedInstant(date: string, hhmm: string, timezone: string): Date {
-  const candidate = fromZonedTime(`${date}T${hhmm}:00`, timezone);
-  if (formatInTimeZone(candidate, timezone, "yyyy-MM-dd HH:mm") === `${date} ${hhmm}`) return candidate;
-  const before = getTimezoneOffset(timezone, new Date(candidate.getTime() - 12 * 3600_000));
-  const after = getTimezoneOffset(timezone, new Date(candidate.getTime() + 12 * 3600_000));
-  return new Date(candidate.getTime() + Math.max(0, after - before));
 }
 
 const NONE: Omit<ResolvedDate, "agreement" | "not_sure"> = {
