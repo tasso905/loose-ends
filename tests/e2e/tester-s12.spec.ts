@@ -201,18 +201,37 @@ test("375 px: axe passes with the menus and sheets open; menu items, sheet butto
   await resetOpen();
   await expectNoViolations();
 
+  // SITE_CONTRACT §3.4 (lead-tester D2): below 768 px only Done and Snooze are buttons.
+  for (const name of ["Done", "Snooze"]) {
+    const b = page.getByRole("button", { name, exact: true });
+    await expect(b).toBeVisible();
+    expect(await height(b), name).toBeGreaterThanOrEqual(44);
+  }
+  for (const name of ["Resolve…", "Mark waiting"]) await expect(page.getByRole("button", { name, exact: true })).toBeHidden();
+
   await more().click();
-  const items = page.getByRole("menu", { name: "More actions" }).getByRole("menuitem");
+  const menu = page.getByRole("menu", { name: "More actions" });
+  const items = menu.getByRole("menuitem");
+  await expect(items).toHaveText(["Resolve…", "Mark waiting", "Edit", "Dismiss", "Forget permanently…"]);
+  await expect(items.first()).toBeFocused();
+  await page.keyboard.press("End");
+  await expect(menu.getByRole("menuitem", { name: "Forget permanently…" })).toBeFocused();
+  await page.keyboard.press("ArrowDown");
+  await expect(items.first()).toBeFocused();
   for (const i of await items.all()) expect(await height(i), await i.innerText()).toBeGreaterThanOrEqual(44);
   expect(await height(more())).toBeGreaterThanOrEqual(44);
   await expectNoViolations();
-  await items.first().click(); // Snooze
+  await page.keyboard.press("Escape");
+
+  await page.getByRole("button", { name: "Snooze", exact: true }).click();
   const snooze = page.getByRole("menu", { name: "Snooze" }).getByRole("menuitem");
   for (const i of await snooze.all()) expect(await height(i)).toBeGreaterThanOrEqual(44);
   await expectNoViolations();
   await page.keyboard.press("Escape");
+  await expect(page.getByRole("button", { name: "Snooze", exact: true })).toBeFocused();
 
-  await page.getByRole("button", { name: "Mark waiting", exact: true }).click();
+  await more().click();
+  await page.getByRole("menuitem", { name: "Mark waiting" }).click();
   const mw = page.getByRole("dialog", { name: "Mark waiting" });
   await expect(mw).toBeVisible();
   await expectNoViolations();
@@ -221,7 +240,8 @@ test("375 px: axe passes with the menus and sheets open; menu items, sheet butto
   expect(box.width).toBeLessThanOrEqual(375);
   await mw.getByRole("button", { name: "Cancel" }).click();
   await expect(mw).toBeHidden();
-  await expect(page.getByRole("button", { name: "Mark waiting", exact: true })).toBeFocused();
+  // Mark waiting came from the menu, so focus returns to More actions.
+  await expect(more()).toBeFocused();
 
   await more().click();
   await page.getByRole("menuitem", { name: "Edit" }).click();

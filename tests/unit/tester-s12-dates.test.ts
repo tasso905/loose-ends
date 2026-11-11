@@ -37,11 +37,13 @@ describe("Snooze presets across DST and year rollover", () => {
     expect(snoozeUntil({ preset: "tomorrow" }, now, "Asia/Kolkata")).toBe("2026-11-11T03:30:00.000Z"); // Wed Nov 11 09:00 IST
   });
 
-  it("Pick a date: today is refused once 9:00 has passed, accepted before it (the server allows it; the picker's min is tomorrow)", () => {
+  it("Pick a date: today is refused before and after 9:00, as the picker's min (tomorrow) and the copy say (D4b)", () => {
     const after9 = new Date("2026-11-10T15:00:00Z"); // 10:00 EST
     const before9 = new Date("2026-11-10T12:00:00Z"); // 07:00 EST
     expect(snoozeUntil({ preset: "date", date: "2026-11-10" }, after9, NY)).toBeNull();
-    expect(snoozeUntil({ preset: "date", date: "2026-11-10" }, before9, NY)).toBe("2026-11-10T14:00:00.000Z");
+    // Was: accepted before 9:00 (lead-tester D4b). Developer fix: the server refuses today too.
+    expect(snoozeUntil({ preset: "date", date: "2026-11-10" }, before9, NY)).toBeNull();
+    expect(snoozeUntil({ preset: "date", date: "2026-11-11" }, before9, NY)).toBe("2026-11-11T14:00:00.000Z");
     expect(snoozeMenuDates(before9, NY).minDate).toBe("2026-11-11");
   });
 });

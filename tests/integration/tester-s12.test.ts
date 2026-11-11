@@ -117,11 +117,10 @@ describe("F9: a dismissed thread never reappears from re-extraction of the same 
     expect(titles((await paste(at(60_000))).proposals)).not.toContain(title);
   });
 
-  // KNOWN DEFECT (lead-tester, S12): suppressions are unique per (user, hash) and linked to the first
-  // thread dismissed; Reopen (or Undo) of that thread deletes the row although another dismissed
-  // thread with the same hash still relies on it. `it.fails` keeps the suite green while the defect
-  // stands; once it is fixed this test fails and must become a plain `it`.
-  it.fails("two dismissed threads with the same item hash: reopening one keeps the other suppressed", async () => {
+  // Was a KNOWN DEFECT (lead-tester, S12 D1): suppressions are unique per (user, hash) and linked to
+  // the first thread dismissed; Reopen (or Undo) of that thread deleted the row although another
+  // dismissed thread with the same hash still relied on it. Fixed by migration 20261111090000.
+  it("two dismissed threads with the same item hash: reopening one keeps the other suppressed", async () => {
     // Accept the High item, then paste the same text again and accept it again (nothing suppresses an
     // accepted item, so it is proposed a second time) → two threads from one hash.
     const first = await acceptHigh();
@@ -131,6 +130,36 @@ describe("F9: a dismissed thread never reappears from re-extraction of the same 
     await act(second.threadId, "open", { type: "dismiss" }, at(2_000));
     await act(first.threadId, "dismissed", { type: "reopen" }, at(30_000));
     // `second` is still dismissed, so its item must stay suppressed (F9 acceptance).
+    expect(titles((await paste(at(60_000))).proposals)).not.toContain(first.title);
+  });
+
+  // Developer, D1 fix: the same through Undo of the first Dismiss, and the row is released only once
+  // no dismissed thread carries the hash.
+  it("Undo of the first Dismiss keeps the hash suppressed for the other; reopening the last one releases it", async () => {
+    const first = await acceptHigh();
+    const second = await acceptHigh();
+    await act(second.threadId, "open", { type: "dismiss" }, at(1_000));
+    const d = await act(first.threadId, "open", { type: "dismiss" }, at(2_000));
+    if (!d.ok || d.event_id === null) throw new Error("dismiss failed");
+    // `second` was dismissed first, so the suppression row is linked to it; dismiss `first`, then
+    // reopen `second` (the row's owner) while `first` is still dismissed: the row moves to `first`.
+    await act(second.threadId, "dismissed", { type: "reopen" }, at(20_000));
+    expect(await q(`select thread_id from suppressions where reason = 'dismissed'`)).toEqual([{ thread_id: first.threadId }]);
+    expect(titles((await paste(at(60_000))).proposals)).not.toContain(first.title);
+    // Undo is past its window here; Reopen `first` instead: no dismissed thread is left, so it goes.
+    await act(first.threadId, "dismissed", { type: "reopen" }, at(90_000));
+    expect(await q(`select thread_id from suppressions where reason = 'dismissed'`)).toEqual([]);
+  });
+
+  it("Undo of a Dismiss hands the suppression to another thread still dismissed with the same hash", async () => {
+    const first = await acceptHigh();
+    const second = await acceptHigh();
+    const d1 = await act(first.threadId, "open", { type: "dismiss" }, at(1_000));
+    await act(second.threadId, "open", { type: "dismiss" }, at(2_000));
+    if (!d1.ok || d1.event_id === null) throw new Error("dismiss failed");
+    // Undo is only for the thread's latest event, within 12 s: first's latest is its Dismiss.
+    expect(await undoEvent(dbA, first.threadId, d1.event_id, { now: at(5_000) })).toMatchObject({ ok: true, undone_action: "dismiss" });
+    expect(await q(`select thread_id from suppressions where reason = 'dismissed'`)).toEqual([{ thread_id: second.threadId }]);
     expect(titles((await paste(at(60_000))).proposals)).not.toContain(first.title);
   });
 });

@@ -13,7 +13,13 @@ export interface MenuItemSpec {
   /** Destructive items sit last, after a 1 px divider, in --danger-fg (DESIGN_STANDARD Overflow menu). */
   danger?: boolean;
   disabled?: boolean;
+  /** Responsive visibility (e.g. `md:hidden`): a hidden item is skipped by focus and the arrow keys. */
+  className?: string;
 }
+
+/** Enabled menu items that are rendered (not hidden by a responsive class). */
+const shown = (root: HTMLElement | null) =>
+  [...(root?.querySelectorAll<HTMLElement>("[role=menuitem]:not(:disabled)") ?? [])].filter((el) => el.getClientRects().length > 0);
 
 /**
  * A level-2 popover under its trigger (DESIGN_STANDARD "Overflow menu" and "Snooze menu"): min-width
@@ -46,7 +52,7 @@ export function MenuPopover({
   const view = isMenu ? items.map((i) => i.key).join(",") : "form";
 
   useEffect(() => {
-    ref.current?.querySelector<HTMLElement>(isMenu ? "[role=menuitem]:not(:disabled)" : "input, button")?.focus();
+    (isMenu ? shown(ref.current)[0] : ref.current?.querySelector<HTMLElement>("input, button"))?.focus();
   }, [isMenu, view]);
 
   useEffect(() => {
@@ -67,7 +73,7 @@ export function MenuPopover({
     }
     if (!isMenu || (e.key !== "ArrowDown" && e.key !== "ArrowUp" && e.key !== "Home" && e.key !== "End")) return;
     e.preventDefault();
-    const all = [...(ref.current?.querySelectorAll<HTMLElement>("[role=menuitem]:not(:disabled)") ?? [])];
+    const all = shown(ref.current);
     if (all.length === 0) return;
     const at = all.indexOf(document.activeElement as HTMLElement);
     const next =
@@ -120,6 +126,7 @@ function Item({ item: i }: { item: MenuItemSpec }) {
       onClick={i.onSelect}
       disabled={i.disabled}
       className={cn(
+        i.className,
         "group focus-ring flex h-9 w-full items-center gap-2 px-3 text-left text-body whitespace-nowrap max-md:h-11 disabled:cursor-not-allowed disabled:opacity-50",
         i.danger ? "text-le-danger-fg hover:enabled:bg-le-danger-bg" : "text-le-text hover:enabled:bg-le-surface-sunken",
       )}

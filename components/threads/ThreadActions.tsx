@@ -9,6 +9,7 @@ import { UndoToast, type ToastData } from "@/components/toast/UndoToast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { DATA_COPY } from "@/lib/account/copy";
+import { cn } from "@/lib/utils";
 import { apiError, type ApiError } from "@/lib/errors";
 import type { ThreadKind, ThreadStatus } from "@/lib/schemas";
 import { ACTIONS_COPY as A, availableActions, type SimpleAction, type SnoozeChoice, type SnoozeMenuDates } from "@/lib/threads/actions";
@@ -67,6 +68,11 @@ const ICON: Partial<Record<Key, LucideIcon>> = {
 };
 
 type Popover = { anchor: "more" | "snooze"; view: "main" | "snooze" | "pick" } | null;
+
+/** The element, unless a responsive class hides it on this layout (both layouts are rendered). */
+function visible<T extends HTMLElement>(el: T | null): T | null {
+  return el && el.getClientRects().length > 0 ? el : null;
+}
 
 export function ThreadActions({
   threadId,
@@ -245,7 +251,7 @@ export function ThreadActions({
     if (sheetOpen || !focusOnClose.current) return;
     const target = focusOnClose.current;
     focusOnClose.current = null;
-    if (target === "resolve") resolveRef.current?.focus();
+    if (target === "resolve") (visible(resolveRef.current) ?? moreRef.current)?.focus();
     else focusStatus();
   }, [sheetOpen, focusStatus]);
 
@@ -267,7 +273,7 @@ export function ThreadActions({
       run?.();
       return;
     }
-    (opener.current ?? moreRef.current)?.focus();
+    (visible(opener.current) ?? moreRef.current)?.focus();
   }
 
   async function undo(eventId: number) {
@@ -279,7 +285,7 @@ export function ThreadActions({
       // never <body>. If it is already there and enabled, it takes focus now.
       // Only Done or Resolve…: a closed thread's Reopen is still on the page until the refresh lands,
       // and focusing it would leave focus on a button that is about to go.
-      const back = doneRef.current ?? resolveRef.current;
+      const back = visible(doneRef.current) ?? visible(resolveRef.current);
       if (back && !back.disabled) {
         back.focus();
       } else {
@@ -302,7 +308,7 @@ export function ThreadActions({
   useEffect(() => {
     // After an Undo the first action comes back: Done, or Resolve… on a decision thread.
     // It waits until the button is enabled: Done is disabled while its own action is pending.
-    const target = doneRef.current ?? resolveRef.current;
+    const target = visible(doneRef.current) ?? visible(resolveRef.current);
     if (focusDoneOnReturn.current && target && !target.disabled) {
       focusDoneOnReturn.current = false;
       target.focus();
@@ -311,8 +317,16 @@ export function ThreadActions({
 
   const av = availableActions({ status, kind });
   const offered = ORDER.filter((k) => av[k] && (k !== "snooze" || snoozeDates) && (k !== "edit" || edit));
-  const buttons = compact ? offered.filter((k) => k === "done" || k === "resolve" || k === "snooze") : offered.slice(0, 3);
-  const overflow = compact ? [] : offered.slice(3);
+  // Desktop: the first three as buttons (§2.7). Below 768 px: only Done and Snooze (§3.4; Resolve…
+  // stands in for Done on a decision thread, D6). Everything else is in More actions. Both layouts
+  // are rendered and switched with CSS (md:), so the server and the first client render agree.
+  const quick = (k: Key) => k === "done" || k === "snooze" || (k === "resolve" && !offered.includes("done"));
+  const desktopButtons = compact ? offered.filter((k) => k === "done" || k === "resolve" || k === "snooze") : offered.slice(0, 3);
+  const mobileButtons = compact ? desktopButtons : offered.filter(quick);
+  const buttons = offered.filter((k) => desktopButtons.includes(k) || mobileButtons.includes(k));
+  const overflow = compact ? [] : offered.filter((k) => !desktopButtons.includes(k) || !mobileButtons.includes(k));
+  /** Hides an element on the layout where it does not belong: `on` lists where it shows. */
+  const only = (desktop: boolean, mobile: boolean) => (desktop && !mobile ? "max-md:hidden" : mobile && !desktop ? "md:hidden" : undefined);
 
   function press(k: Key) {
     switch (k) {
@@ -379,6 +393,7 @@ export function ThreadActions({
       label: LABEL[k],
       icon: ICON[k],
       disabled: pending,
+      className: only(!desktopButtons.includes(k), !mobileButtons.includes(k)),
       onSelect: () => {
         if (k === "snooze") {
           setPickDate("");
@@ -454,10 +469,12 @@ export function ThreadActions({
   function actionButton(k: Key, i: number) {
     const Icon = ICON[k];
     const primary = !compact && i === 0;
+    const where = only(desktopButtons.includes(k), mobileButtons.includes(k));
     const button = (
       <Button
         key={k}
         ref={refFor(k)}
+        className={k === "snooze" ? undefined : where}
         onClick={() => press(k)}
         disabled={pending}
         variant={compact ? "ghost" : primary ? "primary" : "secondary"}
@@ -472,7 +489,7 @@ export function ThreadActions({
     );
     if (k !== "snooze") return button;
     return (
-      <div key={k} className="relative">
+      <div key={k} className={cn("relative", where)}>
         {button}
         {popoverFor("snooze")}
       </div>

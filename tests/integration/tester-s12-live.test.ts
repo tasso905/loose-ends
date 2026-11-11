@@ -213,7 +213,14 @@ describe.skipIf(!live)("tester S12: thread actions on real local Supabase", () =
     expect((await admin.from("suppressions").select("reason, thread_id").eq("user_id", A.id)).data).toEqual([{ reason: "dismissed", thread_id: t.id }]);
     expect(await as(B, () => undoAction(t.id, d.eventId!))).toMatchObject({ ok: false, error: { code: "not_found" } });
     expect(await as(A, () => undoAction(t.id, d.eventId!))).toEqual({ ok: true });
-    expect((await admin.from("suppressions").select("suppression_hash").eq("user_id", A.id)).data).toEqual([]);
+    // The suppression leaves this thread. Earlier tests here leave other A threads dismissed with the
+    // same Mike hash, so since the D1 fix (migration 20261111090000) the row is handed to one of them
+    // rather than deleted; it is deleted only when no dismissed thread carries the hash.
+    const left = ((await admin.from("suppressions").select("thread_id").eq("user_id", A.id)).data ?? []) as Array<{ thread_id: string }>;
+    for (const s of left) {
+      expect(s.thread_id).not.toBe(t.id);
+      expect((await row(s.thread_id)).status).toBe("dismissed");
+    }
     expect((await row(t.id)).status).toBe("open");
   });
 });

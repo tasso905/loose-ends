@@ -110,10 +110,15 @@ export function snoozeDate(choice: SnoozeChoice, now: Date, timezone: string): s
   return choice.date;
 }
 
-/** The instant a snooze choice wakes at (9:00 local), or null when that is not after `now`. */
+/**
+ * The instant a snooze choice wakes at (9:00 local), or null when that is not after `now`. A picked
+ * date must be after today in the user's timezone, as the picker's minimum (tomorrow) and the copy
+ * `Pick a date after today.` say, even before 9:00 (lead-tester D4b).
+ */
 export function snoozeUntil(choice: SnoozeChoice, now: Date, timezone: string): string | null {
   const date = snoozeDate(choice, now, timezone);
   if (!isRealDate(date)) return null;
+  if (choice.preset === "date" && date <= localToday(now, timezone)) return null;
   const until = zonedInstant(date, SNOOZE_TIME, timezone);
   return until.getTime() > now.getTime() ? until.toISOString() : null;
 }
