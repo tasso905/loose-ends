@@ -216,10 +216,16 @@ describe.skipIf(!live)("tester S12: thread actions on real local Supabase", () =
     // The suppression leaves this thread. Earlier tests here leave other A threads dismissed with the
     // same Mike hash, so since the D1 fix (migration 20261111090000) the row is handed to one of them
     // rather than deleted; it is deleted only when no dismissed thread carries the hash.
-    const left = ((await admin.from("suppressions").select("thread_id").eq("user_id", A.id)).data ?? []) as Array<{ thread_id: string }>;
-    for (const s of left) {
-      expect(s.thread_id).not.toBe(t.id);
-      expect((await row(s.thread_id)).status).toBe("dismissed");
+    // Lead-tester: exact, not vacuous. Every A thread in this file is the accepted Mike High item, so
+    // all carry the same hash: one row handed to a still-dismissed thread if any, else none.
+    const left = ((await admin.from("suppressions").select("thread_id, reason").eq("user_id", A.id)).data ?? []) as Array<{ thread_id: string; reason: string }>;
+    const stillDismissed = ((await admin.from("threads").select("id").eq("user_id", A.id).eq("status", "dismissed")).data ?? []).map((r) => r.id as string);
+    if (stillDismissed.length === 0) {
+      expect(left).toEqual([]);
+    } else {
+      expect(left).toHaveLength(1);
+      expect(left[0]!.reason).toBe("dismissed");
+      expect(stillDismissed).toContain(left[0]!.thread_id);
     }
     expect((await row(t.id)).status).toBe("open");
   });

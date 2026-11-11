@@ -311,3 +311,116 @@ test("prefers-reduced-motion: menu and toast do not animate", async () => {
     await page.emulateMedia({ reducedMotion: null });
   }
 });
+
+// --- Lead-tester D2 re-verification: focus never lands on a button hidden by the other layout -----
+
+/** Focus is on a rendered element (not <body>, not display:none). */
+async function expectVisibleFocus(where: string) {
+  const info = await page.evaluate(() => {
+    const el = document.activeElement as HTMLElement | null;
+    return {
+      tag: el?.tagName ?? "null",
+      name: el?.getAttribute("aria-label") ?? el?.innerText?.slice(0, 30) ?? "",
+      rendered: !!el && el !== document.body && el.getClientRects().length > 0,
+    };
+  });
+  expect(info.rendered, `${where}: focus on ${info.tag} "${info.name}"`).toBe(true);
+}
+
+for (const width of [375, 1280] as const) {
+  test(`${width} px: focus after Undo, Cancel and sheet close is always on a visible control`, async () => {
+    await page.setViewportSize({ width, height: 812 });
+    const mobile = width < 768;
+    try {
+      // Undo after Dismiss → Done (visible on both layouts).
+      await resetOpen();
+      await more().click();
+      await page.getByRole("menuitem", { name: "Dismiss" }).click();
+      await expect(status()).toHaveText("Dismissed");
+      await page.getByRole("button", { name: `Undo dismiss: ${TITLE}` }).focus();
+      await page.keyboard.press("Enter");
+      await expect(status()).toHaveText("Open");
+      await expect(done()).toBeFocused();
+      await expectVisibleFocus("undo dismiss");
+
+      // Resolve… Cancel → Resolve… on desktop, More actions on mobile (Resolve… is in the menu there).
+      await expect(page.getByRole("button", { name: /Undo / })).toHaveCount(0, { timeout: 12_000 });
+      if (mobile) {
+        await more().click();
+        await page.getByRole("menuitem", { name: "Resolve…" }).click();
+      } else {
+        await page.getByRole("button", { name: "Resolve…", exact: true }).click();
+      }
+      const rs = page.getByRole("dialog", { name: "How did this end?" });
+      await expect(rs).toBeVisible();
+      await rs.getByRole("button", { name: "Cancel" }).click();
+      await expect(rs).toBeHidden();
+      await expect(mobile ? more() : page.getByRole("button", { name: "Resolve…", exact: true })).toBeFocused();
+      await expectVisibleFocus("resolve cancel");
+
+      // Mark waiting: Escape closes the sheet → its button on desktop, More actions on mobile.
+      if (mobile) {
+        await more().click();
+        await page.getByRole("menuitem", { name: "Mark waiting" }).click();
+      } else {
+        await page.getByRole("button", { name: "Mark waiting", exact: true }).click();
+      }
+      const mw = page.getByRole("dialog", { name: "Mark waiting" });
+      await expect(mw).toBeVisible();
+      await page.keyboard.press("Escape");
+      await expect(mw).toBeHidden();
+      await expect(mobile ? more() : page.getByRole("button", { name: "Mark waiting", exact: true })).toBeFocused();
+      await expectVisibleFocus("mark waiting escape");
+
+      // Snooze menu Escape → the Snooze button on mobile, More actions on desktop.
+      if (mobile) {
+        await page.getByRole("button", { name: "Snooze", exact: true }).click();
+      } else {
+        await more().click();
+        await page.getByRole("menuitem", { name: "Snooze" }).click();
+      }
+      await expect(page.getByRole("menu", { name: "Snooze" })).toBeVisible();
+      await page.keyboard.press("Escape");
+      await expect(mobile ? page.getByRole("button", { name: "Snooze", exact: true }) : more()).toBeFocused();
+      await expectVisibleFocus("snooze escape");
+
+      // A dismissed thread: Reopen and Edit are buttons on desktop, in More on mobile. Edit Cancel.
+      await admin().from("threads").update({ status: "dismissed" }).eq("id", threadId);
+      await page.goto(`/threads/${threadId}`);
+      await expect(status()).toHaveText("Dismissed");
+      if (mobile) {
+        await expect(page.getByRole("button", { name: "Edit", exact: true })).toBeHidden();
+        await more().click();
+        await expect(page.getByRole("menu", { name: "More actions" }).getByRole("menuitem")).toHaveText(["Reopen", "Edit", "Forget permanently…"]);
+        await page.getByRole("menuitem", { name: "Edit" }).click();
+      } else {
+        await page.getByRole("button", { name: "Edit", exact: true }).click();
+      }
+      const ed = page.getByRole("dialog", { name: "Edit thread" });
+      await ed.getByRole("button", { name: "Cancel" }).click();
+      await expect(ed).toBeHidden();
+      await expect(mobile ? more() : page.getByRole("button", { name: "Edit", exact: true })).toBeFocused();
+      await expectVisibleFocus("edit cancel on a dismissed thread");
+      await expectNoViolations();
+
+      // A decision thread: Resolve… replaces Done (D6). Undo of Snooze → Resolve…, visible on both layouts.
+      await admin().from("threads").update({ status: "open", kind: "decision" }).eq("id", threadId);
+      await page.goto(`/threads/${threadId}`);
+      await expect(status()).toHaveText("Open");
+      // No Done on a decision thread, so Snooze is among the first three on desktop too: a button on both.
+      await expect(done()).toHaveCount(0);
+      await page.getByRole("button", { name: "Snooze", exact: true }).click();
+      await page.getByRole("menu", { name: "Snooze" }).getByRole("menuitem", { name: /^Tomorrow, 9:00/ }).click();
+      await expect(status()).toHaveText("Snoozed");
+      await page.getByRole("button", { name: `Undo snooze: ${TITLE}` }).focus();
+      await page.keyboard.press("Enter");
+      await expect(status()).toHaveText("Open");
+      await expect(page.getByRole("button", { name: "Resolve…", exact: true })).toBeFocused();
+      await expectVisibleFocus("undo snooze on a decision thread");
+      await expectNoViolations();
+    } finally {
+      await admin().from("threads").update({ kind: "commitment" }).eq("id", threadId);
+      await page.setViewportSize({ width: 1280, height: 800 });
+    }
+  });
+}

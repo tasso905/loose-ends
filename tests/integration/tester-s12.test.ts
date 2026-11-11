@@ -164,6 +164,122 @@ describe("F9: a dismissed thread never reappears from re-extraction of the same 
   });
 });
 
+describe("D1 re-verification: suppression hand-over across many threads, in any order (lead-tester)", () => {
+  const H = "d".repeat(64); // shared by every thread
+  const R = "e".repeat(64); // also carried by every thread, but already 'rejected' elsewhere
+  const F = "f".repeat(64); // carried by thread 0 only, already 'forgotten'
+
+  /** Seeds `n` open threads of A that all carry H and R: even ones through a proposal row, odd ones through the kept hash only (Delete source). */
+  async function seedMany(n: number): Promise<string[]> {
+    await pg.exec(`
+      insert into sources (id, user_id, kind, text_content, reference_date, reference_date_source)
+        values ('00000000-0000-0000-0000-0000000000d1', '${A}', 'paste', 'synthetic', '2026-10-05', 'user');
+      insert into extractions (id, user_id, source_id, status, model, prompt_version, schema_version)
+        values ('00000000-0000-0000-0000-0000000000d2', '${A}', '00000000-0000-0000-0000-0000000000d1', 'succeeded', 'fake:recorded', 'extract.v1', 'extraction.v1');
+      insert into suppressions (user_id, suppression_hash, reason, created_at) values ('${A}', '${R}', 'rejected', '2026-10-01T00:00:00Z'), ('${A}', '${F}', 'forgotten', '2026-10-01T00:00:00Z');
+    `);
+    const ids: string[] = [];
+    let idx = 0;
+    for (let k = 0; k < n; k++) {
+      const [r] = await q<{ id: string }>(`insert into threads (user_id, title, kind, status) values ($1, $2, 'commitment', 'open') returning id`, [A, `T${k}`]);
+      const id = r!.id;
+      ids.push(id);
+      const hashes = k === 0 ? [H, R, F] : [H, R];
+      for (const h of hashes) {
+        if (k % 2 === 0) {
+          await pg.query(
+            `insert into extraction_items (user_id, extraction_id, payload, confidence, band, review_status, thread_id, suppression_hash, item_index)
+             values ($1, '00000000-0000-0000-0000-0000000000d2', '{"title":"x"}'::jsonb, 0.9, 'high', 'accepted', $2, $3, $4)`,
+            [A, id, h, idx++],
+          );
+        } else {
+          await pg.query(`insert into private.thread_suppression_hashes (thread_id, user_id, suppression_hash) values ($1, $2, $3)`, [id, A, h]);
+        }
+      }
+    }
+    return ids;
+  }
+
+  /** Deterministic PRNG (mulberry32) so a failure names a reproducible seed. */
+  const rng = (seed: number) => () => {
+    seed |= 0;
+    seed = (seed + 0x6d2b79f5) | 0;
+    let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+
+  it.each([1, 2, 3, 4, 5, 6])("seed %i: 40 random Dismiss / Undo / Reopen steps over 5 threads keep the invariant", async (seed) => {
+    const ids = await seedMany(5);
+    const rand = rng(seed);
+    const lastDismiss = new Map<string, { event: number; at: number }>();
+    let clock = 0;
+    const seen = { undo: 0, reopen: 0, maxDismissed: 0 };
+    for (let step = 0; step < 40; step++) {
+      clock += 1_000;
+      const id = ids[Math.floor(rand() * ids.length)]!;
+      const [{ status }] = (await q<{ status: ThreadStatus }>(`select status from threads where id = $1`, [id])) as [{ status: ThreadStatus }];
+      const label = `seed ${seed} step ${step} ${id.slice(-4)} ${status}`;
+      if (status === "open") {
+        const d = await act(id, "open", { type: "dismiss" }, at(clock));
+        if (!d.ok || d.event_id === null) throw new Error(label);
+        lastDismiss.set(id, { event: d.event_id, at: clock });
+      } else {
+        const ld = lastDismiss.get(id)!;
+        // Undo when it is still inside its window and the coin says so; otherwise Reopen.
+        if (clock - ld.at <= 12_000 && rand() < 0.5) {
+          expect(await undoEvent(dbA, id, ld.event, { now: at(clock) }), label).toMatchObject({ ok: true, undone_action: "dismiss" });
+          seen.undo++;
+        } else {
+          expect(await act(id, "dismissed", { type: "reopen" }, at(clock)), label).toMatchObject({ ok: true });
+          seen.reopen++;
+        }
+      }
+
+      const dismissed = (await q<{ id: string }>(`select id from threads where user_id = $1 and status = 'dismissed'`, [A])).map((r) => r.id);
+      seen.maxDismissed = Math.max(seen.maxDismissed, dismissed.length);
+      const rows = await q<{ suppression_hash: string; reason: string; thread_id: string | null }>(
+        `select suppression_hash, reason, thread_id from suppressions where user_id = $1 order by suppression_hash`,
+        [A],
+      );
+      const hRow = rows.filter((r) => r.suppression_hash === H);
+      if (dismissed.length === 0) {
+        expect(hRow, label).toEqual([]);
+      } else {
+        expect(hRow, label).toHaveLength(1);
+        expect(hRow[0]!.reason, label).toBe("dismissed");
+        expect(dismissed, label).toContain(hRow[0]!.thread_id);
+      }
+      // Rejected and forgotten rows are never touched.
+      expect(rows.filter((r) => r.suppression_hash !== H), label).toEqual([
+        { suppression_hash: R, reason: "rejected", thread_id: null },
+        { suppression_hash: F, reason: "forgotten", thread_id: null },
+      ]);
+    }
+    // The walk really exercised Undo, Reopen and overlapping dismissals.
+    expect(seen.undo, `seed ${seed}`).toBeGreaterThan(0);
+    expect(seen.reopen, `seed ${seed}`).toBeGreaterThan(0);
+    expect(seen.maxDismissed, `seed ${seed}`).toBeGreaterThanOrEqual(3);
+  });
+
+  it("another user's dismissed thread with the same hash is never a hand-over target", async () => {
+    const [x] = await seedMany(1);
+    const [rb] = await q<{ id: string }>(`insert into threads (user_id, title, kind, status) values ($1, 'B', 'commitment', 'dismissed') returning id`, [B]);
+    await pg.query(`insert into private.thread_suppression_hashes (thread_id, user_id, suppression_hash) values ($1, $2, $3)`, [rb!.id, B, H]);
+    await pg.query(`insert into suppressions (user_id, suppression_hash, reason, thread_id) values ($1, $2, 'dismissed', $3)`, [B, H, rb!.id]);
+    await act(x!, "open", { type: "dismiss" }, at(1_000));
+    await act(x!, "dismissed", { type: "reopen" }, at(20_000));
+    expect(await q(`select user_id, thread_id from suppressions where suppression_hash = $1 order by user_id`, [H])).toEqual([{ user_id: B, thread_id: rb!.id }]);
+  });
+
+  it("private.release_dismissal_suppressions is not callable by authenticated or anon", async () => {
+    for (const role of ["authenticated", "anon"]) {
+      const [r] = await q<{ ok: boolean }>(`select has_function_privilege($1, 'private.release_dismissal_suppressions(uuid, uuid)', 'execute') as ok`, [role]);
+      expect(r!.ok, role).toBe(false);
+    }
+  });
+});
+
 describe("Undo (D44) beyond the developer's cases", () => {
   it("a second Undo of the same event is refused, and so is Undo after a later action", async () => {
     const { threadId } = await acceptHigh();
