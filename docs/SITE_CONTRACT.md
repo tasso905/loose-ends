@@ -154,9 +154,11 @@ Field-level content, constraints and copy are defined in the content model v1.1;
 | History | Append-only timeline; corrections phrased `You changed …`. Event lines (D47): `You accepted this from your source.`, `Added from quick add.`, `You marked this done.` / `Loose Ends marked this done.`, `You resolved this.` / `Loose Ends resolved this.`, `You undid the last change.`, `You reopened this.`, `You snoozed this.`, `You edited this.`, `Status changed to {status}.`; fallback `Updated.` |
 | Decision | Section heading `Decision` (D56). Shown when resolution is Decided, with the link `Ask why` to `/decisions?q=` (D57). Without a reason: `You didn't record a reason for this decision.` + `Add a reason now` (D58) |
 | Interim Resolve… | Until F11 ships, `Resolve…` is disabled with the reason `Resolving with a decision isn't available yet.` (D47) |
-| Actions | `Done` (not for decision threads), `Resolve…`, `Mark waiting`, `Snooze`, `Edit`, `Dismiss`, `Reopen` (closed threads only), `Forget permanently…`; desktop shows the first three as buttons and the rest in an overflow menu labelled `More actions` |
-| Mark waiting form | `Waiting on` (required, prefilled with counterparty), `Expected by` (optional date) |
-| Snooze menu | `Tomorrow, 9:00`, `Next Monday, 9:00`, `Pick a date…` (D11) |
+| Actions | `Done` (not for decision threads), `Resolve…`, `Mark waiting`, `Snooze`, `Edit`, `Dismiss`, `Reopen` (closed threads only), `Back to me` (waiting threads), `Wake now` (snoozed threads), `Forget permanently…`; each only where the PRD lifecycle table allows it. Desktop shows the first three offered as buttons and the rest in an overflow menu labelled `More actions`, with `Forget permanently…` last. Below 768 px only `Done` and `Snooze` are buttons; on a decision thread `Resolve…` takes Done's place; `Reopen` and everything else stay under `More actions` (D85(d), §3.4) |
+| Mark waiting form | `Waiting on` (required, prefilled with counterparty, up to 100 characters), `Expected by (optional)` (date) (D85(a)) |
+| Snooze menu | `Tomorrow, 9:00`, `Next Monday, 9:00`, `Pick a date…` (D11). `Pick a date…` shows the date field `Snooze until` (today and earlier disabled) and the button `Snooze`; the thread wakes at 9:00 on that date in the user's timezone (D85(a)) |
+| Edit sheet | Heading `Edit thread`; fields `Title`, `Loop type`, `Next action` (hidden when the loop type is `Waiting on`, D83(a)), `Person or organization`, `Due date`, `Time (optional)`; on a waiting thread `Loop type` can't change to or from `Waiting on`, and the sheet adds `Waiting on` and `Expected by (optional)`; on a snoozed thread it adds `Snoozed until`. Buttons `Save changes` and `Cancel` (D85(a)). Limits: title 120, next action 300, person or organization 100, waiting on 100 characters; the fields stop accepting text at the limit (D85(b)). Changing an open thread's loop type to `Waiting on` keeps it open; it is not marked waiting (D85(c)) |
+| Undo toasts (D85(a)) | `Marked waiting: "{title}"`, `Snoozed: "{title}"`, `Dismissed: "{title}"`, `Saved changes to "{title}"`, each with `Undo`, labelled for screen readers `Undo mark waiting: {title}`, `Undo snooze: {title}`, `Undo dismiss: {title}`, `Undo edit: {title}`. After Edit, `{title}` is the saved title. `Back to me`, `Wake now` and `Reopen` show no toast; the page shows the new status (D85(e), §3.6) |
 
 ### 2.8 Why panel
 
@@ -237,6 +239,11 @@ Field-level content, constraints and copy are defined in the content model v1.1;
 | `invalid_input` (D47), field `text` | `Paste some text first.` | Inline under the textarea | No |
 | `invalid_input` (D47), field `title` | `Titles can be up to 120 characters.` | Inline under the title field | No |
 | `invalid_input` (D47), field `written_on` | `Enter a real date between 1900 and 2100.` | Inline under the date field | No |
+| `invalid_input` (D85), Edit field `title` empty or blank | `Give this thread a title.` | Inline under `Title` | No |
+| `invalid_input` (D47, D85), Edit field `title` over 120 characters | `Titles can be up to 120 characters.` | Inline under `Title` | No |
+| `invalid_input` (D85), field `waiting_on` (Mark waiting or Edit) | `Write who you're waiting on.` | Inline under `Waiting on` | No |
+| `invalid_input` (D85), Snooze `Pick a date…` or Edit `Snoozed until` not after today | `Pick a date after today.` | Inline under the date field | No |
+| `invalid_input` (D47, D85), Edit `Due date`, `Expected by (optional)` or `Snoozed until` not a real date | `Enter a real date between 1900 and 2100.` | Inline under the date field | No |
 | `not_found` (D47; HTTP routes only, pages render the not-found page in §1.2) | `This doesn't exist or was deleted.` | `Go to Today` | No |
 | `unauthenticated` (D47; HTTP routes only, pages redirect to `/sign-in`) | `Sign in to continue.` | Sign in | No |
 | Today, Threads or Thread detail fail to load (D47) | `I couldn't load your threads.` | Page banner + `Try again` | Yes |
@@ -340,7 +347,7 @@ Exact values are in the Visual Design Standard (Interactions). Contract-level re
 - Touch targets ≥ 44 × 44 px.
 - Review Tray: stacked list; source-beside-tray layout only at ≥ 1024 px.
 - Why panel and Resolve become bottom sheets (max 85vh).
-- Thread actions beyond Done and Snooze move to `More actions`.
+- Thread actions beyond Done and Snooze move to `More actions`. On a decision thread, which has no Done, `Resolve…` takes Done's place as a button; `Reopen` stays under `More actions` (D85(d)).
 - Respect safe areas and the virtual keyboard; submit buttons stay visible above the keyboard.
 
 ### 3.5 Transitions and animation
@@ -355,7 +362,7 @@ All durations, easing and product-moment animations are defined in the Visual De
 4. Unaccepted low-confidence proposals are never auto-accepted, ranked or notified.
 5. User wording and rationale are preserved; AI summaries are supplemental and labelled.
 6. Errors, empty states, missing rationale and unsupported files are handled honestly, using §2.13 copy.
-7. **Reversible actions** (Done, Resolve, Dismiss, Snooze, Mark waiting, Edit, quick-add auto-create) run immediately with an 8 s undo toast and no confirmation. The Done toast reads `Marked done: "{title}"` + `Undo` (D47); the Resolve toast after Decided or Not needed reads `Resolved: "{title}"` + `Undo`, labelled `Undo resolve: {title}` for screen readers (D56). Undo restores the exact state before the action and appends an `undone` history event; the server accepts it up to 12 s after the action (8 s toast plus 4 s grace) (D44). Hover or focus pauses the toast timer, but the toast closes 11 s after the action at the latest, 1 s before the server window closes (D49, D51). On a very slow network an Undo sent near that limit can still reach the server after 12 s; it is refused with the §2.13 copy and Refresh, and the 1 s buffer makes this rare (D51). **Irreversible actions** (Forget permanently, Delete source, Delete source and everything derived, Delete account) require a confirmation dialog that lists exactly what is deleted, and have no undo (D8).
+7. **Reversible actions** (Done, Resolve, Dismiss, Snooze, Mark waiting, Edit, quick-add auto-create) run immediately with an 8 s undo toast and no confirmation. The Done toast reads `Marked done: "{title}"` + `Undo` (D47); the Resolve toast after Decided or Not needed reads `Resolved: "{title}"` + `Undo`, labelled `Undo resolve: {title}` for screen readers (D56). Undo restores the exact state before the action and appends an `undone` history event; the server accepts it up to 12 s after the action (8 s toast plus 4 s grace) (D44). Hover or focus pauses the toast timer, but the toast closes 11 s after the action at the latest, 1 s before the server window closes (D49, D51). On a very slow network an Undo sent near that limit can still reach the server after 12 s; it is refused with the §2.13 copy and Refresh, and the 1 s buffer makes this rare (D51). The toasts for Mark waiting, Snooze, Dismiss and Edit are in §2.7 (D85(a)). `Back to me`, `Wake now` and `Reopen` are not in this list: they run at once with no confirmation and no Undo toast, and the page shows the new status (D85(e)). **Irreversible actions** (Forget permanently, Delete source, Delete source and everything derived, Delete account) require a confirmation dialog that lists exactly what is deleted, and have no undo (D8).
 8. No interface state claims an action succeeded until the operation has succeeded.
 
 ## 4. Known gaps / implementation notes
