@@ -9,8 +9,8 @@ import type { CompletedExtraction } from "./service";
  */
 
 /** `source_submitted`: fired once a source row exists (not on rate_limited or invalid input). */
-export function trackSourceSubmitted(userId: string, charCount: number): void {
-  track(userId, "source_submitted", { kind: "paste", char_count_bucket: charCountBucket(charCount) });
+export function trackSourceSubmitted(userId: string, charCount: number, kind: "paste" | "quick_add" = "paste"): void {
+  track(userId, "source_submitted", { kind, char_count_bucket: charCountBucket(charCount) });
 }
 
 /** `source_submitted` for an upload (S6): kind `upload` plus the sniffed file type. */

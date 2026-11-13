@@ -69,7 +69,7 @@ export interface BudgetDeps {
 
 export async function startExtraction(
   db: RpcDb,
-  input: PasteInput & { kind?: "paste" },
+  input: PasteInput & { kind?: "paste" | "quick_add" },
   opts: { now: Date; logger?: Logger } & BudgetDeps,
 ): Promise<StartResult> {
   const logger = opts.logger ?? defaultLog;

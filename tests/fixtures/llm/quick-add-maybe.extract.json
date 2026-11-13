@@ -1,0 +1,22 @@
+{
+  "name": "quick-add-maybe",
+  "task": "extract",
+  "input": "Maybe ask Dana about the gutters",
+  "responses": [
+    {
+      "source_summary": "Quick add: a hedged task",
+      "participants": [{ "name": "Dana", "is_user": "no" }],
+      "items": [
+        {
+          "type": "commitment", "title": "Ask Dana about the gutters",
+          "owner": "user", "counterparty": "Dana", "action": "Ask Dana about the gutters",
+          "date_text": null, "date_iso": null, "amount_text": null,
+          "certainty": "explicit", "uncertainty_notes": [],
+          "matches_thread_id": null,
+          "evidence": [{ "quote": "Maybe ask Dana about the gutters", "speaker": null }]
+        }
+      ],
+      "brief": null
+    }
+  ]
+}

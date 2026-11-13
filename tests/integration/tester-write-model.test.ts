@@ -37,6 +37,10 @@ const WRITERS = [
   "thread_snooze",
   "thread_wake",
   "undo_reject_proposals",
+  // S14 (F4): auto-create writes threads, evidence, thread_events and extraction_items; undo deletes
+  // those threads (and their events) and puts the proposal back as rejected
+  "quick_add_auto_create",
+  "quick_add_undo",
 ].sort();
 
 /** Read-only public functions `authenticated` may execute (invoker, RLS applies). */

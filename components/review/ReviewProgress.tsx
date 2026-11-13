@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { retryExtractionAction } from "@/app/review/[extractionId]/actions";
 import { Spinner } from "@/components/auth/Spinner";
 import { ErrorBanner } from "@/components/Notice";
+import { ActionHostProvider } from "@/components/threads/ActionHost";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { EXTRACTION_SLOW_MESSAGE, apiError, type ApiError } from "@/lib/errors";
 import type { ExtractionStage, ExtractionView } from "@/lib/extraction/service";
@@ -135,5 +136,10 @@ export function ReviewProgress({
     );
   }
 
-  return <ReviewTray key={view.id} view={view} timezone={timezone} nowIso={nowIso} source={source} />;
+  // The host carries a quick add's undo toast (and a refused Undo's banner) onto the tray (F4).
+  return (
+    <ActionHostProvider>
+      <ReviewTray key={view.id} view={view} timezone={timezone} nowIso={nowIso} source={source} />
+    </ActionHostProvider>
+  );
 }

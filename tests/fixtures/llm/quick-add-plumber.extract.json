@@ -1,0 +1,22 @@
+{
+  "name": "quick-add-plumber",
+  "task": "extract",
+  "input": "Call the plumber about the leaking tap",
+  "responses": [
+    {
+      "source_summary": "Quick add: the user's own task",
+      "participants": [],
+      "items": [
+        {
+          "type": "commitment", "title": "Call the plumber about the leaking tap",
+          "owner": "user", "counterparty": "the plumber", "action": "Call the plumber about the leaking tap",
+          "date_text": null, "date_iso": null, "amount_text": null,
+          "certainty": "explicit", "uncertainty_notes": [],
+          "matches_thread_id": null,
+          "evidence": [{ "quote": "Call the plumber about the leaking tap", "speaker": null }]
+        }
+      ],
+      "brief": null
+    }
+  ]
+}

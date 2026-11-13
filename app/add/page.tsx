@@ -1,9 +1,10 @@
 import type { Metadata } from "next";
 import { formatInTimeZone } from "date-fns-tz";
 import Link from "next/link";
-import { ClipboardPaste, FileUp } from "lucide-react";
+import { ClipboardPaste, FileUp, TextCursorInput } from "lucide-react";
 import { AppHeader } from "@/components/AppHeader";
 import { PasteForm } from "@/components/capture/PasteForm";
+import { QuickAddForm } from "@/components/capture/QuickAddForm";
 import { UploadForm } from "@/components/capture/UploadForm";
 import { requireUser } from "@/lib/auth/session";
 import { createClient } from "@/lib/supabase/server";
@@ -11,23 +12,24 @@ import { getNow, isDemoMode } from "@/lib/time";
 import { cn } from "@/lib/utils";
 
 export const metadata: Metadata = { title: "Add" };
-// The paste server action runs the extraction pipeline in after(); it inherits this limit
-// (PRD Technical Architecture "Extraction timeouts").
+// The paste and upload server actions run the extraction pipeline in after(), and quick add runs it
+// in the request; they inherit this limit (PRD Technical Architecture "Extraction timeouts").
 export const maxDuration = 60;
 
 type SearchParams = Promise<Record<string, string | string[] | undefined>>;
 
-type Mode = "paste" | "upload";
+type Mode = "paste" | "upload" | "quick";
 
-/** Add tabs (SITE_CONTRACT §2.2; DESIGN_STANDARD Iconography). Quick add (F4) joins when it ships. */
+/** Add tabs (SITE_CONTRACT §2.2; DESIGN_STANDARD Iconography). */
 const MODES: { key: Mode; label: string; href: string; Icon: typeof FileUp }[] = [
   { key: "paste", label: "Paste", href: "/add?mode=paste", Icon: ClipboardPaste },
   { key: "upload", label: "Upload", href: "/add?mode=upload", Icon: FileUp },
+  { key: "quick", label: "Quick add", href: "/add?mode=quick", Icon: TextCursorInput },
 ];
 
 /**
- * Add / Capture (F2, F3; SITE_CONTRACT §2.2). `?mode=paste` (default) and `?mode=upload`.
- * `?mode=quick` (F4) is not built yet and shows Paste. The modes are links, so Back keeps the mode.
+ * Add / Capture (F2, F3, F4; SITE_CONTRACT §2.2). `?mode=paste` (default), `?mode=upload` and
+ * `?mode=quick`. The modes are links, so Back keeps the mode.
  */
 export default async function AddPage({ searchParams }: { searchParams: SearchParams }) {
   const raw = (await searchParams).mode;
@@ -44,7 +46,7 @@ export default async function AddPage({ searchParams }: { searchParams: SearchPa
   const timezone = (profile?.timezone as string | undefined) ?? "UTC";
   const demoNow = (settings.data as { demo_now?: string | null } | null)?.demo_now ?? null;
   const today = formatInTimeZone(getNow({ demoNow }), timezone, "yyyy-MM-dd");
-  const current: Mode = mode === "upload" ? "upload" : "paste";
+  const current: Mode = mode === "upload" || mode === "quick" ? mode : "paste";
 
   return (
     <>
@@ -67,7 +69,13 @@ export default async function AddPage({ searchParams }: { searchParams: SearchPa
             </Link>
           ))}
         </nav>
-        {current === "upload" ? <UploadForm today={today} userId={user.id} /> : <PasteForm today={today} />}
+        {current === "upload" ? (
+          <UploadForm today={today} userId={user.id} />
+        ) : current === "quick" ? (
+          <QuickAddForm />
+        ) : (
+          <PasteForm today={today} />
+        )}
       </main>
     </>
   );

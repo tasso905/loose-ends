@@ -2,13 +2,17 @@
 import { after } from "next/server";
 import { serviceBudgetDb as budgetDb } from "@/lib/ai/budgetDb";
 import { readDocument } from "@/lib/capture/document";
+import { z } from "zod";
+import { track } from "@/lib/analytics/track";
 import { parsePasteForm, type PasteInputError } from "@/lib/capture/pasteInput";
+import { parseQuickAddForm, QUICK_ADD_COPY, quickAddWrittenOn } from "@/lib/capture/quickAddInput";
 import { parseUploadForm, SOURCES_BUCKET, uploadFailure, type UploadField } from "@/lib/capture/uploadInput";
 import { apiError, type ApiError, type InputField } from "@/lib/errors";
 import { extractionCompletedTracker, trackSourceSubmitted, trackUploadSubmitted } from "@/lib/extraction/analytics";
-import { runExtraction, startExtraction, startUploadExtraction } from "@/lib/extraction/service";
+import { readExtraction, runExtraction, startExtraction, startUploadExtraction } from "@/lib/extraction/service";
 import { log } from "@/lib/log";
 import { rpcDb } from "@/lib/extraction/supabaseDb";
+import { autoCreateQuickAdd, quickAddRoute, undoQuickAdd } from "@/lib/review/quickAdd";
 import { createClient } from "@/lib/supabase/server";
 import { getNow, isDemoMode } from "@/lib/time";
 
@@ -157,4 +161,106 @@ export async function submitUpload(formData: FormData): Promise<SubmitUploadResu
   const onComplete = extractionCompletedTracker(auth.user.id);
   after(() => runExtraction(db, started.extractionId, { onComplete, budgetDb }).then(() => undefined));
   return { ok: true, extractionId: started.extractionId };
+}
+
+export interface QuickAddCreated {
+  threadId: string;
+  eventId: number;
+  title: string;
+}
+
+export type SubmitQuickAddResult =
+  /**
+   * The source and its extraction exist. `stay`: every proposal became a thread (`created`, for the
+   * undo toast). `review`: go to /review/[extractionId], which shows the Medium and Low proposals,
+   * the zero state, or the extraction's failure state with `Try again` (SITE_CONTRACT §2.3, §3.1).
+   */
+  | { ok: true; extractionId: string; route: "stay" | "review"; created: QuickAddCreated[] }
+  | { ok: false; error: ApiError["error"]; signedOut?: boolean; field?: "text" };
+
+/**
+ * F4 quick add (SITE_CONTRACT §2.2, §3.1; D9; CLAUDE.md rule 2). Same pipeline as paste with
+ * `sources.kind = quick_add`: Zod input check, the budget check and the per-user daily limit
+ * (startExtraction), then the extraction runs in this request (page maxDuration 60 s) under
+ * withBudget, with quote verification and chrono date re-resolution as for every source. Only then
+ * do the High proposals become threads (public.quick_add_auto_create). Success and the undo toast
+ * come only from that result (rule 10). If the auto-create step fails, the proposals stay pending
+ * and the user goes to the review tray, where nothing is lost.
+ */
+export async function submitQuickAdd(formData: FormData): Promise<SubmitQuickAddResult> {
+  const parsed = parseQuickAddForm({ text: formData.get("text") });
+  if (!parsed.ok) {
+    const message = parsed.reason === "too_long" ? QUICK_ADD_COPY.tooLong(parsed.length) : QUICK_ADD_COPY.empty;
+    const code = parsed.reason === "too_long" ? "input_too_long" : "invalid_input";
+    return { ok: false, error: { code, message, retryable: false }, field: "text" };
+  }
+
+  const supabase = await createClient();
+  const { data: auth } = await supabase.auth.getUser();
+  if (!auth.user) return { ok: false, signedOut: true, error: apiError("unauthenticated").error };
+
+  let demoNow: string | null = null;
+  if (isDemoMode()) {
+    const { data } = await supabase.from("user_settings").select("demo_now").eq("user_id", auth.user.id).maybeSingle();
+    demoNow = (data?.demo_now as string | null) ?? null;
+  }
+
+  // The user is typing it now, so the written-on date is known, not assumed: today in their
+  // timezone, as the quick-add eval fixtures record it (reference_date_source = user). "Friday"
+  // is read against it by chrono like any other date (rule 3).
+  const { data: profile } = await supabase.from("profiles").select("timezone").eq("id", auth.user.id).maybeSingle();
+  const now = getNow({ demoNow });
+  const writtenOn = quickAddWrittenOn(now, typeof profile?.timezone === "string" ? profile.timezone : "UTC");
+
+  const db = rpcDb(supabase);
+  const started = await startExtraction(db, { text: parsed.data.text, title: null, writtenOn, kind: "quick_add" }, { now, budgetDb });
+  if (!started.ok) return { ok: false, error: started.error.error };
+  trackSourceSubmitted(auth.user.id, parsed.data.text.length, "quick_add");
+
+  const review = { ok: true as const, extractionId: started.extractionId, route: "review" as const, created: [] };
+  const tracker = extractionCompletedTracker(auth.user.id);
+  const outcome = await runExtraction(db, started.extractionId, {
+    // Analytics is sent after the response, so PostHog never delays the result.
+    onComplete: (r) => after(() => tracker(r).then(() => undefined)),
+    budgetDb,
+  });
+  if (outcome !== "succeeded") return review;
+
+  // Clock-guarded in the database: the real clock, as every other thread write (not the demo date).
+  const auto = await autoCreateQuickAdd(db, started.extractionId, { now: getNow() });
+  if (!auto.ok) return review;
+  const created = auto.created.map((c) => ({ threadId: c.thread_id, eventId: c.event_id, title: c.title }));
+
+  let route: "stay" | "review" = "review";
+  try {
+    const view = await readExtraction(db, started.extractionId, { now: getNow() });
+    if (view) route = quickAddRoute(created, view.proposals);
+  } catch {
+    // Unknown: the review page shows what is pending.
+  }
+  return { ok: true, extractionId: started.extractionId, route, created };
+}
+
+const UndoQuickAddInput = z
+  .array(z.object({ threadId: z.uuid(), eventId: z.number().int().positive() }))
+  .min(1)
+  .max(20);
+
+export type UndoQuickAddResult = { ok: true } | { ok: false; error: ApiError["error"] };
+
+/**
+ * The quick-add toast's Undo (D8): removes the threads the auto-create made, with their events
+ * (F4). The database allows it within 12 s of the created event (8 s toast + 4 s grace, D44) and
+ * only while the user has not acted on the thread since; otherwise `invalid_transition`.
+ */
+export async function undoQuickAddAction(pairs: { threadId: string; eventId: number }[]): Promise<UndoQuickAddResult> {
+  const input = UndoQuickAddInput.safeParse(pairs);
+  if (!input.success) return { ok: false, error: apiError("not_found").error };
+  const supabase = await createClient();
+  const { data: auth } = await supabase.auth.getUser();
+  if (!auth.user) return { ok: false, error: apiError("unauthenticated").error };
+  const res = await undoQuickAdd(rpcDb(supabase), input.data, { now: getNow() });
+  if (!res.ok) return { ok: false, error: res.error.error };
+  track(auth.user.id, "undo_used", { action: "create" });
+  return { ok: true };
 }
