@@ -234,7 +234,7 @@ export const isBlankText = (s: string | null | undefined): boolean => typeof s !
 
 /**
  * S12 limits for text the user types into Mark waiting and Edit, in characters (code points).
- * PROPOSED (not in the docs): the title reuses the approved 120 of D47; the others are new. The
+ * Approved by the user on Nov 13: the title reuses the approved 120 of D47; the others are new. The
  * fields stop at the limit as the user types, so the limits are only enforced against forged
  * requests. Mirrored by the SQL functions in migration 20261110120000.
  */
