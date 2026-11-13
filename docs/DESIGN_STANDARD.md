@@ -46,6 +46,8 @@ The palette is warm neutrals with one ink-blue accent; green, amber and muted re
 
 No text lighter than `--text-tertiary`, at any size.
 
+**`--text-tertiary` is not allowed on `--surface-sunken` (or `--evidence-bg`, the same colour).** Measured by the lead-tester (S12, Nov 2026): #736D63 on #F1EEE7 is **4.42:1**, below the 4.5:1 AA minimum for normal text. The \~4.7:1 above holds only on `--bg`. Calculated for the other light surfaces: `--surface` 5.08:1, `--surface-raised` 5.13:1, `--surface-hover` 4.63:1, all passing. Text on a sunken fill, including a hover or pressed fill that turns sunken, uses `--text-secondary` or darker. This includes placeholder text: an input with a `--surface-sunken` fill can't use `--text-tertiary` for its placeholder. Token values are unchanged.
+
 ### Accent (actions only)
 
 | Token | Hex | Use |
@@ -387,7 +389,7 @@ Interpretation and Assumed have no icon: Interpretation is marked by its label a
 
 **Toggle.** 36 × 20px track, 16px thumb; off track `--border-strong`, on track `--accent`; thumb `--surface-raised` with the floating shadow; label to the left, description below in `small` `--text-secondary`. Used in Settings only.
 
-**Snooze menu and date picker.** Menu (level 2) with three items: "Tomorrow, 9:00", "Next Monday, 9:00", "Pick a date…", each with the resolved date right-aligned in `small` `--text-tertiary` tabular figures. "Pick a date…" opens a shadcn Calendar in the same popover; past dates disabled; today outlined with 1px `--border-strong`; selected = `--accent` fill.
+**Snooze menu and date picker.** Menu (level 2) with three items: "Tomorrow, 9:00", "Next Monday, 9:00", "Pick a date…", each with the resolved date right-aligned in `small` `--text-tertiary` tabular figures, switching to `--text-secondary` while the item has its `--surface-sunken` hover fill (tertiary on sunken fails AA; see Text). "Pick a date…" opens a shadcn Calendar in the same popover; past dates disabled; today outlined with 1px `--border-strong`; selected = `--accent` fill.
 
 **Overflow menu.** `Ellipsis` icon button labelled "More actions"; level-2 menu, min-width 200px, items 36px tall (44px on mobile), 12px horizontal padding, icon 16px + `body` label. Destructive items sit last, after a 1px divider, in `--danger-fg`.
 
@@ -445,6 +447,7 @@ The ratios in this document are calculated estimates. Before day 21 they are ver
 
 - `@axe-core/playwright` runs on Today, Review Tray, Thread detail, Why sheet, Decisions and Settings in CI; any contrast violation fails the build.
 - These pairs are checked by hand once with a contrast tool: each state `-fg` on its `-bg`; `--text-tertiary` on `--bg`, `--surface` and `--surface-sunken`; `--accent` on `--accent-subtle`; inverted toast and tooltip text.
+- **Result, `--text-tertiary` on `--surface-sunken` (S12, Nov 2026): fails, 4.42:1.** This pair is not allowed for text (see Text above). Instead of darkening the token, which would change every tertiary use, text on sunken fills uses `--text-secondary`. The Snooze menu already does this: a hovered item's resolved date switches to `--text-secondary` (`components/threads/MenuPopover.tsx:136–137`).
 - If a pair fails, darken the foreground in steps of about 5% lightness until it passes; never lighten the background.
 - Focus rings and component boundaries meet 3:1 against adjacent colours.
 
