@@ -245,7 +245,7 @@ Field-level content, constraints and copy are defined in the content model v1.1;
 | `invalid_input` (D47, D85), Edit field `title` over 120 characters | `Titles can be up to 120 characters.` | Inline under `Title` | No |
 | `invalid_input` (D85), field `waiting_on` (Mark waiting or Edit) | `Write who you're waiting on.` | Inline under `Waiting on` | No |
 | `invalid_input` (D85), Snooze `Pick a date…` or Edit `Snoozed until` not after today | `Pick a date after today.` | Inline under the date field | No |
-| `invalid_input` (D47, D85), Edit `Due date`, `Expected by (optional)` or `Snoozed until` not a real date | `Enter a real date between 1900 and 2100.` | Inline under the date field | No |
+| `invalid_input` (D47, D85): not a real date in Mark waiting `Expected by (optional)`; Snooze `Snooze until` (also when empty); or Edit `Due date`, `Expected by (optional)` or `Snoozed until` (also when emptied) | `Enter a real date between 1900 and 2100.` | Inline under the date field | No |
 | `not_found` (D47; HTTP routes only, pages render the not-found page in §1.2) | `This doesn't exist or was deleted.` | `Go to Today` | No |
 | `unauthenticated` (D47; HTTP routes only, pages redirect to `/sign-in`) | `Sign in to continue.` | Sign in | No |
 | Today, Threads or Thread detail fail to load (D47) | `I couldn't load your threads.` | Page banner + `Try again` | Yes |
