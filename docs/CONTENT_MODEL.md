@@ -96,20 +96,22 @@
 
 | Field | Description | Constraints |
 |---|---|---|
-| Thread title | Name of the real-world situation | User-editable; concise |
-| Loop type | Classification | Same allowed values as Review Tray |
+| Thread title | Name of the real-world situation | User-editable; concise; required; up to 120 characters (D47, D85(b)) |
+| Loop type | Classification | Same allowed values as Review Tray. Changing an open thread's type to `Waiting on` in Edit keeps it open; it is not marked waiting (D85(c)). A waiting thread can't change to or from `Waiting on` in Edit |
 | Status | Current lifecycle state | `Open`, `Waiting`, `Snoozed`, `Resolved`, `Dismissed`; overdue is derived, never a status (D2) |
 | Section headings | Labels on Thread detail | `Next action`, `Evidence`, `History` (D47) |
-| Next action | Next unresolved action | Specific; user-editable. No `Suggested` label: accepting the proposal confirmed it (D83(b)). Not shown for `Waiting on` threads (D63, D83(a)). *Was:* "`Suggested` label until the user edits or accepts it" |
+| Next action | Next unresolved action | Specific; user-editable; up to 300 characters (D85(b)). No `Suggested` label: accepting the proposal confirmed it (D83(b)). Not shown for `Waiting on` threads (D63, D83(a)). *Was:* "`Suggested` label until the user edits or accepts it" |
 | Due date and certainty | When action is due, if known | Explicit, assumed (inferred), or none; never fabricate |
-| Counterparty / waiting-on | Person or entity involved | Optional; grounded in source or user correction; `expected by` date when waiting |
+| Counterparty / waiting-on | Person or entity involved | Optional; grounded in source or user correction; `expected by` date when waiting. Labelled `Person or organization` in the Edit sheet; `Waiting on` is required when marking waiting and `Expected by (optional)` is a date (D85(a)). Each name up to 100 characters (D85(b)) |
+| Consequence | What happens if the user does nothing (Explain card `If you don't`) | Up to 300 characters (D85(b)); not editable in the Edit sheet |
+| Text limits (D85(b)) | How long user-editable thread text can be | Counted in characters as Postgres counts them; enforced by `transition()` and the SQL functions; the fields stop accepting text at the limit. Title 120, next action 300, consequence 300, person or organization 100, waiting on 100 |
 | Confidence label | Origin confidence | Same dot + word + reason as the tray |
 | Explain card | Brief explanation of the situation | Sections: What this is · What you need to do · By when · If you don't · Worth considering · Not sure about; each line is a source fact (quote) or labelled `Interpretation`; quick-add threads show only What to do and By when. Title `About this document` (source with a brief) or `About this` (compact card) (D52). "Not sure about" uses only these template lines (D52): `The source suggests this but doesn't say it outright.`, `This may not be a firm plan.`, `The source doesn't give this exact date. I worked it out.` |
 | Evidence | Traceability to original source | Verified quote, source name, page/date; `Open source` link. Source line reads `Source deleted` once the source is deleted (D47) |
 | Why? entry | Opens the Why panel | Present on Thread detail and every Today row |
 | Thread history | Chronological updates and actions | Timestamped; append-only; corrections read `You changed the date from Oct 9 to Oct 12`. Event lines (D47): `You accepted this from your source.`, `Added from quick add.`, `You marked this done.` / `Loose Ends marked this done.`, `You resolved this.` / `Loose Ends resolved this.`, `You undid the last change.`, `You reopened this.`, `You snoozed this.`, `You edited this.`, `Status changed to {status}.`; fallback `Updated.` |
 | Decision | If resolved as Decided | Section heading `Decision` (D56); choice, `You wrote` reason, date |
-| Actions | Manage thread | `Done`, `Resolve…`, `Mark waiting`, `Snooze`, `Edit`, `Dismiss`, `Reopen`, `Forget permanently`; only Forget is confirmed (D8). Done shows the toast `Marked done: "{title}"` + `Undo` (D47); Resolve with Decided or Not needed shows `Resolved: "{title}"` + `Undo`, labelled `Undo resolve: {title}` for screen readers (D56). Undo restores the state before the action and adds an `undone` history line; the toast lasts 8 s and the server accepts the undo up to 12 s (D44); hover or focus pauses the toast, but it closes 11 s after the action at the latest, 1 s before the server window closes; on a very slow network a late Undo can still be refused (D49, D51). Until F11 ships, `Resolve…` is disabled with `Resolving with a decision isn't available yet.` (D47) |
+| Actions | Manage thread | `Done`, `Resolve…`, `Mark waiting`, `Snooze`, `Edit`, `Dismiss`, `Reopen`, `Back to me`, `Wake now`, `Forget permanently`; only Forget is confirmed (D8). Mark waiting, Snooze, Dismiss and Edit show `Marked waiting: "{title}"`, `Snoozed: "{title}"`, `Dismissed: "{title}"` and `Saved changes to "{title}"` + `Undo`, labelled `Undo mark waiting: {title}`, `Undo snooze: {title}`, `Undo dismiss: {title}` and `Undo edit: {title}` (D85(a)). `Back to me`, `Wake now` and `Reopen` show no Undo toast (D85(e)). Field errors: `Give this thread a title.`, `Write who you're waiting on.`, `Pick a date after today.` (D85(a)); Edit sheet and Snooze labels are in SITE_CONTRACT §2.7. Done shows the toast `Marked done: "{title}"` + `Undo` (D47); Resolve with Decided or Not needed shows `Resolved: "{title}"` + `Undo`, labelled `Undo resolve: {title}` for screen readers (D56). Undo restores the state before the action and adds an `undone` history line; the toast lasts 8 s and the server accepts the undo up to 12 s (D44); hover or focus pauses the toast, but it closes 11 s after the action at the latest, 1 s before the server window closes; on a very slow network a late Undo can still be refused (D49, D51). Until F11 ships, `Resolve…` is disabled with `Resolving with a decision isn't available yet.` (D47) |
 
 ### 7. Why panel (v1.1, F8)
 
@@ -183,6 +185,11 @@
 | Resolve… | Close | Opens the Resolve sheet |
 | Not needed | No longer needed | Resolution where the loop stopped mattering |
 | Dismiss | Delete, Hide | It was never a real loop; kept as suppression record |
+| Mark waiting | — | The thread now waits on someone else; asks `Waiting on` and `Expected by (optional)` (D85) |
+| Back to me | — | A waiting thread is the user's to act on again; clears who and when (D85) |
+| Snooze / Snooze until | — | Hide an open thread until 9:00 on a chosen date (D11, D85) |
+| Wake now | — | End a snooze early; the thread is open again (D85) |
+| Reopen | — | Bring back a resolved or dismissed thread as open |
 | Forget permanently | Delete thread | Irreversible hard delete |
 | Assumed | Inferred, Guessed | Date or field the system resolved without explicit text |
 | Interpretation | AI says, Insight | AI reasoning not stated in the source |
