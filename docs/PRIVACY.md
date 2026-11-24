@@ -97,4 +97,4 @@ Not on the page because they aren't used:
 
 | # | Text (approved Nov 8) | Evidence | Check |
 | --- | --- | --- | --- |
-| P33 | Questions or requests: info@piscesparadigm.ca. | Given by the user Nov 8 ("use info@piscesparadigm.ca"). The same address goes in Google's Branding page (SITE_CONTRACT §2.15) | Confirmed |
+| P33 | Questions or requests: info@piscesparadigm.ca. | Given by the user Nov 8 ("use info@piscesparadigm.ca"). It is also the planned developer contact on Google's Branding page; the support email there is the project owner's Google address (SITE_CONTRACT §2.15, Nov 24) | Confirmed |

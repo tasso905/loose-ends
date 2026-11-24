@@ -41,7 +41,7 @@
 | Route | Page | Auth | Notes |
 |---|---|---|---|
 | `/sign-in` | Sign in | Public | First screen for signed-out visitors; no public landing page (D38). `?sent=1` shows the check-your-email state. `?next={path}` is kept through the check-your-email state and the magic link. |
-| `/privacy` | Privacy | Public | *Decided (D77, D82, Nov 8); not built.* No sign-in needed, and signed-in users can open it too; never redirects to `/sign-in`. Built from `docs/PRIVACY.md`; linked from the sign-in page footer and Settings (§2.15). Its URL is the privacy policy URL Google needs before the consent screen can be published (D76). Not a landing page: signed-out visitors still start at `/sign-in` (D38). Wording approved Nov 8; the needs-checking items in `docs/PRIVACY.md` still block shipping |
+| `/privacy` | Privacy | Public | *Decided (D77, D82, Nov 8); live since Nov 10 (#49).* No sign-in needed, and signed-in users can open it too; never redirects to `/sign-in`. Built from `docs/PRIVACY.md`; linked from the sign-in page footer and Settings (§2.15). Its URL is the privacy policy URL Google needed before the consent screen could be published (In production, Nov 24, D76). Not a landing page: signed-out visitors still start at `/sign-in` (D38). Wording approved Nov 8 |
 | `/auth/callback` | Auth handoff | Public | Redirects to `/onboarding` on first sign-in, else to the `next` param or `/today` |
 | `/onboarding` | Aliases question | Signed in | Shown once; skippable |
 | `/` | — | Any | Signed in: redirects to `/today`. Signed out: redirects to `/sign-in`, with no `next` because `/` lands on Today anyway (D38) |
@@ -263,7 +263,7 @@ Field-level content, constraints and copy are defined in the content model v1.1;
 | Sign-in `send_failed` | `I couldn't send the link. Try again.` | Inline under the email field; `Email me a sign-in link` stays available | Yes |
 | `?error=link_expired` | `That sign-in link has expired or was already used. Enter your email to get a new one.` | Email field | No; request a new link |
 | `?error=link_other_browser` | `That link was opened in a different browser. Enter your email to get a new one, and open it in this browser.` | Email field | No; request a new link |
-| `?error=oauth_failed` | `Google sign-in didn't finish. Try again, or use your email.` | `Continue with Google` or the email field. Applies only while Google sign-in is switched on (D41). While the consent screen is in Testing (D76), people who aren't test users get Google's own error page instead of this message; email sign-in still works for them | Yes |
+| `?error=oauth_failed` | `Google sign-in didn't finish. Try again, or use your email.` | `Continue with Google` or the email field. Applies only while Google sign-in is switched on (D41). *Nov 24 (D76): the consent screen is In production. Was:* while in Testing, people who weren't test users got Google's own error page instead of this message | Yes |
 | Onboarding `too_many` | `That's more than 20 names and emails. Keep the ones people use most.` | Inline under the field | No |
 | Onboarding `too_long` | `Each name or email can be up to 100 characters.` | Inline under the field | No |
 | Onboarding save failure / offline | Generic rows above: `That didn't save. Try again.` / `You're offline. Nothing was saved.` | Page banner + `Try again` | Yes |
@@ -289,7 +289,7 @@ Errors appear next to the control that caused them (forms) or as an error banner
 
 ### 2.15 Privacy (D77, D82)
 
-Nothing here is built yet. The user approved the wording on Nov 8: the page text in `docs/PRIVACY.md` and the strings below. The needs-checking items in `docs/PRIVACY.md` still block shipping.
+The page is live (#49, Nov 10). The user approved the wording on Nov 8: the page text in `docs/PRIVACY.md` and the strings below. Every row in `docs/PRIVACY.md` was confirmed by Nov 10.
 
 | Field | Constraints |
 |---|---|
@@ -300,16 +300,16 @@ Nothing here is built yet. The user approved the wording on Nov 8: the page text
 | Links to it | Sign-in page footer (§2.0) and Settings → Data (§2.12), both `Privacy` (approved Nov 8) |
 | Keeping it true | A change to what is stored, sent, exported or deleted updates `docs/PRIVACY.md` and this page in the same change. The privacy copy check covers the page |
 
-**Google Auth Platform → Branding (D76).** Google needs these before the consent screen can move from Testing to In production. The user enters them; nothing here changes the code.
+**Google Auth Platform → Branding (D76).** Google needed these before the consent screen could move from Testing to In production. The user enters them; nothing here changes the code. *Nov 24: publishing status is In production (user-reported). Except for the support email, the user hasn't confirmed the exact values entered (D76).*
 
 | Branding field | Value |
 |---|---|
 | App name | `Loose Ends` |
-| User support email | `info@piscesparadigm.ca` (user, Nov 8), the same address as `docs/PRIVACY.md` P33 |
-| Application home page | The production site's root URL. `/` redirects signed-out visitors to `/sign-in`, which shows the pitch and the `Privacy` footer link. **Needs checking:** whether Google accepts a home page that is the sign-in page |
-| Application privacy policy link | The production `/privacy` URL, once the page is live |
-| Authorized domain | The production domain. **Needs checking:** what Google accepts for a `vercel.app` subdomain |
-| Developer contact information | `info@piscesparadigm.ca` (user, Nov 8), the same address as the support email |
+| User support email | The project owner's Google address (in use, user-reported Nov 24): Google offers only that. *Was:* `info@piscesparadigm.ca` (user, Nov 8). `/privacy` keeps `info@piscesparadigm.ca` (`docs/PRIVACY.md` P33) |
+| Application home page | The production site's root URL. `/` redirects signed-out visitors to `/sign-in`, which shows the pitch and the `Privacy` footer link. *Nov 24: publishing succeeded; the exact URL entered is unconfirmed* |
+| Application privacy policy link | The production `/privacy` URL. *Nov 24: publishing succeeded; the exact URL entered is unconfirmed* |
+| Authorized domain | The production domain. Google reported it missing; the user was told to add `loose-ends-orcin.vercel.app`, and publishing then succeeded. The exact entry is unconfirmed (Nov 24) |
+| Developer contact information | `info@piscesparadigm.ca` (user, Nov 8); no longer the same as the support email |
 
 ## 3. Behaviour Spec
 
