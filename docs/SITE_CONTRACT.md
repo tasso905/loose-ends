@@ -300,16 +300,16 @@ The page is live (#49, Nov 10). The user approved the wording on Nov 8: the page
 | Links to it | Sign-in page footer (§2.0) and Settings → Data (§2.12), both `Privacy` (approved Nov 8) |
 | Keeping it true | A change to what is stored, sent, exported or deleted updates `docs/PRIVACY.md` and this page in the same change. The privacy copy check covers the page |
 
-**Google Auth Platform → Branding (D76).** Google needed these before the consent screen could move from Testing to In production. The user enters them; nothing here changes the code. *Nov 24: publishing status is In production (user-reported). Except for the support email, the user hasn't confirmed the exact values entered (D76).*
+**Google Auth Platform → Branding (D76).** Google needed these before the consent screen could move from Testing to In production. The user enters them; nothing here changes the code. *Nov 24: publishing status is In production (user-reported). The user confirmed the values below (D76, closed).*
 
 | Branding field | Value |
 |---|---|
-| App name | `Loose Ends` |
+| App name | `Loose Ends`. Confirmed by the user, Nov 24 |
 | User support email | The project owner's Google address (in use, user-reported Nov 24): Google offers only that. *Was:* `info@piscesparadigm.ca` (user, Nov 8). `/privacy` keeps `info@piscesparadigm.ca` (`docs/PRIVACY.md` P33) |
-| Application home page | The production site's root URL. `/` redirects signed-out visitors to `/sign-in`, which shows the pitch and the `Privacy` footer link. *Nov 24: publishing succeeded; the exact URL entered is unconfirmed* |
-| Application privacy policy link | The production `/privacy` URL. *Nov 24: publishing succeeded; the exact URL entered is unconfirmed* |
-| Authorized domain | The production domain. Google reported it missing; the user was told to add `loose-ends-orcin.vercel.app`, and publishing then succeeded. The exact entry is unconfirmed (Nov 24) |
-| Developer contact information | `info@piscesparadigm.ca` (user, Nov 8); no longer the same as the support email |
+| Application home page | The production site's root URL. `/` redirects signed-out visitors to `/sign-in`, which shows the pitch and the `Privacy` footer link. Confirmed by the user, Nov 24 |
+| Application privacy policy link | The production `/privacy` URL. Confirmed by the user, Nov 24 |
+| Authorized domain | The production domain. Includes `loose-ends-orcin.vercel.app`. Confirmed by the user, Nov 24 |
+| Developer contact information | `info@piscesparadigm.ca` (user, Nov 8; the user said on Nov 10 that it was added); no longer the same as the support email |
 
 ## 3. Behaviour Spec
 
