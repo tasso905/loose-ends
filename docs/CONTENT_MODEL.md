@@ -44,7 +44,9 @@
 | File picker | Upload source documents | PDF, TXT, MD; max 10 MB and 30 pages; one file at a time; text-layer files only for MVP. Hint `PDF, TXT or MD · up to 10 MB and 30 pages`; a chosen file can be removed with `Remove` (D52). Extracted text over 30,000 characters is refused, not truncated (D52). DOCX waits on D17 (Oct 25 review); until it ships, Word files get the refusal in SITE_CONTRACT §2.13. *Was:* "PDF, TXT, MD, DOCX" |
 | Source title | Optional human-readable source name | Optional, under the disclosure `Add a title`, field label `Title (optional)` (D47); max 120 characters; user-editable |
 | Written-on date | Date associated with the source | Optional; default to today only when visibly labelled `Assumed`; ISO date internally. Field label `I assumed this was written today. Change it if it wasn't.` until the user sets a date, then `Written on` (D47); valid range 1900–2100 |
-| Quick-add text | A brief note or commitment entered directly | Single line; max 2,000 characters; preserve user wording |
+| Quick-add text | A brief note or commitment entered directly | Single line; max 2,000 characters; preserve user wording. Field name `Quick add`; hint `One line, up to 2,000 characters.`; errors `Type something first.` and `That's {n} characters. Quick add takes up to 2,000 — use Paste for longer text.` (D86) |
+| Quick-add written-on date | Date the line was typed | Today in the user's timezone, stored as known; not shown as `Assumed` (D86) |
+| Quick-add toast | Confirms auto-created threads | `Added "{title}"` (D9) or, for more than one, `Added {n} threads`, + `Undo`, labelled `Undo add: {title}` or `Undo add: {n} threads` for screen readers. Undo deletes the threads and their events; the source stays until deleted (D86) |
 | AI provider notice | Tells the user where their text goes before they send it | Conditional (D42, PRD Question #12): required on Paste, Upload and Quick add if the deployment uses the Gemini free tier; plain words that the text goes to Google, which may use it to improve its products, and that people at Google may read it. Wording pending user approval. Never claim the data is not used or not read |
 | Submit / progress / error | Starts extraction and communicates state | `Review source` (paste/upload) or `Add` (quick add); progress tied to real pipeline steps; errors from the error copy table (site contract §2.13) |
 
@@ -63,7 +65,7 @@
 | Evidence quote | Verbatim source excerpt supporting the proposal | Must match source exactly; include page/location when available; if no verifiable quote, the item is not shown |
 | Review choice | User disposition of proposal | `Accept`, `Edit`, or `Reject`; `Accept selected` and `Reject all` at tray level. Disabled reasons (D47): `Nothing selected.` (Accept selected, nothing checked); `I can't tell who this is waiting on, so it can't be added yet.` (a waiting-on card with no counterparty) |
 | Clarification | Resolve ambiguous roles (e.g. "Which of these is you?") | Ask only when a high-value item has an unknown owner; list detected names + `None of them`; offer `Remember "{name}" as you?` afterwards |
-| Review result | Outcome of review | Accepted/edited proposals become threads; rejected proposals are stored for suppression and never treated as commitments; summary line `2 threads added · View in Today`; singular `1 thread added` (D47) |
+| Review result | Outcome of review | Accepted/edited proposals become threads; rejected proposals are stored for suppression and never treated as commitments (a proposal rejected by undoing a quick add has no suppression, D86); summary line `2 threads added · View in Today`; singular `1 thread added` (D47) |
 | Zero-proposal state | Nothing found | `Nothing here needs your attention`, plus the document brief if one exists |
 
 ### 4. Today
