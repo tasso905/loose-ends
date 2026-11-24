@@ -1,0 +1,22 @@
+{
+  "name": "tester-s14-unverified",
+  "task": "extract",
+  "input": "Renew the parking permit before it lapses",
+  "responses": [
+    {
+      "source_summary": "Quick add: the user's own task",
+      "participants": [],
+      "items": [
+        {
+          "type": "commitment", "title": "Renew the parking permit by Monday",
+          "owner": "user", "counterparty": null, "action": "Renew the parking permit",
+          "date_text": null, "date_iso": null, "amount_text": null,
+          "certainty": "explicit", "uncertainty_notes": [],
+          "matches_thread_id": null,
+          "evidence": [{ "quote": "Renew the parking permit by Monday at the town hall", "speaker": null }]
+        }
+      ],
+      "brief": null
+    }
+  ]
+}

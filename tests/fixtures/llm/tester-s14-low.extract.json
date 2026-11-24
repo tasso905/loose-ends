@@ -1,0 +1,22 @@
+{
+  "name": "tester-s14-low",
+  "task": "extract",
+  "input": "If the parcel comes back I'll return the blender",
+  "responses": [
+    {
+      "source_summary": "Quick add: a conditional task",
+      "participants": [],
+      "items": [
+        {
+          "type": "commitment", "title": "Return the blender",
+          "owner": "user", "counterparty": null, "action": "Return the blender",
+          "date_text": null, "date_iso": null, "amount_text": null,
+          "certainty": "explicit", "uncertainty_notes": [],
+          "matches_thread_id": null,
+          "evidence": [{ "quote": "If the parcel comes back I'll return the blender", "speaker": null }]
+        }
+      ],
+      "brief": null
+    }
+  ]
+}

@@ -1,0 +1,30 @@
+{
+  "name": "tester-s14-two-high",
+  "task": "extract",
+  "input": "Water the ferns and email the landlord about the boiler",
+  "responses": [
+    {
+      "source_summary": "Quick add: two of the user's own tasks",
+      "participants": [],
+      "items": [
+        {
+          "type": "commitment", "title": "Water the ferns",
+          "owner": "user", "counterparty": null, "action": "Water the ferns",
+          "date_text": null, "date_iso": null, "amount_text": null,
+          "certainty": "explicit", "uncertainty_notes": [],
+          "matches_thread_id": null,
+          "evidence": [{ "quote": "Water the ferns", "speaker": null }]
+        },
+        {
+          "type": "commitment", "title": "Email the landlord about the boiler",
+          "owner": "user", "counterparty": "the landlord", "action": "Email the landlord about the boiler",
+          "date_text": null, "date_iso": null, "amount_text": null,
+          "certainty": "explicit", "uncertainty_notes": [],
+          "matches_thread_id": null,
+          "evidence": [{ "quote": "email the landlord about the boiler", "speaker": null }]
+        }
+      ],
+      "brief": null
+    }
+  ]
+}
