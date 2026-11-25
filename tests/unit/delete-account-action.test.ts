@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 vi.mock("server-only", () => ({}));
 const s = vi.hoisted(() => ({
   cookies: [] as Array<{ name: string; value: string }>,
+  adminClients: 0,
   deleteArgs: [] as unknown[][],
   result: { ok: true, objectsRemoved: 0 } as unknown,
   events: [] as string[],
@@ -10,7 +11,7 @@ const s = vi.hoisted(() => ({
 }));
 const user = { id: "00000000-0000-4000-8000-000000000001", email: "a@example.com" };
 vi.mock("next/headers", () => ({ cookies: async () => ({ set: (name: string, value: string) => void s.cookies.push({ name, value }) }) }));
-vi.mock("@/lib/supabase/admin", () => ({ createAdminClient: () => ({}) }));
+vi.mock("@/lib/supabase/admin", () => ({ createAdminClient: () => ((s.adminClients += 1), {}) }));
 vi.mock("@/lib/supabase/server", () => ({
   createClient: async () => ({
     auth: { getUser: async () => s.session ?? { data: { user }, error: null }, signOut: async () => ({ error: null }) },
@@ -40,20 +41,40 @@ describe("deleteAccountAction: the notice", () => {
 
   it("passes the session's id and email, never anything from the request", async () => {
     s.result = { ok: true, objectsRemoved: 0 };
-    await deleteAccountAction("delete");
+    await deleteAccountAction("delete", user.id);
     expect(s.deleteArgs[0]?.[1]).toBe(user.id);
     expect(s.deleteArgs[0]?.[2]).toEqual({ email: user.email });
   });
 
+  it.each([
+    ["another user's id", "00000000-0000-4000-8000-000000000002"],
+    ["missing", undefined],
+    ["null", null],
+    ["empty", ""],
+    ["junk", "not-a-uuid"],
+    ["padded", ` ${user.id} `],
+    ["an array of the id", [user.id]],
+    ["an object", { id: user.id }],
+    ["a boolean", true],
+  ])("the dialog was rendered for %s: refused before any service-role client, deletion, cookie or event", async (_, renderedFor) => {
+    s.result = { ok: true, objectsRemoved: 0 };
+    s.adminClients = 0;
+    expect(await deleteAccountAction("delete", renderedFor)).toEqual({ ok: false, error: { code: "unauthenticated", message: "Sign in to continue.", retryable: false } });
+    expect(s.adminClients).toBe(0);
+    expect(s.deleteArgs).toEqual([]);
+    expect(s.cookies).toEqual([]);
+    expect(s.events).toEqual([]);
+  });
+
   it("everything gone: the full notice", async () => {
     s.result = { ok: true, objectsRemoved: 0 };
-    expect(await deleteAccountAction("delete")).toEqual({ ok: true });
+    expect(await deleteAccountAction("delete", user.id)).toEqual({ ok: true });
     expect(s.cookies).toEqual([{ name: "le_account_deleted", value: "1" }]);
   });
 
   it("account gone, sign-in records not: the notice that says so, and the deletion still counts", async () => {
     s.result = { ok: true, objectsRemoved: 0, signInRecordsRemain: true };
-    expect(await deleteAccountAction("delete")).toEqual({ ok: true });
+    expect(await deleteAccountAction("delete", user.id)).toEqual({ ok: true });
     expect(s.cookies).toEqual([{ name: "le_account_deleted", value: "2" }]);
     expect(s.events).toEqual(["account_deleted"]);
   });
@@ -63,7 +84,7 @@ describe("deleteAccountAction: the notice", () => {
     ["both", { filesRemain: true, signInRecordsRemain: true }, "4"],
   ])("account gone, %s not: the notice that says so", async (_, remain, value) => {
     s.result = { ok: true, objectsRemoved: 0, ...remain };
-    expect(await deleteAccountAction("delete")).toEqual({ ok: true });
+    expect(await deleteAccountAction("delete", user.id)).toEqual({ ok: true });
     expect(s.cookies).toEqual([{ name: "le_account_deleted", value }]);
   });
 
@@ -77,7 +98,7 @@ describe("deleteAccountAction: the notice", () => {
 
   it("couldn't confirm whether the user went: the message says so, and no notice claims it", async () => {
     s.result = { ok: false, error: { code: "save_failed", message: "I couldn't confirm whether your account was deleted. Try again in a few minutes.", retryable: true } };
-    expect(await deleteAccountAction("delete")).toMatchObject({ ok: false, error: { message: "I couldn't confirm whether your account was deleted. Try again in a few minutes." } });
+    expect(await deleteAccountAction("delete", user.id)).toMatchObject({ ok: false, error: { message: "I couldn't confirm whether your account was deleted. Try again in a few minutes." } });
     expect(s.cookies).toEqual([]);
     expect(s.events).toEqual([]);
   });
@@ -94,7 +115,7 @@ describe("deleteAccountAction: the notice", () => {
       ["a bad token", { data: { user: null }, error: { name: "AuthApiError", status: 401 } }],
     ])("%s: asks to sign in, claims no deletion, attempts none", async (_, session) => {
       s.session = session;
-      const res = await deleteAccountAction("delete");
+      const res = await deleteAccountAction("delete", user.id);
       expect(res).toEqual({ ok: false, error: { code: "unauthenticated", message: "Sign in to continue.", retryable: false } });
       expect(JSON.stringify(res)).not.toMatch(/deleted/i);
       expect(s.deleteArgs).toEqual([]);
@@ -107,7 +128,7 @@ describe("deleteAccountAction: the notice", () => {
       ["an Auth server error", { data: { user: null }, error: { name: "AuthApiError", status: 500 } }],
     ])("%s: couldn't confirm, not \"Sign in\", and no deletion attempted", async (_, session) => {
       s.session = session;
-      const res = await deleteAccountAction("delete");
+      const res = await deleteAccountAction("delete", user.id);
       expect(res).toMatchObject({ ok: false, error: { code: "save_failed", message: UNCONFIRMED } });
       expect(s.deleteArgs).toEqual([]);
       expect(s.cookies).toEqual([]);
@@ -116,7 +137,7 @@ describe("deleteAccountAction: the notice", () => {
 
   it("a failed deletion sets no notice", async () => {
     s.result = { ok: false, error: { code: "save_failed", message: "That didn't save. Try again.", retryable: true } };
-    expect(await deleteAccountAction("delete")).toMatchObject({ ok: false, error: { code: "save_failed" } });
+    expect(await deleteAccountAction("delete", user.id)).toMatchObject({ ok: false, error: { code: "save_failed" } });
     expect(s.cookies).toEqual([]);
     expect(s.events).toEqual([]);
   });

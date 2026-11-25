@@ -21,12 +21,13 @@ vi.mock("next/headers", () => ({
   cookies: async () => ({ set: (name: string, value: string) => void jar.set.push({ name, value }), get: () => undefined }),
 }));
 // Lets a test act just after the real auth user delete: a race upload, or Storage going down.
-const adminHook = vi.hoisted(() => ({ afterDeleteUser: null as null | (() => Promise<void>) }));
+const adminHook = vi.hoisted(() => ({ afterDeleteUser: null as null | (() => Promise<void>), created: 0 }));
 vi.mock("@/lib/supabase/admin", async (original) => {
   const actual = await original<typeof import("@/lib/supabase/admin")>();
   return {
     ...actual,
     createAdminClient: () => {
+      adminHook.created += 1;
       const c = actual.createAdminClient();
       const del = c.auth.admin.deleteUser.bind(c.auth.admin);
       c.auth.admin.deleteUser = async (...args: Parameters<typeof del>) => {
@@ -47,6 +48,7 @@ import { GET as cronRoute } from "@/app/api/cron/daily/route";
 import { deleteSource, type DataClient } from "@/lib/account/data";
 import { sweepStorageDeletions, type SweepClient } from "@/lib/account/sweep";
 import { GET as exportRoute } from "@/app/api/export/route";
+import { completeOnboarding } from "@/app/onboarding/actions";
 import { deleteAccountAction, deleteSourceAction } from "@/app/settings/data-actions";
 import { forgetAction } from "@/app/threads/[id]/actions";
 import { EXPORT_TABLES } from "@/lib/account/export";
@@ -324,12 +326,12 @@ describe.skipIf(!live)("S11 deletion and export on real local Supabase", () => {
     const extra = `${A.id}/${randomUUID()}`;
     await A.client.storage.from("sources").upload(extra, new Blob(["orphan"]), { contentType: "text/plain" });
     current.client = A.client;
-    expect(await deleteAccountAction("delet")).toMatchObject({ ok: false, field: "confirm", error: { code: "invalid_input" } });
+    expect(await deleteAccountAction("delet", A.id)).toMatchObject({ ok: false, field: "confirm", error: { code: "invalid_input" } });
     expect(await count("profiles", "id", A.id)).toBe(1);
 
     tracked.events.length = 0;
     jar.set.length = 0;
-    expect(await deleteAccountAction(" Delete ")).toEqual({ ok: true });
+    expect(await deleteAccountAction(" Delete ", A.id)).toEqual({ ok: true });
     for (const { table, owner } of EXPORT_TABLES) expect(await count(table, owner, A.id), table).toBe(0);
     expect(await fileExists(s.path)).toBe(false);
     expect(await fileExists(extra)).toBe(false);
@@ -337,6 +339,85 @@ describe.skipIf(!live)("S11 deletion and export on real local Supabase", () => {
     expect((await admin.auth.admin.getUserById(A.id)).data.user).toBeNull();
     expect(tracked.events).toEqual([{ name: "account_deleted", props: {} }]);
     expect(jar.set).toEqual([{ name: "le_account_deleted", value: "1" }]);
+  });
+
+  describe("a page rendered for A, submitted after B signed in (shared cookies)", () => {
+    it("Delete account: another user's, missing, empty or junk id changes nothing for either user and makes no service-role call", async () => {
+      const A = await makeUser("s11xa");
+      const B = await makeUser("s11xb");
+      const files = [(await seed(A)).path, (await seed(B)).path];
+      const snapshot = async () => {
+        const rows: Record<string, unknown> = {};
+        for (const u of [A, B]) {
+          for (const { table, owner } of EXPORT_TABLES) rows[`${u.id}:${table}`] = (await admin.from(table).select("*").eq(owner, u.id)).data?.map((r) => JSON.stringify(r)).sort();
+          const auth = (await admin.auth.admin.getUserById(u.id)).data.user;
+          rows[`${u.id}:auth`] = [auth?.id, auth?.email];
+          rows[`${u.id}:files`] = (await admin.storage.from("sources").list(u.id)).data?.map((o) => o.name).sort();
+        }
+        return rows;
+      };
+      const before = await snapshot();
+      current.client = B.client;
+      adminHook.created = 0;
+      jar.set.length = 0;
+      tracked.events.length = 0;
+      for (const renderedFor of [A.id, undefined, null, "", "junk", ` ${B.id}`, `${B.id}x`, [B.id], { id: B.id }]) {
+        expect(await deleteAccountAction("delete", renderedFor), String(renderedFor)).toEqual({
+          ok: false,
+          error: { code: "unauthenticated", message: "Sign in to continue.", retryable: false },
+        });
+      }
+      expect(adminHook.created).toBe(0);
+      expect(jar.set).toEqual([]);
+      expect(tracked.events).toEqual([]);
+      expect(await snapshot()).toEqual(before);
+      for (const f of files) expect(await fileExists(f)).toBe(true);
+      expect((await B.client.auth.getUser()).data.user?.id).toBe(B.id); // still signed in
+
+      // B's own page still deletes B, and only B.
+      expect(await deleteAccountAction("delete", B.id)).toEqual({ ok: true });
+      expect((await admin.auth.admin.getUserById(B.id)).data.user).toBeNull();
+      expect((await admin.auth.admin.getUserById(A.id)).data.user?.id).toBe(A.id);
+      expect(await fileExists(files[0]!)).toBe(true);
+    });
+
+    it("onboarding: the answer is stored for no one; B's own form still saves", async () => {
+      const A = await makeUser("s11xc");
+      const B = await makeUser("s11xd");
+      const profiles = async () => (await admin.from("profiles").select("*").in("id", [A.id, B.id]).order("id")).data;
+      const before = await profiles();
+      current.client = B.client;
+      const form = (userId: string | null) => {
+        const f = new FormData();
+        f.set("intent", "save");
+        f.set("answer", "Avery Synthetic");
+        f.set("timezone", "Europe/Paris");
+        f.set("next", "/today");
+        if (userId !== null) f.set("user_id", userId);
+        return f;
+      };
+      for (const id of [A.id, null, "", "junk"]) expect(await completeOnboarding(form(id))).toEqual({ ok: true, redirectTo: "/onboarding", fullLoad: true });
+      expect(await profiles()).toEqual(before);
+      expect(await completeOnboarding(form(B.id))).toEqual({ ok: true, redirectTo: "/today" });
+      expect((await admin.from("profiles").select("aliases").eq("id", B.id).single()).data!.aliases).toContain("Avery Synthetic");
+      expect((await admin.from("profiles").select("*").eq("id", A.id).single()).data).toEqual(before!.find((p) => p.id === A.id));
+    });
+
+    it("Forget and source deletion carry owner-checked ids: A's are not_found for B, and both users keep everything", async () => {
+      const A = await makeUser("s11xe");
+      const B = await makeUser("s11xf");
+      const a = await seed(A);
+      const b = await seed(B);
+      const thread = (await admin.from("threads").insert({ user_id: A.id, title: "Synthetic", kind: "commitment", status: "open", primary_source_id: a.sourceId }).select("id").single()).data!.id as string;
+      current.client = B.client;
+      for (const everything of [false, true]) expect(await deleteSourceAction(a.sourceId, everything)).toMatchObject({ ok: false, error: { code: "not_found" } });
+      for (const also of [false, true]) expect(await forgetAction(thread, also)).toMatchObject({ ok: false, error: { code: "not_found" } });
+      expect(await count("threads", "id", thread)).toBe(1);
+      for (const s of [a, b]) {
+        expect(await count("sources", "id", s.sourceId)).toBe(1);
+        expect(await fileExists(s.path)).toBe(true);
+      }
+    });
   });
 
   describe("auth audit log", () => {
@@ -366,7 +447,7 @@ describe.skipIf(!live)("S11 deletion and export on real local Supabase", () => {
 
       current.client = A.client;
       jar.set.length = 0;
-      expect(await deleteAccountAction("delete")).toEqual({ ok: true });
+      expect(await deleteAccountAction("delete", A.id)).toEqual({ ok: true });
 
       expect(auditMentions(A.id)).toBe(0);
       expect(auditMentions(A.email)).toBe(0);
@@ -411,7 +492,7 @@ describe.skipIf(!live)("S11 deletion and export on real local Supabase", () => {
         current.client = A.client;
         jar.set.length = 0;
         try {
-          expect(await deleteAccountAction("delete")).toEqual({ ok: true });
+          expect(await deleteAccountAction("delete", A.id)).toEqual({ ok: true });
           // The account is gone, and the notice says files remain instead of asking for a retry.
           expect((await admin.auth.admin.getUserById(A.id)).data.user).toBeNull();
           expect(jar.set).toEqual([{ name: "le_account_deleted", value: "3" }]);
