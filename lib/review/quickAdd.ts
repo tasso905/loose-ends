@@ -54,6 +54,28 @@ export function autoCreateQuickAdd(
   return call(db, "quick_add_auto_create", { p_extraction_id: extractionId, p_now: opts.now.toISOString() }, AutoCreateOut, opts.logger ?? defaultLog);
 }
 
+const ResultOut = z.object({
+  created: z.array(z.object({ thread_id: z.uuid(), event_id: z.number().int(), title: z.string() })),
+  age_ms: z.number().int(),
+  untouched: z.boolean(),
+});
+export type QuickAddResult = z.infer<typeof ResultOut>;
+
+/**
+ * The threads an extraction's auto-create made that still exist, how long ago (server times only),
+ * and whether they are untouched (migration 20261124120000). Same answer for the first request and
+ * for any replay of it. null: the read failed.
+ */
+export async function readQuickAddResult(db: RpcDb, extractionId: string, opts: { now: Date; logger?: Logger }): Promise<QuickAddResult | null> {
+  const { data, error } = await db.rpc("quick_add_result", { p_extraction_id: extractionId, p_now: opts.now.toISOString() });
+  const parsed = ResultOut.safeParse(data);
+  if (error || !parsed.success) {
+    (opts.logger ?? defaultLog)("quick_add_failed", { step: "quick_add_result", code: errCode(error) ?? (error ? "unknown" : "bad_result") });
+    return null;
+  }
+  return parsed.data;
+}
+
 export interface UndoPair {
   threadId: string;
   eventId: number;

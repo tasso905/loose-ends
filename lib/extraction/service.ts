@@ -102,6 +102,49 @@ export async function startExtraction(
   return { ok: true, sourceId: out.source_id, extractionId: out.extraction_id };
 }
 
+export type QuickAddStartResult =
+  | { ok: true; sourceId: string; extractionId: string; replayed: boolean }
+  /** `unknown`: no answer came from the database, so the source may exist. */
+  | { ok: false; error: ApiError; unknown: boolean };
+
+/**
+ * F4 quick add (migration 20261124120000): startExtraction with an idempotency key. The same key
+ * returns the same extraction, with nothing counted or stored again. While the AI budget is closed
+ * the key is only looked up, so a quick add that was saved is still answered.
+ */
+export async function startQuickAdd(
+  db: RpcDb,
+  input: { key: string; text: string; writtenOn: string },
+  opts: { now: Date; logger?: Logger } & BudgetDeps,
+): Promise<QuickAddStartResult> {
+  const logger = opts.logger ?? defaultLog;
+  const closed = await budgetRefusal(opts.budgetDb, { feature: "extract", logger, env: opts.env });
+  const { data, error } = await db.rpc("start_quick_add", {
+    p_key: input.key,
+    p_allow_new: !closed,
+    p_text: input.text,
+    p_reference_date: input.writtenOn,
+    p_now: opts.now.toISOString(),
+    p_model: configuredModelLabel(),
+    p_prompt_version: EXTRACT_PROMPT_VERSION,
+    p_schema_version: EXTRACTION_SCHEMA_VERSION,
+  });
+  const out = data as { source_id?: string; extraction_id?: string; replayed?: boolean; error?: string } | null;
+  if (out?.error === "rate_limited") {
+    const limited = apiError("rate_limited", { limit: DAILY_LIMITS.extraction, kind: "sources", timezone: RATE_LIMIT_TIMEZONE });
+    return { ok: false, unknown: false, error: limited };
+  }
+  if (out?.error === "not_started") return { ok: false, unknown: false, error: apiError("save_failed") };
+  if (error || !out?.source_id || !out.extraction_id) {
+    const code = errCode(error);
+    logger("extraction_start_failed", { code: code ?? "no_ids", kind: "quick_add" });
+    // A SQLSTATE or PostgREST code means the database refused and rolled back. Anything else (the
+    // connection dropped) leaves the outcome open.
+    return { ok: false, unknown: !/^([0-9A-Z]{5}|PGRST\d+)$/.test(code ?? ""), error: apiError("save_failed") };
+  }
+  return { ok: true, sourceId: out.source_id, extractionId: out.extraction_id, replayed: out.replayed === true };
+}
+
 export interface UploadStartInput {
   /** Chosen before the upload: the file is at sources/{uid}/{sourceId}. */
   sourceId: string;

@@ -4,9 +4,9 @@ import type { PGlite } from "@electric-sql/pglite";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createRecordedModel, Recording } from "@/lib/ai/fake";
 import { quickAddWrittenOn } from "@/lib/capture/quickAddInput";
-import { readExtraction, runExtraction, startExtraction, type RpcDb } from "@/lib/extraction/service";
+import { readExtraction, runExtraction, startExtraction, startQuickAdd, type RpcDb } from "@/lib/extraction/service";
 import type { LogEvent, LogProps } from "@/lib/log";
-import { autoCreateQuickAdd, quickAddRoute, reviewableProposals, undoQuickAdd } from "@/lib/review/quickAdd";
+import { autoCreateQuickAdd, quickAddRoute, readQuickAddResult, reviewableProposals, undoQuickAdd } from "@/lib/review/quickAdd";
 import { createFieldsFromPayload } from "@/lib/review/tray";
 import { markDone } from "@/lib/threads/service";
 import { transition } from "@/lib/threads/transition";
@@ -295,5 +295,96 @@ describe("clock guard", () => {
     expect(
       await undoQuickAdd(db, [{ threadId: "00000000-0000-0000-0000-0000000000ff", eventId: 1 }], { now: far }),
     ).toMatchObject({ ok: false, code: "invalid_transition" });
+  });
+});
+
+describe("start_quick_add: one submission key, one source (S14 D2)", () => {
+  const KEY = "00000000-0000-4000-8000-0000000000c1";
+  const start = (db: RpcDb, key = KEY, text = PLUMBER.input!, env: Record<string, string> = {}) =>
+    startQuickAdd(db, { key, text, writtenOn: "2026-11-11" }, { now: NOW, logger, env });
+  const model = () => createRecordedModel({ recordings: [PLUMBER] });
+
+  it("a replay returns the same extraction: not stored, counted or extracted again, and the same threads to undo", async () => {
+    const first = await start(dbA);
+    if (!first.ok) throw new Error("start failed");
+    expect(first.replayed).toBe(false);
+    expect(await runExtraction(dbA, first.extractionId, { model: model(), logger })).toBe("succeeded");
+    await autoCreateQuickAdd(dbA, first.extractionId, { now: SOON });
+    const a = await readQuickAddResult(dbA, first.extractionId, { now: SOON });
+
+    const again = await start(dbA);
+    expect(again).toEqual({ ...first, replayed: true });
+    const m = model();
+    expect(await runExtraction(dbA, first.extractionId, { model: m, logger })).toBe("skipped");
+    expect(m.doGenerateCalls).toHaveLength(0);
+    expect(await autoCreateQuickAdd(dbA, first.extractionId, { now: SOON })).toMatchObject({ ok: true, created: [] });
+    const b = await readQuickAddResult(dbA, first.extractionId, { now: new Date(SOON.getTime() + 3_000) });
+    expect(a).toMatchObject({ age_ms: 0, untouched: true });
+    expect(b).toEqual({ ...a, age_ms: 3_000 });
+    expect(await q("select extractions from usage_counters")).toEqual([{ extractions: 1 }]);
+    expect([await count("sources"), await count("extractions"), await count("threads")]).toEqual([1, 1, 1]);
+    expect((await undoQuickAdd(dbA, b!.created.map((c) => ({ threadId: c.thread_id, eventId: c.event_id })), { now: SOON })).ok).toBe(true);
+    // Undone: a late replay brings nothing back.
+    await start(dbA);
+    await autoCreateQuickAdd(dbA, first.extractionId, { now: SOON });
+    expect((await readQuickAddResult(dbA, first.extractionId, { now: SOON }))!.created).toEqual([]);
+    expect(await count("threads")).toBe(0);
+  });
+
+  it("while the first request is running, a replay gets its extraction and cannot run it", async () => {
+    const first = await start(dbA);
+    if (!first.ok) throw new Error("start failed");
+    await dbA.rpc("set_extraction_stage", { p_extraction_id: first.extractionId, p_stage: "finding" });
+    expect(await start(dbA)).toEqual({ ...first, replayed: true });
+    const m = model();
+    expect(await runExtraction(dbA, first.extractionId, { model: m, logger })).toBe("skipped");
+    expect(m.doGenerateCalls).toHaveLength(0);
+  });
+
+  it("at the daily limit a replay still answers; a new key is refused and can be used later", async () => {
+    const first = await start(dbA);
+    await pg.exec("update usage_counters set extractions = 30");
+    expect(await start(dbA)).toEqual({ ...first, replayed: true });
+    const other = "00000000-0000-4000-8000-0000000000c2";
+    expect(await start(dbA, other)).toMatchObject({ ok: false, unknown: false, error: { error: { code: "rate_limited" } } });
+    await pg.exec("update usage_counters set extractions = 0");
+    expect(await start(dbA, other)).toMatchObject({ ok: true, replayed: false });
+  });
+
+  it("with the AI budget closed, a replay still answers and a new key saves nothing", async () => {
+    const first = await start(dbA);
+    const closed = { DAILY_AI_BUDGET_USD: "0" };
+    expect(await start(dbA, KEY, PLUMBER.input!, closed)).toEqual({ ...first, replayed: true });
+    expect(await start(dbA, "00000000-0000-4000-8000-0000000000c3", PLUMBER.input!, closed)).toMatchObject({
+      ok: false, unknown: false, error: { error: { code: "save_failed" } },
+    });
+    expect(await count("sources")).toBe(1);
+  });
+
+  it("a key is the user's own and belongs to one text; deleting the source removes it (rule 8)", async () => {
+    const first = await start(dbA);
+    const b = await start(dbB);
+    if (!first.ok || !b.ok) throw new Error("start failed");
+    expect(b.replayed).toBe(false);
+    expect(b.extractionId).not.toBe(first.extractionId);
+    expect(await readQuickAddResult(dbB, first.extractionId, { now: SOON })).toMatchObject({ created: [], untouched: false });
+    expect(await start(dbA, KEY, "Another line")).toMatchObject({ ok: false, unknown: false });
+    await pg.exec(`delete from sources where id = '${first.sourceId}'`);
+    expect(await count(`private.quick_add_submissions where user_id = '${A}'`)).toBe(0);
+  });
+
+  it("a thread the user acted on is no longer undoable", async () => {
+    const m = await quickAdd(dbA, PLUMBER);
+    const res = await autoCreateQuickAdd(dbA, m.extractionId, { now: SOON });
+    if (!res.ok) throw new Error("refused");
+    await markDone(dbA, res.created[0]!.thread_id, "open", { now: SOON });
+    expect(await readQuickAddResult(dbA, m.extractionId, { now: SOON })).toMatchObject({ untouched: false, created: [{ title: PLUMBER.input }] });
+  });
+
+  it("no answer from the database is `unknown`; a refusal is not", async () => {
+    const dropped: RpcDb = { rpc: async () => ({ data: null, error: { code: "", message: "fetch failed" } }) };
+    expect(await start(dropped)).toMatchObject({ ok: false, unknown: true });
+    const refused: RpcDb = { rpc: async () => ({ data: null, error: { code: "22023" } }) };
+    expect(await start(refused)).toMatchObject({ ok: false, unknown: false });
   });
 });

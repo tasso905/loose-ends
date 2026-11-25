@@ -54,9 +54,11 @@ export function ReviewTray({
   // A quick add's High proposals are threads already: the tray is for the rest only (SITE_CONTRACT §3.1).
   const shown = useMemo(() => trayProposals(reviewableProposals(view.proposals)), [view.proposals]);
   const host = useContext(ActionHostContext);
+  // Where focus goes when the toast that held it closes (S14 D3).
+  const headingRef = useRef<HTMLHeadingElement>(null);
   useEffect(() => {
     const handed = takeQuickAddToast(view.id);
-    if (handed && host) showQuickAddToast(host, handed.created, handed.actionAt);
+    if (handed && host) showQuickAddToast(host, handed, () => headingRef.current?.focus());
   }, [view.id, host]);
   const [status, setStatus] = useState<Record<string, ReviewStatus>>(() =>
     Object.fromEntries(shown.map((p) => [p.id, p.reviewStatus])),
@@ -149,7 +151,7 @@ export function ReviewTray({
   if (shown.length === 0) {
     return (
       <div>
-        <h1 className="text-display-sm text-le-text sm:text-display">{C.zero}</h1>
+        <h1 ref={headingRef} tabIndex={-1} className="focus-ring rounded-control text-display-sm text-le-text sm:text-display">{C.zero}</h1>
         <ExplainBrief brief={view.brief} source={source} className="mt-6" />
       </div>
     );
@@ -161,7 +163,7 @@ export function ReviewTray({
 
   return (
     <div>
-      <h1 className="text-display-sm text-le-text sm:text-display">{C.heading(shown.length)}</h1>
+      <h1 ref={headingRef} tabIndex={-1} className="focus-ring rounded-control text-display-sm text-le-text sm:text-display">{C.heading(shown.length)}</h1>
 
       <div role="status" aria-live="polite" className="mt-3 empty:hidden">
         {acceptedCount > 0 ? (

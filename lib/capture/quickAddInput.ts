@@ -11,7 +11,7 @@ import { normalizeLineBreaks } from "./pasteInput";
  *
  * DOCUMENTED copy: tab `Quick add`, placeholder `e.g. Send Mike the proposal Friday`, submit `Add`
  * (SITE_CONTRACT §2.2); toast `Added "{title}"` + `Undo` (SITE_CONTRACT §3.1).
- * PROPOSED copy (not in the docs; for user sign-off): every string marked PROPOSED below.
+ * The other strings were approved by the user on Nov 24 (D86), except those marked PROPOSED.
  */
 
 export const QUICK_ADD_MAX_CHARS = 2_000;
@@ -22,22 +22,26 @@ export const QUICK_ADD_COPY = {
   tab: "Quick add",
   placeholder: "e.g. Send Mike the proposal Friday",
   submit: "Add",
-  /** PROPOSED: the field's accessible name (visually hidden; the tab names the mode). */
+  /** The field's accessible name (visually hidden; the tab names the mode). */
   label: "Quick add",
-  /** PROPOSED: hint under the field, in the pattern of D47's `Up to 30,000 characters.` */
+  /** Hint under the field, in the pattern of D47's `Up to 30,000 characters.` */
   hint: "One line, up to 2,000 characters.",
-  /** PROPOSED: empty submit (the Add button is disabled while the field is blank, so a fallback). */
+  /** Empty submit (the Add button is disabled while the field is blank, so a fallback). */
   empty: "Type something first.",
-  /** PROPOSED: over the limit, in the pattern of the paste `input_too_long` copy. */
+  /** Over the limit, in the pattern of the paste `input_too_long` copy. */
   tooLong: (n: number) => `That's ${fmt(n)} characters. Quick add takes up to 2,000 — use Paste for longer text.`,
   /** SITE_CONTRACT §3.1. */
   toast: (title: string) => `Added "${title}"`,
-  /** PROPOSED: Undo's accessible name, in the pattern of D47 / D56 (`Undo done: {title}`). */
+  /** Undo's accessible name, in the pattern of D47 / D56 (`Undo done: {title}`). */
   undoLabel: (title: string) => `Undo add: ${title}`,
-  /** PROPOSED: toast when one quick add creates more than one thread. */
+  /** Toast when one quick add creates more than one thread. */
   toastMany: (n: number) => `Added ${fmt(n)} threads`,
-  /** PROPOSED: Undo's accessible name for that toast. */
+  /** Undo's accessible name for that toast. */
   undoLabelMany: (n: number) => `Undo add: ${fmt(n)} threads`,
+  /** PROPOSED (S14 D2): the response was lost, so the outcome is unknown. Try again is idempotent. */
+  addUnknown: "I can't tell if your last line was added. Try again: it won't be added twice.",
+  /** PROPOSED (S14 D2): the same for Undo. */
+  undoUnknown: "I can't tell if that was undone. Check Threads to see.",
 } as const;
 
 export const QuickAddInput = z.object({

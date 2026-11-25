@@ -143,3 +143,133 @@ test("mixed: the High item is a thread, the tray shows only the Medium one, and 
   await expect(toast).toBeHidden();
   await expect.poll(async () => (await threads()).length).toBe(before);
 });
+
+test("a lost response, then Try again: one thread, one source, one daily count, and the same Undo (D2)", async () => {
+  for (const table of ["threads", "sources", "usage_counters"]) await admin().from(table).delete().eq("user_id", uid);
+  let lose = true;
+  await page.route("**/add?mode=quick", async (route) => {
+    if (route.request().method() !== "POST" || !lose) return route.continue();
+    lose = false;
+    await route.fetch();
+    await route.abort("connectionreset");
+  });
+  await quickAdd(PLUMBER);
+  await page.getByRole("button", { name: "Try again" }).click();
+  await expect(page.getByRole("status").filter({ hasText: `Added "${PLUMBER}"` })).toBeVisible();
+  await page.unrouteAll({ behavior: "ignoreErrors" });
+  const { data: src } = await admin().from("sources").select("id").eq("user_id", uid);
+  const { data: use } = await admin().from("usage_counters").select("extractions").eq("user_id", uid);
+  expect({ threads: (await threads()).length, sources: src!.length, counted: use![0]!.extractions }).toEqual({ threads: 1, sources: 1, counted: 1 });
+  await page.getByRole("button", { name: `Undo add: ${PLUMBER}` }).click();
+  await expect.poll(async () => (await threads()).length).toBe(0);
+});
+
+test("a lost response: the banner claims nothing, offline or not, and keeps newer text (D1, D2)", async () => {
+  await admin().from("threads").delete().eq("user_id", uid);
+  const unknown = page.getByText("I can't tell if your last line was added. Try again: it won't be added twice.");
+  let lose = true;
+  await page.route("**/add?mode=quick", async (route) => {
+    if (route.request().method() !== "POST" || !lose) return route.continue();
+    lose = false;
+    await route.fetch();
+    await route.abort("connectionreset");
+  });
+  await quickAdd(PLUMBER);
+  await expect(unknown).toBeVisible();
+  const field = page.getByRole("textbox", { name: "Quick add" });
+  await expect(field).toBeFocused();
+  await expectNoViolations();
+  await field.fill("Buy stamps");
+  await context.setOffline(true);
+  await page.getByRole("button", { name: "Try again" }).click();
+  await expect(unknown).toBeVisible();
+  await expect(page.getByText("Nothing was saved")).toHaveCount(0);
+  await context.setOffline(false);
+  // Try again is about the lost line, not the text typed since.
+  await page.getByRole("button", { name: "Try again" }).click();
+  await expect(page.getByRole("status").filter({ hasText: `Added "${PLUMBER}"` })).toBeVisible();
+  await expect(field).toHaveValue("Buy stamps");
+  await expect(field).toBeFocused();
+  expect(await threads()).toHaveLength(1);
+  await page.unrouteAll({ behavior: "ignoreErrors" });
+});
+
+test("a response that arrives after the Undo window says what was added, with no Undo (D4)", async () => {
+  await admin().from("threads").delete().eq("user_id", uid);
+  await page.route("**/add?mode=quick", async (route) => {
+    if (route.request().method() !== "POST") return route.continue();
+    const response = await route.fetch();
+    await new Promise((r) => setTimeout(r, 11_500));
+    await route.fulfill({ response });
+  });
+  await quickAdd(PLUMBER);
+  await expect(page.getByRole("status").filter({ hasText: `Added "${PLUMBER}"` })).toBeVisible({ timeout: 20_000 });
+  await expect(page.getByRole("button", { name: /^Undo add/ })).toHaveCount(0);
+  await expectNoViolations();
+  await page.unrouteAll({ behavior: "ignoreErrors" });
+  expect(await threads()).toHaveLength(1);
+});
+
+test("a lost Undo response claims nothing either way (D2)", async () => {
+  await admin().from("threads").delete().eq("user_id", uid);
+  await quickAdd(PLUMBER);
+  const undo = page.getByRole("button", { name: `Undo add: ${PLUMBER}` });
+  await expect(undo).toBeVisible();
+  await page.route("**/add?mode=quick", async (route) => {
+    if (route.request().method() !== "POST") return route.continue();
+    await route.fetch();
+    await route.abort("connectionreset");
+  });
+  await undo.click();
+  await expect(page.getByText("I can't tell if that was undone. Check Threads to see.")).toBeVisible();
+  await page.unrouteAll({ behavior: "ignoreErrors" });
+  expect(await threads()).toHaveLength(0);
+});
+
+test("after a 6 s response, Undo is withdrawn before the server would refuse it (D4)", async () => {
+  await admin().from("threads").delete().eq("user_id", uid);
+  let createdAt = 0;
+  await page.route("**/add?mode=quick", async (route) => {
+    if (route.request().method() !== "POST") return route.continue();
+    const response = await route.fetch();
+    createdAt = performance.now();
+    await new Promise((r) => setTimeout(r, 6_000));
+    await route.fulfill({ response });
+  });
+  await quickAdd(PLUMBER);
+  const undo = page.getByRole("button", { name: `Undo add: ${PLUMBER}` });
+  await expect(undo).toBeVisible({ timeout: 10_000 });
+  await undo.focus(); // a focused toast does not time out on its own: only the limit closes it
+  await expect(undo).toBeHidden({ timeout: 10_000 });
+  expect(performance.now() - createdAt).toBeLessThan(12_000);
+  await expect(page.getByRole("textbox", { name: "Quick add" })).toBeFocused();
+  await page.unrouteAll({ behavior: "ignoreErrors" });
+});
+
+test("offline with another line after a lost response: Try again is about the line it names (D2)", async () => {
+  await admin().from("threads").delete().eq("user_id", uid);
+  let lose = true;
+  await page.route("**/add?mode=quick", async (route) => {
+    if (route.request().method() !== "POST" || !lose) return route.continue();
+    lose = false;
+    await route.fetch();
+    await route.abort("connectionreset");
+  });
+  await quickAdd(PLUMBER);
+  await expect(page.getByText("I can't tell if your last line was added.")).toBeVisible();
+  const addLine = async (line: string) => {
+    await page.getByRole("textbox", { name: "Quick add" }).fill(line);
+    await page.getByRole("button", { name: "Add", exact: true }).click();
+  };
+  await context.setOffline(true);
+  await addLine("Buy stamps");
+  await expect(page.getByText("Nothing was saved")).toBeVisible();
+  await addLine(PLUMBER);
+  await expect(page.getByText("I can't tell if your last line was added.")).toBeVisible();
+  await expect(page.getByText("Nothing was saved")).toHaveCount(0);
+  await context.setOffline(false);
+  await page.getByRole("button", { name: "Try again" }).click();
+  await expect(page.getByRole("status").filter({ hasText: `Added "${PLUMBER}"` })).toBeVisible();
+  expect(await threads()).toHaveLength(1);
+  await page.unrouteAll({ behavior: "ignoreErrors" });
+});

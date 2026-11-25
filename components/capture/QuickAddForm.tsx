@@ -15,6 +15,8 @@ import { handOffQuickAddToast, showQuickAddToast } from "./quickAddToast";
 
 type Failure = ApiError["error"];
 
+const UNKNOWN: Failure = { code: "save_failed", message: C.addUnknown, retryable: true };
+
 /**
  * Quick add mode (F4; SITE_CONTRACT §2.2, §3.1; D9). One line; `Add` sends it through the same
  * pipeline as paste. When every proposal became a thread, the user stays here: the field clears and
@@ -40,6 +42,13 @@ function QuickAddFields() {
   const [failure, setFailure] = useState<Failure | null>(null);
   const [fieldFailure, setFieldFailure] = useState(false);
   const [pending, startTransition] = useTransition();
+  // The idempotency key of each line sent (S14 D2). Kept until the server answers for that line, so
+  // sending the same line again after a lost response returns the first result.
+  const keys = useRef(new Map<string, string>());
+  // The line whose outcome is unknown: the banner's Try again sends it, whatever is in the field now.
+  const [unknownLine, setUnknownLine] = useState<string | null>(null);
+  // Every line whose outcome is still unknown, also after another line was sent.
+  const unknownLines = useRef(new Set<string>());
 
   useEffect(() => {
     // SITE_CONTRACT §3.2: focus the first relevant field on /add, unless the user already moved on.
@@ -59,38 +68,70 @@ function QuickAddFields() {
   function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     if (pending || overLimit || blank) return;
-    const formData = new FormData(e.currentTarget);
+    send(inputRef.current?.value ?? "");
+  }
+
+  function send(line: string) {
+    if (pending) return;
+    const key = keys.current.get(line) ?? crypto.randomUUID();
+    const formData = new FormData();
+    formData.set("text", line);
+    formData.set("key", key);
+    // The Add and Try again buttons go away or are disabled while pending; the field stays.
+    inputRef.current?.focus();
+    if (!navigator.onLine) {
+      // Nothing was sent now, but an earlier try of this line may have been saved.
+      const maybeSaved = unknownLines.current.has(line);
+      setFailure(maybeSaved ? UNKNOWN : apiError("offline").error);
+      setUnknownLine(maybeSaved ? line : null);
+      setFieldFailure(false);
+      return;
+    }
+    keys.current.set(line, key);
     setFailure(null);
     setFieldFailure(false);
+    setUnknownLine(null);
+    const sentAt = performance.now();
     startTransition(async () => {
-      if (!navigator.onLine) {
-        setFailure(apiError("offline").error);
-        return;
-      }
+      const outcomeUnknown = () => {
+        setFailure(UNKNOWN);
+        setFieldFailure(false);
+        setUnknownLine(line);
+        unknownLines.current.add(line);
+      };
       try {
         const result = await submitQuickAdd(formData);
+        if (!result.ok && result.unknown) return outcomeUnknown();
         if (!result.ok) {
           if (result.signedOut) {
             router.push(`/sign-in?next=${encodeURIComponent("/add?mode=quick")}`);
             return;
           }
           setFailure(result.error);
-          setFieldFailure(result.field === "text");
+          // A field error belongs to the line it was about, not to newer text (D1).
+          setFieldFailure(result.field === "text" && inputRef.current?.value === line);
           return;
         }
-        const arrivedAt = performance.now();
+        keys.current.delete(line);
+        unknownLines.current.delete(line);
+        // The request cannot have reached the server before it was sent, so this is never later than
+        // the real creation time: the toast never outlives the server's Undo window (D4).
+        const toast = { created: result.created, actionAt: sentAt + result.createdAfterMs, undoable: result.undoable };
         if (result.route === "review") {
-          handOffQuickAddToast(result.extractionId, result.created, arrivedAt);
+          handOffQuickAddToast(result.extractionId, toast);
           router.push(`/review/${result.extractionId}`);
           return;
         }
-        // The threads exist (rule 10): clear the line for the next one and offer Undo.
-        if (inputRef.current) inputRef.current.value = "";
-        setLength(0);
-        setBlank(true);
-        if (host) showQuickAddToast(host, result.created, arrivedAt, () => inputRef.current?.focus());
+        // The threads exist (rule 10): clear the line, unless the user has typed another since (D1).
+        if (inputRef.current?.value === line) {
+          inputRef.current.value = "";
+          setLength(0);
+          setBlank(true);
+        }
+        if (host) showQuickAddToast(host, toast, () => inputRef.current?.focus());
       } catch {
-        setFailure(apiError(navigator.onLine ? "save_failed" : "offline").error);
+        // The request may have been saved: only the server can say, so nothing is claimed (D2).
+        outcomeUnknown();
       }
     });
   }
@@ -103,7 +144,13 @@ function QuickAddFields() {
         <ErrorBanner
           action={
             banner.retryable ? (
-              <Button type="submit" variant="secondary" size="small" disabled={pending}>
+              <Button
+                type={unknownLine === null ? "submit" : "button"}
+                variant="secondary"
+                size="small"
+                disabled={pending}
+                onClick={unknownLine === null ? undefined : () => send(unknownLine)}
+              >
                 Try again
               </Button>
             ) : undefined

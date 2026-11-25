@@ -80,7 +80,7 @@ async function holdResponse(ms: number) {
   });
 }
 
-test.fail("keyboard: Enter adds, focus stays in the field; Undo by keyboard does not drop focus to <body>", async () => {
+test("keyboard: Enter adds, focus stays in the field; Undo by keyboard does not drop focus to <body>", async () => {
   await add(PLUMBER);
   await expect(toast(`Added "${PLUMBER}"`)).toBeVisible();
   await expect(field()).toBeFocused();
@@ -92,7 +92,7 @@ test.fail("keyboard: Enter adds, focus stays in the field; Undo by keyboard does
   expect(await active()).not.toMatch(/^body/);
 });
 
-test.fail("adding with the Add button (keyboard) does not drop focus to <body>", async () => {
+test("adding with the Add button (keyboard) does not drop focus to <body>", async () => {
   await page.goto("/add?mode=quick");
   await field().fill(PLUMBER);
   await addButton().focus();
@@ -111,7 +111,7 @@ test("/add: a focused toast closes at the 11 s limit and focus goes to the field
   expect(await threads()).toHaveLength(1);
 });
 
-test.fail("review: Undo by keyboard does not drop focus to <body>", async () => {
+test("review: Undo by keyboard does not drop focus to <body>", async () => {
   await add(MIXED);
   await expect(page).toHaveURL(/\/review\//);
   const undo = page.getByRole("button", { name: `Undo add: ${BANK}` });
@@ -122,7 +122,7 @@ test.fail("review: Undo by keyboard does not drop focus to <body>", async () => 
   expect(await active()).not.toMatch(/^body/);
 });
 
-test.fail("review: a focused toast closing at the 11 s limit does not drop focus to <body>", async () => {
+test("review: a focused toast closing at the 11 s limit does not drop focus to <body>", async () => {
   await add(MIXED);
   const undo = page.getByRole("button", { name: `Undo add: ${BANK}` });
   await undo.focus();
@@ -233,7 +233,7 @@ test("rule 10: nothing says Added until the result arrives; a double Enter adds 
   expect(await threads()).toHaveLength(1);
 });
 
-test.fail("text typed for the next line while the first is being added is not thrown away", async () => {
+test("text typed for the next line while the first is being added is not thrown away", async () => {
   await holdResponse(2_500);
   await add(PLUMBER);
   await expect(addButton()).toBeDisabled();
@@ -242,7 +242,7 @@ test.fail("text typed for the next line while the first is being added is not th
   await expect(field()).toHaveValue("Buy stamps");
 });
 
-test.fail("the response is lost after the server saved: the page does not say nothing was saved", async () => {
+test("the response is lost after the server saved: the page does not say nothing was saved", async () => {
   await page.route("**/add?mode=quick", async (route) => {
     if (route.request().method() !== "POST") return route.continue();
     await route.fetch();
@@ -257,12 +257,12 @@ test.fail("the response is lost after the server saved: the page does not say no
   expect(saved === 1 && /didn't save|Nothing was saved/.test(copy)).toBe(false);
 });
 
-test.fail("slow response: an Undo the toast still offers (7 s in) is accepted by the server", async () => {
+test("slow response: an Undo the toast still offers (3 s in, 9 s after creation) is accepted by the server", async () => {
   await holdResponse(6_000);
   await add(PLUMBER);
   const undo = page.getByRole("button", { name: `Undo add: ${PLUMBER}` });
   await expect(undo).toBeVisible({ timeout: 15_000 });
-  await page.waitForTimeout(7_000);
+  await page.waitForTimeout(3_000);
   await undo.click();
   await expect.poll(async () => (await threads()).length, { timeout: 4_000 }).toBe(0);
 });

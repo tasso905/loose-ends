@@ -9,10 +9,10 @@ import { parseQuickAddForm, QUICK_ADD_COPY, quickAddWrittenOn } from "@/lib/capt
 import { parseUploadForm, SOURCES_BUCKET, uploadFailure, type UploadField } from "@/lib/capture/uploadInput";
 import { apiError, type ApiError, type InputField } from "@/lib/errors";
 import { extractionCompletedTracker, trackSourceSubmitted, trackUploadSubmitted } from "@/lib/extraction/analytics";
-import { readExtraction, runExtraction, startExtraction, startUploadExtraction } from "@/lib/extraction/service";
+import { readExtraction, runExtraction, startExtraction, startQuickAdd, startUploadExtraction } from "@/lib/extraction/service";
 import { log } from "@/lib/log";
 import { rpcDb } from "@/lib/extraction/supabaseDb";
-import { autoCreateQuickAdd, quickAddRoute, undoQuickAdd } from "@/lib/review/quickAdd";
+import { autoCreateQuickAdd, quickAddRoute, readQuickAddResult, undoQuickAdd } from "@/lib/review/quickAdd";
 import { createClient } from "@/lib/supabase/server";
 import { getNow, isDemoMode } from "@/lib/time";
 
@@ -175,8 +175,25 @@ export type SubmitQuickAddResult =
    * undo toast). `review`: go to /review/[extractionId], which shows the Medium and Low proposals,
    * the zero state, or the extraction's failure state with `Try again` (SITE_CONTRACT §2.3, §3.1).
    */
-  | { ok: true; extractionId: string; route: "stay" | "review"; created: QuickAddCreated[] }
-  | { ok: false; error: ApiError["error"]; signedOut?: boolean; field?: "text" };
+  | {
+      ok: true;
+      extractionId: string;
+      route: "stay" | "review";
+      created: QuickAddCreated[];
+      /**
+       * When the threads were created, in ms after this request reached the server (D4). Negative for
+       * a replay whose first request created them earlier. Durations only: clocks are never compared.
+       */
+      createdAfterMs: number;
+      /** Nothing has happened to the threads since, so Undo can still work inside its window. */
+      undoable: boolean;
+    }
+  /** `unknown`: it may have been saved. The same key is safe to send again. */
+  | { ok: false; error: ApiError["error"]; signedOut?: boolean; field?: "text"; unknown?: boolean };
+
+/** How long a replay waits for a first request that is still extracting (page maxDuration is 60 s). */
+const REPLAY_WAIT_MS = 45_000;
+const REPLAY_POLL_MS = 500;
 
 /**
  * F4 quick add (SITE_CONTRACT §2.2, §3.1; D9; CLAUDE.md rule 2). Same pipeline as paste with
@@ -186,8 +203,13 @@ export type SubmitQuickAddResult =
  * do the High proposals become threads (public.quick_add_auto_create). Success and the undo toast
  * come only from that result (rule 10). If the auto-create step fails, the proposals stay pending
  * and the user goes to the review tray, where nothing is lost.
+ *
+ * Idempotent per `key` (S14 D2): a replay finds the same extraction, is not counted, and does not
+ * extract again (set_extraction_stage lets one run through). If the first request is still running,
+ * the replay waits for it; then both get the same threads and the same Undo.
  */
 export async function submitQuickAdd(formData: FormData): Promise<SubmitQuickAddResult> {
+  const arrived = performance.now();
   const parsed = parseQuickAddForm({ text: formData.get("text") });
   if (!parsed.ok) {
     const message = parsed.reason === "too_long" ? QUICK_ADD_COPY.tooLong(parsed.length) : QUICK_ADD_COPY.empty;
@@ -213,23 +235,38 @@ export async function submitQuickAdd(formData: FormData): Promise<SubmitQuickAdd
   const writtenOn = quickAddWrittenOn(now, typeof profile?.timezone === "string" ? profile.timezone : "UTC");
 
   const db = rpcDb(supabase);
-  const started = await startExtraction(db, { text: parsed.data.text, title: null, writtenOn, kind: "quick_add" }, { now, budgetDb });
-  if (!started.ok) return { ok: false, error: started.error.error };
-  trackSourceSubmitted(auth.user.id, parsed.data.text.length, "quick_add");
+  // No key (a forged request): a key of its own, so no replay protection and no failure.
+  const key = z.uuid().safeParse(formData.get("key")).data ?? crypto.randomUUID();
+  const unknown = { ok: false as const, unknown: true, error: { code: "save_failed" as const, message: QUICK_ADD_COPY.addUnknown, retryable: true } };
+  const started = await startQuickAdd(db, { key, text: parsed.data.text, writtenOn }, { now, budgetDb });
+  if (!started.ok) return started.unknown ? unknown : { ok: false, error: started.error.error };
+  if (!started.replayed) trackSourceSubmitted(auth.user.id, parsed.data.text.length, "quick_add");
 
-  const review = { ok: true as const, extractionId: started.extractionId, route: "review" as const, created: [] };
+  const review = { ok: true as const, extractionId: started.extractionId, route: "review" as const, created: [], createdAfterMs: 0, undoable: false };
   const tracker = extractionCompletedTracker(auth.user.id);
   const outcome = await runExtraction(db, started.extractionId, {
     // Analytics is sent after the response, so PostHog never delays the result.
     onComplete: (r) => after(() => tracker(r).then(() => undefined)),
     budgetDb,
   });
-  if (outcome !== "succeeded") return review;
+  if (outcome === "failed") return review;
+  // Skipped: another request with this key has the run. Wait for it instead of extracting again.
+  const waitUntil = performance.now() + REPLAY_WAIT_MS;
+  for (;;) {
+    const view = await readExtraction(db, started.extractionId, { now: getNow() }).catch(() => undefined);
+    if (view === undefined) return unknown;
+    if (view === null || view.status === "failed") return review;
+    if (view.status === "succeeded") break;
+    if (performance.now() >= waitUntil) return review; // the review page shows the progress
+    await new Promise((r) => setTimeout(r, REPLAY_POLL_MS));
+  }
 
   // Clock-guarded in the database: the real clock, as every other thread write (not the demo date).
   const auto = await autoCreateQuickAdd(db, started.extractionId, { now: getNow() });
-  if (!auto.ok) return review;
-  const created = auto.created.map((c) => ({ threadId: c.thread_id, eventId: c.event_id, title: c.title }));
+  if (!auto.ok && auto.code !== "invalid_transition") return auto.code === "save_failed" ? unknown : review;
+  const result = await readQuickAddResult(db, started.extractionId, { now: getNow() });
+  if (!result) return unknown;
+  const created = result.created.map((c) => ({ threadId: c.thread_id, eventId: c.event_id, title: c.title }));
 
   let route: "stay" | "review" = "review";
   try {
@@ -238,7 +275,14 @@ export async function submitQuickAdd(formData: FormData): Promise<SubmitQuickAdd
   } catch {
     // Unknown: the review page shows what is pending.
   }
-  return { ok: true, extractionId: started.extractionId, route, created };
+  return {
+    ok: true,
+    extractionId: started.extractionId,
+    route,
+    created,
+    createdAfterMs: Math.floor(performance.now() - arrived) - result.age_ms,
+    undoable: result.untouched,
+  };
 }
 
 const UndoQuickAddInput = z
