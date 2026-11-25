@@ -210,6 +210,10 @@ const REPLAY_POLL_MS = 500;
  * Idempotent per `key` (S14 D2): a replay finds the same extraction, is not counted, and does not
  * extract again (set_extraction_stage lets one run through). If the first request is still running,
  * the replay waits for it; then both get the same threads and the same Undo.
+ *
+ * `user_id` is the user the form was rendered for (D7). Another user may have signed in from another
+ * tab since; their session must not store this line or send it to the model. It is only compared
+ * with the session, which alone decides who is signed in; a missing one is refused too.
  */
 export async function submitQuickAdd(formData: FormData): Promise<SubmitQuickAddResult> {
   const arrived = performance.now();
@@ -222,7 +226,9 @@ export async function submitQuickAdd(formData: FormData): Promise<SubmitQuickAdd
 
   const supabase = await createClient();
   const { data: auth } = await supabase.auth.getUser();
-  if (!auth.user) return { ok: false, signedOut: true, error: apiError("unauthenticated").error };
+  if (!auth.user || formData.get("user_id") !== auth.user.id) {
+    return { ok: false, signedOut: true, error: apiError("unauthenticated").error };
+  }
 
   let demoNow: string | null = null;
   if (isDemoMode()) {
@@ -300,12 +306,16 @@ export type UndoQuickAddResult = { ok: true } | { ok: false; error: ApiError["er
  * (F4). The database allows it within 30 s of the created event (user decision, Nov 24) and
  * only while the user has not acted on the thread since; otherwise `invalid_transition`.
  */
-export async function undoQuickAddAction(pairs: { threadId: string; eventId: number }[]): Promise<UndoQuickAddResult> {
+export async function undoQuickAddAction(
+  pairs: { threadId: string; eventId: number }[],
+  /** Who the toast was shown to (D7). The database refuses another user's threads either way. */
+  shownTo?: string,
+): Promise<UndoQuickAddResult> {
   const input = UndoQuickAddInput.safeParse(pairs);
   if (!input.success) return { ok: false, error: apiError("not_found").error };
   const supabase = await createClient();
   const { data: auth } = await supabase.auth.getUser();
-  if (!auth.user) return { ok: false, error: apiError("unauthenticated").error };
+  if (!auth.user || (shownTo !== undefined && shownTo !== auth.user.id)) return { ok: false, error: apiError("unauthenticated").error };
   const res = await undoQuickAdd(rpcDb(supabase), input.data, { now: getNow() });
   if (!res.ok) return { ok: false, error: res.error.error };
   track(auth.user.id, "undo_used", { action: "create" });

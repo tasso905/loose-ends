@@ -231,7 +231,13 @@ test("another user signs in during this page session: A's unknown line is not sh
   await other.close();
   // Without any navigation the old page still shows A's banner; what does its Try again do?
   await retry().click();
-  await page.waitForTimeout(3_000);
+  // D7, fixed: refused, nothing stored for B, and a fresh document (B's own /add).
+  await expect(page.getByRole("button", { name: "Add", exact: true })).toBeDisabled();
+  await expect(banner()).toHaveCount(0);
+  await expect(page).toHaveURL(/\/add\?mode=quick$/);
+  expect(await page.evaluate(() => (window as unknown as { sameDocument?: boolean }).sameDocument ?? false)).toBe(false);
+  expect(await threads(b)).toBe(0);
+  for (const t of ["sources", "extractions", "usage_counters"]) expect((await admin().from(t).select("*").eq("user_id", b)).data, t).toEqual([]);
   console.log(`SWITCH stale-tab Try again: A threads ${await threads()}, B threads ${await threads(b)}, url ${new URL(page.url()).pathname}`);
   await page.getByRole("link", { name: "Today", exact: true }).first().click();
   await expect(page).toHaveURL(/\/today/);
@@ -239,7 +245,6 @@ test("another user signs in during this page session: A's unknown line is not sh
   await expect(page).toHaveURL(/\/add/);
   await page.getByRole("link", { name: "Quick add" }).click();
   await expect(field()).toBeVisible();
-  expect(await page.evaluate(() => (window as unknown as { sameDocument?: boolean }).sameDocument ?? false)).toBe(true);
   await expect(banner()).toHaveCount(0);
   await expect(page.locator("main").getByText(PLUMBER)).toHaveCount(0);
 });

@@ -48,6 +48,7 @@ describe.skipIf(!live)("quick add idempotency (live)", () => {
   it("five concurrent requests with one key: one source, count, extraction and thread; every answer carries the same Undo", async () => {
     const form = new FormData();
     form.set("text", PLUMBER);
+    form.set("user_id", uid);
     form.set("key", randomUUID());
     const results = await Promise.all(Array.from({ length: 5 }, () => submitQuickAdd(form)));
     const created = results.map((r) => (r.ok ? r.created : r));
@@ -69,9 +70,54 @@ describe.skipIf(!live)("quick add idempotency (live)", () => {
     expect(await n("threads")).toBe(0);
   });
 
+  it("D7: a form rendered for another user, or for none, is refused before anything is stored, counted or sent", async () => {
+    const { data } = await admin.auth.admin.createUser({ email: `le-test-qb-${randomUUID().slice(0, 6)}@example.com`, password: `pw-${randomUUID()}`, email_confirm: true });
+    const a = data.user!.id; // A's form; `uid` is signed in
+    const snap = async () =>
+      Promise.all(
+        [uid, a].flatMap((u) =>
+          ["sources", "extractions", "extraction_items", "threads", "thread_events", "usage_counters"].map(async (t) => (await admin.from(t).select("*").eq("user_id", u)).data),
+        ),
+      );
+    try {
+      const before = await snap();
+      const key = randomUUID();
+      const fetched = vi.spyOn(globalThis, "fetch");
+      for (const user of [a, "", "not-a-user", null]) {
+        const form = new FormData();
+        form.set("text", PLUMBER);
+        form.set("key", key);
+        if (user !== null) form.set("user_id", user);
+        expect(await submitQuickAdd(form)).toEqual({ ok: false, signedOut: true, error: { code: "unauthenticated", message: "Sign in to continue.", retryable: false } });
+      }
+      // Nothing but the session check left the action: no rpc or table, so no write, count or model call.
+      const urls = fetched.mock.calls.map(([u]) => new URL(u instanceof Request ? u.url : String(u)).pathname);
+      fetched.mockRestore();
+      expect(urls.length).toBeGreaterThan(0);
+      expect(urls.filter((p) => !p.startsWith("/auth/v1/user"))).toEqual([]);
+      expect(await snap()).toEqual(before);
+
+      // The key was not used up: the right form with it is a first submission.
+      const form = new FormData();
+      form.set("text", PLUMBER);
+      form.set("key", key);
+      form.set("user_id", uid);
+      const r = await submitQuickAdd(form);
+      if (!r.ok) throw new Error("refused");
+      const pairs = r.created.map((c) => ({ threadId: c.threadId, eventId: c.eventId }));
+      const held = await snap();
+      expect(await undoQuickAddAction(pairs, a)).toMatchObject({ ok: false, error: { code: "unauthenticated" } });
+      expect(await snap()).toEqual(held);
+      expect(await undoQuickAddAction(pairs, uid)).toEqual({ ok: true });
+    } finally {
+      await admin.auth.admin.deleteUser(a);
+    }
+  });
+
   it("Undo at 29 s (real clock) is accepted", async () => {
     const form = new FormData();
     form.set("text", PLUMBER);
+    form.set("user_id", uid);
     const r = await submitQuickAdd(form);
     if (!r.ok) throw new Error("refused");
     await new Promise((res) => setTimeout(res, 29_000 - r.createdAfterMs));

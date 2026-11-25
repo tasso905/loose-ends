@@ -11,7 +11,7 @@ import { Input } from "@/components/ui/input";
 import { normalizeLineBreaks } from "@/lib/capture/pasteInput";
 import { QUICK_ADD_COPY as C, quickAddFieldError } from "@/lib/capture/quickAddInput";
 import { apiError, type ApiError } from "@/lib/errors";
-import { handOffQuickAddToast, showQuickAddToast } from "./quickAddToast";
+import { handOffQuickAddToast, leaveForSignIn, showQuickAddToast } from "./quickAddToast";
 
 type Failure = ApiError["error"];
 
@@ -42,8 +42,9 @@ function unanswered(userId: string): Unanswered {
  */
 export function QuickAddForm({ userId }: { userId: string }) {
   return (
-    <ActionHostProvider>
-      <QuickAddFields key={userId} userId={userId} />
+    // Keyed: a toast or banner for one user goes when another user's page replaces it.
+    <ActionHostProvider key={userId}>
+      <QuickAddFields userId={userId} />
     </ActionHostProvider>
   );
 }
@@ -85,8 +86,8 @@ function QuickAddFields({ userId }: { userId: string }) {
     send(inputRef.current?.value ?? "");
   }
 
-  function settle(line: string) {
-    const s = unanswered(userId);
+  // `s`: the lines of the user who sent it, also when its answer comes after a switch of users.
+  function settle(s: Unanswered, line: string) {
     s.unknown = s.unknown.filter((u) => u.line !== line);
     setUnknown(s.unknown);
   }
@@ -98,6 +99,7 @@ function QuickAddFields({ userId }: { userId: string }) {
     const formData = new FormData();
     formData.set("text", line);
     formData.set("key", key);
+    formData.set("user_id", userId);
     // The Add and Try again buttons go away or are disabled while pending; the field stays.
     inputRef.current?.focus();
     if (!navigator.onLine) {
@@ -124,13 +126,14 @@ function QuickAddFields({ userId }: { userId: string }) {
         if (!result.ok && result.unknown) return outcomeUnknown();
         if (!result.ok) {
           if (result.signedOut) {
-            router.push(`/sign-in?next=${encodeURIComponent("/add?mode=quick")}`);
+            if (inputRef.current) inputRef.current.value = "";
+            leaveForSignIn();
             return;
           }
           // A refusal that never looked the key up says nothing about the earlier try of this line.
           const earlier = s.unknown.some((u) => u.line === line);
           if (earlier && result.unsettled) return outcomeUnknown();
-          settle(line);
+          settle(s, line);
           setFailure(result.error);
           if (earlier) setRetryLine(line);
           // A field error belongs to the line it was about, not to newer text (D1).
@@ -138,10 +141,11 @@ function QuickAddFields({ userId }: { userId: string }) {
           return;
         }
         s.keys.delete(line);
-        settle(line);
+        settle(s, line);
         // The request cannot have reached the server before it was sent, so this is never later than
         // the real creation time: the toast never outlives the server's Undo window (D4).
         const toast = {
+          userId,
           created: result.created,
           createdAt: sentAt + result.createdAfterMs,
           arrivedAt: performance.now(),

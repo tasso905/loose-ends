@@ -49,6 +49,7 @@ describe.skipIf(!live)("tester S14: quick-add idempotency", () => {
     current.client = u.client;
     const f = new FormData();
     f.set("text", text);
+    f.set("user_id", u.id);
     if (key) f.set("key", key);
     return submitQuickAdd(f);
   }

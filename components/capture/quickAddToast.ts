@@ -7,6 +7,8 @@ import { quickAddToast } from "@/lib/review/quickAdd";
 import { QUICK_ADD_UNDO_WINDOW_MS } from "@/lib/threads/transition";
 
 export interface QuickAddToastData {
+  /** The user it is shown to (D7). */
+  userId: string;
   created: QuickAddCreated[];
   /** performance.now() at or before the moment the threads were created; may be in the past (D4). */
   createdAt: number;
@@ -44,7 +46,11 @@ export function showQuickAddToast(host: ActionHost, data: QuickAddToastData, res
     restoreFocus,
     onUndo: async () => {
       try {
-        const res = await undoQuickAddAction(created.map((c) => ({ threadId: c.threadId, eventId: c.eventId })));
+        const res = await undoQuickAddAction(
+          created.map((c) => ({ threadId: c.threadId, eventId: c.eventId })),
+          data.userId,
+        );
+        if (!res.ok && res.error.code === "unauthenticated") return leaveForSignIn();
         // A refusal's banner takes focus itself.
         if (!res.ok) host.showError(res.error);
         else restoreLostFocus(restoreFocus);
@@ -54,6 +60,15 @@ export function showQuickAddToast(host: ActionHost, data: QuickAddToastData, res
       }
     },
   });
+}
+
+/**
+ * Signed out, or someone else is signed in (D7): to /sign-in, which sends a signed-in user on to their
+ * own /add. A full page load that replaces this entry, so nothing the page or its modules hold for
+ * the previous user (the field, unknown lines, a toast) is left, and Back does not bring it back.
+ */
+export function leaveForSignIn(): void {
+  window.location.replace(`/sign-in?next=${encodeURIComponent("/add?mode=quick")}`);
 }
 
 /** Undo closes the toast: if focus was in it (or already fell to <body>), it goes to `restore` (D3). */

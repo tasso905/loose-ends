@@ -452,3 +452,61 @@ for (const [name, line] of [
     await page.setViewportSize({ width: 1280, height: 720 });
   });
 }
+
+// Last: each leaves its own context. Another user signs in from another tab of the same browser (D7).
+for (const how of ["Try again", "Add", "Undo"] as const) {
+  test(`D7: after another user signs in, ${how} in the old tab stores nothing of A's for B and shows B a clean page`, async () => {
+    const c = await page.context().browser()!.newContext();
+    const tab = await c.newPage();
+    const [eA, eB] = [testEmail(), testEmail()];
+    const signIn = async (p: Page, address: string) => {
+      await p.goto("/sign-in?next=%2Fadd%3Fmode%3Dquick");
+      const since = await requestLink(p, address);
+      await p.goto(await magicLinkFor(address, since));
+      await p.getByRole("button", { name: "Skip" }).click();
+      await expect(p).toHaveURL(/\/add\?mode=quick$/);
+    };
+    const rows = async (u: string) =>
+      Object.fromEntries(
+        await Promise.all(["sources", "extractions", "threads", "usage_counters"].map(async (t) => [t, (await admin().from(t).select("*").eq("user_id", u)).data!.length])),
+      );
+    try {
+      await signIn(tab, eA);
+      const field = tab.getByRole("textbox", { name: "Quick add" });
+      const add = tab.getByRole("button", { name: "Add", exact: true });
+      if (how === "Try again") {
+        let lose = true;
+        await tab.route("**/add?mode=quick", (route) => {
+          if (route.request().method() !== "POST" || !lose) return route.continue();
+          lose = false;
+          return route.abort("connectionreset");
+        });
+      }
+      await field.fill(PLUMBER);
+      if (how !== "Add") await add.click();
+      const button = how === "Add" ? add : how === "Undo" ? tab.getByRole("button", { name: `Undo add: ${PLUMBER}` }) : tab.getByRole("button", { name: "Try again" });
+      await expect(button).toBeVisible();
+      if (how === "Undo") await button.focus(); // holds the toast open while B signs in
+      await c.clearCookies();
+      const other = await c.newPage();
+      await signIn(other, eB);
+      const users = (await admin().auth.admin.listUsers({ perPage: 1000 })).data.users;
+      const [a, b] = [eA, eB].map((x) => users.find((u) => u.email === x)!.id) as [string, string];
+      const before = await rows(a);
+      await other.close();
+      await button.click();
+      // A fresh document on B's own /add.
+      await expect(add).toBeDisabled();
+      await expect(tab).toHaveURL(/\/add\?mode=quick$/);
+      await expect(field).toHaveValue("");
+      await expect(tab.getByText(PLUMBER)).toHaveCount(0);
+      await tab.goBack().catch(() => null);
+      await expect(tab.getByText(PLUMBER)).toHaveCount(0);
+      expect(await rows(b)).toEqual({ sources: 0, extractions: 0, threads: 0, usage_counters: 0 });
+      expect(await rows(a)).toEqual(before);
+    } finally {
+      await c.close();
+      await deleteUsers([eA, eB]);
+    }
+  });
+}

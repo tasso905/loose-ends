@@ -67,9 +67,10 @@ const INVALID = "That change isn't possible any more. Refresh to see the latest.
 
 type User = { id: string; client: SupabaseClient };
 
-function form(text: string): FormData {
+function form(text: string, userId = ""): FormData {
   const f = new FormData();
   f.set("text", text);
+  f.set("user_id", userId);
   return f;
 }
 
@@ -98,7 +99,7 @@ describe.skipIf(!live)("tester S14: quick add on real local Supabase", () => {
 
   async function as(u: User, text: string) {
     current.client = u.client;
-    const r = await submitQuickAdd(form(text));
+    const r = await submitQuickAdd(form(text, u.id));
     await Promise.all(pendingAfter.list.splice(0));
     return r;
   }
