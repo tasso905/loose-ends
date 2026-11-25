@@ -235,16 +235,16 @@ describe.skipIf(!live)("tester S14: quick add on real local Supabase", () => {
     expect(await snapshot(A.id)).toEqual(snap);
   });
 
-  it("Undo is refused after 12 s (real clock), and nothing changes", async () => {
+  it("Undo is refused after 30 s (real clock), and nothing changes", async () => {
     const r = await as(A, PLUMBER);
     if (!r.ok) throw new Error("refused");
     const c = r.created[0]!;
-    await new Promise((res) => setTimeout(res, 12_600));
+    await new Promise((res) => setTimeout(res, 30_600));
     const snap = await snapshot(A.id);
     current.client = A.client;
     expect(await undoQuickAddAction([{ threadId: c.threadId, eventId: c.eventId }])).toMatchObject({ ok: false, error: { code: "invalid_transition", message: INVALID } });
     expect(await snapshot(A.id)).toEqual(snap);
-  }, 30_000);
+  }, 60_000);
 
   it("rule 2: Medium and Low stay pending, nothing auto-creates, the user is sent to review", async () => {
     for (const text of [MAYBE, LOW]) {

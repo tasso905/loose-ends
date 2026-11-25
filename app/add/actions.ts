@@ -297,7 +297,7 @@ export type UndoQuickAddResult = { ok: true } | { ok: false; error: ApiError["er
 
 /**
  * The quick-add toast's Undo (D8): removes the threads the auto-create made, with their events
- * (F4). The database allows it within 12 s of the created event (8 s toast + 4 s grace, D44) and
+ * (F4). The database allows it within 30 s of the created event (user decision, Nov 24) and
  * only while the user has not acted on the thread since; otherwise `invalid_transition`.
  */
 export async function undoQuickAddAction(pairs: { threadId: string; eventId: number }[]): Promise<UndoQuickAddResult> {

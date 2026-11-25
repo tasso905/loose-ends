@@ -257,12 +257,12 @@ test("the response is lost after the server saved: the page does not say nothing
   expect(saved === 1 && /didn't save|Nothing was saved/.test(copy)).toBe(false);
 });
 
-test("slow response: an Undo the toast still offers (3 s in, 9 s after creation) is accepted by the server", async () => {
+test("slow response: an Undo the toast still offers (7 s in, 13 s after creation) is accepted by the server", async () => {
   await holdResponse(6_000);
   await add(PLUMBER);
   const undo = page.getByRole("button", { name: `Undo add: ${PLUMBER}` });
   await expect(undo).toBeVisible({ timeout: 15_000 });
-  await page.waitForTimeout(3_000);
+  await page.waitForTimeout(7_000);
   await undo.click();
   await expect.poll(async () => (await threads()).length, { timeout: 4_000 }).toBe(0);
 });

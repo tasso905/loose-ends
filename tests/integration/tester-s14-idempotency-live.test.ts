@@ -178,16 +178,16 @@ describe.skipIf(!live)("tester S14: quick-add idempotency", () => {
     expect(r.ok && r.createdAfterMs).toBeGreaterThanOrEqual(0);
   });
 
-  it("a replay after 12 s is not undoable in time: the age says so, and the server refuses", async () => {
+  it("a replay after 30 s is not undoable in time: the age says so, and the server refuses", async () => {
     const u = await user();
     const key = randomUUID();
     await send(u, key);
-    await new Promise((res) => setTimeout(res, 12_300));
+    await new Promise((res) => setTimeout(res, 30_300));
     const r = await send(u, key);
     if (!r.ok) throw new Error("refused");
-    expect(r.createdAfterMs).toBeLessThan(-12_000);
+    expect(r.createdAfterMs).toBeLessThan(-30_000);
     expect(await undoQuickAddAction(r.created.map((c) => ({ threadId: c.threadId, eventId: c.eventId })))).toMatchObject({ ok: false, error: { code: "invalid_transition" } });
-  }, 30_000);
+  }, 60_000);
 
   it("grants, arguments and clock: anon refused; null key, long or blank text, far clock save nothing", async () => {
     const u = await user();

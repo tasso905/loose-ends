@@ -68,4 +68,13 @@ describe.skipIf(!live)("quick add idempotency (live)", () => {
     expect(await undoQuickAddAction([{ threadId: pair.threadId, eventId: pair.eventId }])).toEqual({ ok: true });
     expect(await n("threads")).toBe(0);
   });
+
+  it("Undo at 29 s (real clock) is accepted", async () => {
+    const form = new FormData();
+    form.set("text", PLUMBER);
+    const r = await submitQuickAdd(form);
+    if (!r.ok) throw new Error("refused");
+    await new Promise((res) => setTimeout(res, 29_000 - r.createdAfterMs));
+    expect(await undoQuickAddAction(r.created.map((c) => ({ threadId: c.threadId, eventId: c.eventId })))).toEqual({ ok: true });
+  }, 60_000);
 });

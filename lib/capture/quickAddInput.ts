@@ -11,7 +11,7 @@ import { normalizeLineBreaks } from "./pasteInput";
  *
  * DOCUMENTED copy: tab `Quick add`, placeholder `e.g. Send Mike the proposal Friday`, submit `Add`
  * (SITE_CONTRACT §2.2); toast `Added "{title}"` + `Undo` (SITE_CONTRACT §3.1).
- * The other strings were approved by the user on Nov 24 (D86), except those marked PROPOSED.
+ * The other strings were approved by the user on Nov 24 (D86; the two `unknown` strings later that day).
  */
 
 export const QUICK_ADD_MAX_CHARS = 2_000;
@@ -38,9 +38,9 @@ export const QUICK_ADD_COPY = {
   toastMany: (n: number) => `Added ${fmt(n)} threads`,
   /** Undo's accessible name for that toast. */
   undoLabelMany: (n: number) => `Undo add: ${fmt(n)} threads`,
-  /** PROPOSED (S14 D2): the response was lost, so the outcome is unknown. Try again is idempotent. */
-  addUnknown: "I can't tell if your last line was added. Try again: it won't be added twice.",
-  /** PROPOSED (S14 D2): the same for Undo. */
+  /** The response was lost, so the outcome is unknown. Try again is idempotent. */
+  addUnknown: "I can't tell if this line was added. Try again: it won't be added twice.",
+  /** The same for Undo. */
   undoUnknown: "I can't tell if that was undone. Check Threads to see.",
 } as const;
 

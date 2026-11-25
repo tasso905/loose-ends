@@ -40,9 +40,9 @@ describe("transition(): quick-add auto-create and its undo (F4, D8, D9)", () => 
     expect(transition(null, { type: "create", via: "accept", extractionItemId: ITEM, fields }, { actor: "ai" }).ok).toBe(false);
   });
 
-  it("Undo within 12 s removes the thread: no thread, no event, one delete_thread effect", () => {
+  it("Undo within 30 s removes the thread: no thread, no event, one delete_thread effect", () => {
     const { thread, target } = autoCreated();
-    for (const ms of [0, 8_000, 12_000]) {
+    for (const ms of [0, 8_000, 12_001, 29_000, 30_000]) {
       expect(transition(thread, { type: "undo", target }, { actor: "user", now: at(ms) })).toEqual({
         ok: true,
         thread: null,
@@ -52,10 +52,10 @@ describe("transition(): quick-add auto-create and its undo (F4, D8, D9)", () => 
     }
   });
 
-  it("is refused after 12 s, before the event, when not latest, or once the thread changed", () => {
+  it("is refused after 30 s, before the event, when not latest, or once the thread changed", () => {
     const { thread, target } = autoCreated();
     const undo = (t = thread, x = target, ms = 1_000) => transition(t, { type: "undo", target: x }, { actor: "user", now: at(ms) });
-    expect(undo(thread, target, 12_001)).toMatchObject({ ok: false, error: { code: "invalid_transition" } });
+    expect(undo(thread, target, 30_001)).toMatchObject({ ok: false, error: { code: "invalid_transition" } });
     expect(undo(thread, target, -1)).toMatchObject({ ok: false });
     expect(undo(thread, { ...target, latest: false })).toMatchObject({ ok: false });
     expect(undo({ ...thread, title: "Edited" })).toMatchObject({ ok: false });

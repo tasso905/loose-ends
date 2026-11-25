@@ -123,6 +123,12 @@ export const UNDO_WINDOW_MS = 8_000;
  * pause and the round trip are not refused. Mirrored by private.thread_undo_unguarded (12 s).
  */
 export const UNDO_GRACE_MS = 4_000;
+/**
+ * Quick-add auto-create only (user decision, Nov 24): its result can reach the browser long after the
+ * thread was created, so the server accepts the Undo for 30 s from creation and the toast still gets
+ * its full 8 s. Mirrored by public.quick_add_undo (migration 20261113120000).
+ */
+export const QUICK_ADD_UNDO_WINDOW_MS = 30_000;
 
 /**
  * Event types an Undo may reverse; mirrored by private.thread_undo_unguarded() (migration
@@ -402,13 +408,14 @@ export function transition(thread: ThreadState | null, action: ThreadAction, ctx
 /**
  * Undo (D44 option a, approved Oct 21): only the thread's latest event, only the user's own
  * reversible action (or, for F4, the AI's quick-add auto-create; see below), only within
- * UNDO_WINDOW_MS + UNDO_GRACE_MS (12 s) of it. Restores that event's `before` values exactly (a Done
+ * UNDO_WINDOW_MS + UNDO_GRACE_MS (12 s) of it (QUICK_ADD_UNDO_WINDOW_MS for the auto-create). Restores that event's `before` values exactly (a Done
  * from waiting goes back to waiting) and returns an `undone` event; nothing earlier is rewritten.
  */
 function undo(t: ThreadState, target: UndoTarget, actor: Actor, now: Date): TransitionResult {
   if (!target.latest || !validInstant(target.created_at)) return invalid();
   const elapsed = now.getTime() - new Date(target.created_at).getTime();
-  if (elapsed < 0 || elapsed > UNDO_WINDOW_MS + UNDO_GRACE_MS) return invalid();
+  const limit = target.type === "created" ? QUICK_ADD_UNDO_WINDOW_MS : UNDO_WINDOW_MS + UNDO_GRACE_MS;
+  if (elapsed < 0 || elapsed > limit) return invalid();
   const isStateKey = (k: string): k is keyof ThreadState => (THREAD_STATE_KEYS as ReadonlyArray<string>).includes(k);
 
   // F4 quick-add auto-create (D8, D9): "Undo removes the thread and its events". D44 leaves this

@@ -7,7 +7,8 @@
 --                        and review_status = 'auto_created'. The event's actor is 'ai' and its
 --                        `after` carries via = 'auto_create', mirroring transition(null, {type:
 --                        "create", via: "auto_create"}, {actor: "ai"}) in lib/threads/transition.ts.
--- quick_add_undo         The 8 s undo of that auto-create (D8; server window 12 s, D44). F4: "Undo
+-- quick_add_undo         The 8 s undo of that auto-create (D8; server window 30 s
+--                        from creation, user decision Nov 24; every other undo keeps D44's 12 s). F4: "Undo
 --                        removes the thread and its events." The thread row and its events are
 --                        deleted; its evidence goes back to the proposal, and the proposal is marked
 --                        'rejected' without a suppression, so the same text typed again is proposed
@@ -95,7 +96,7 @@ $$;
 
 -- All-or-nothing over the threads one quick add created. Each must be the caller's, still hold
 -- only its 'created' event from the auto-create (anything the user did since, such as Done or an
--- Edit, makes it a thread the user has acted on), and be within 12 s of that event. Otherwise
+-- Edit, makes it a thread the user has acted on), and be within 30 s of that event. Otherwise
 -- nothing is written and the answer is invalid_transition (SITE_CONTRACT §2.13 copy + Refresh).
 create function public.quick_add_undo(p_thread_ids uuid[], p_event_ids bigint[], p_now timestamptz)
 returns jsonb
@@ -124,7 +125,7 @@ begin
     if ev.id is null or ev.id <> p_event_ids[i] or ev.type <> 'created' or ev.actor <> 'ai'
        or ev.after ->> 'via' is distinct from 'auto_create'
        or exists (select 1 from public.thread_events x where x.thread_id = t.id and x.user_id = v_uid and x.id <> ev.id)
-       or p_now < ev.created_at or p_now > ev.created_at + interval '12 seconds' then
+       or p_now < ev.created_at or p_now > ev.created_at + interval '30 seconds' then
       return jsonb_build_object('ok', false, 'error', 'invalid_transition');
     end if;
   end loop;

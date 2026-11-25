@@ -4,26 +4,34 @@ import type { ActionHost } from "@/components/threads/ActionHost";
 import { TOAST_HARD_LIMIT_MS } from "@/components/toast/UndoToast";
 import { QUICK_ADD_COPY } from "@/lib/capture/quickAddInput";
 import { quickAddToast } from "@/lib/review/quickAdd";
+import { QUICK_ADD_UNDO_WINDOW_MS } from "@/lib/threads/transition";
 
 export interface QuickAddToastData {
   created: QuickAddCreated[];
   /** performance.now() at or before the moment the threads were created; may be in the past (D4). */
-  actionAt: number;
+  createdAt: number;
+  /** performance.now() when the result arrived. */
+  arrivedAt: number;
   undoable: boolean;
 }
 
+/** The last Undo offered is this far inside the server's window, for the request's round trip. */
+const UNDO_MARGIN_MS = 2_000;
 /** Less than this left before the hard limit: too short to use, so no Undo is offered. */
 const MIN_UNDO_MS = 2_000;
 
 /**
  * The quick-add undo toast (F4, D8, SITE_CONTRACT §3.1), shown through an ActionHost so a refused
- * Undo appears as the §2.13 banner with Refresh, never in the toast. The toast's 11 s limit counts
- * from the threads' creation. When that has passed (a very slow response, or Try again after a lost
- * one) or the threads have changed since, the message shows without Undo.
+ * Undo appears as the §2.13 banner with Refresh, never in the toast. The toast's 8 s, and its
+ * 11 s limit while hovered or focused, count from the result's arrival, but never past 28 s after the
+ * threads' creation (server window 30 s). So Undo gets its full 8 s when the result arrives within
+ * 20 s of creation, less when it is later, and none when under 2 s is left or the threads changed.
  */
 export function showQuickAddToast(host: ActionHost, data: QuickAddToastData, restoreFocus: () => void): void {
-  const { created, actionAt } = data;
+  const { created } = data;
   if (created.length === 0) return;
+  // The toast closes at actionAt + TOAST_HARD_LIMIT_MS.
+  const actionAt = Math.min(data.arrivedAt, data.createdAt + QUICK_ADD_UNDO_WINDOW_MS - UNDO_MARGIN_MS - TOAST_HARD_LIMIT_MS);
   const copy = quickAddToast(created);
   if (!data.undoable || performance.now() > actionAt + TOAST_HARD_LIMIT_MS - MIN_UNDO_MS) {
     host.showToast({ message: copy.message });

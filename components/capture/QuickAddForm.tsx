@@ -141,7 +141,12 @@ function QuickAddFields({ userId }: { userId: string }) {
         settle(line);
         // The request cannot have reached the server before it was sent, so this is never later than
         // the real creation time: the toast never outlives the server's Undo window (D4).
-        const toast = { created: result.created, actionAt: sentAt + result.createdAfterMs, undoable: result.undoable };
+        const toast = {
+          created: result.created,
+          createdAt: sentAt + result.createdAfterMs,
+          arrivedAt: performance.now(),
+          undoable: result.undoable,
+        };
         if (result.route === "review") {
           handOffQuickAddToast(result.extractionId, toast);
           router.push(`/review/${result.extractionId}`);
@@ -201,8 +206,8 @@ function QuickAddFields({ userId }: { userId: string }) {
           }
         >
           {C.addUnknown}
-          {/* The user's own words (as typed): which line this is about, once others have been added. */}
-          <span id={`${unknownId}-${i}`} className="line-clamp-2 text-small break-words text-le-text-secondary">
+          {/* The user's own words, verbatim and in full (rule 5): which line this is about, once others have been added. */}
+          <span id={`${unknownId}-${i}`} className="block text-small wrap-anywhere whitespace-pre-wrap text-le-text-secondary">
             {u.line}
           </span>
         </ErrorBanner>

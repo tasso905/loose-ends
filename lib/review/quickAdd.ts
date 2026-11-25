@@ -81,7 +81,7 @@ export interface UndoPair {
   eventId: number;
 }
 
-/** All or nothing: every thread the quick add created, each within 12 s of its created event. */
+/** All or nothing: every thread the quick add created, each within 30 s of its created event. */
 export function undoQuickAdd(
   db: RpcDb,
   pairs: UndoPair[],

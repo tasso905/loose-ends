@@ -1,3 +1,4 @@
+import { execFileSync } from "node:child_process";
 import AxeBuilder from "@axe-core/playwright";
 import { createClient } from "@supabase/supabase-js";
 import { expect, test, type BrowserContext, type Page } from "@playwright/test";
@@ -166,7 +167,7 @@ test("a lost response, then Try again: one thread, one source, one daily count, 
 
 test("a lost response: the banner claims nothing, offline or not, and keeps newer text (D1, D2)", async () => {
   await admin().from("threads").delete().eq("user_id", uid);
-  const unknown = page.getByText("I can't tell if your last line was added. Try again: it won't be added twice.");
+  const unknown = page.getByText("I can't tell if this line was added. Try again: it won't be added twice.");
   let lose = true;
   await page.route("**/add?mode=quick", async (route) => {
     if (route.request().method() !== "POST" || !lose) return route.continue();
@@ -199,11 +200,11 @@ test("a response that arrives after the Undo window says what was added, with no
   await page.route("**/add?mode=quick", async (route) => {
     if (route.request().method() !== "POST") return route.continue();
     const response = await route.fetch();
-    await new Promise((r) => setTimeout(r, 11_500));
+    await new Promise((r) => setTimeout(r, 27_000));
     await route.fulfill({ response });
   });
   await quickAdd(PLUMBER);
-  await expect(page.getByRole("status").filter({ hasText: `Added "${PLUMBER}"` })).toBeVisible({ timeout: 20_000 });
+  await expect(page.getByRole("status").filter({ hasText: `Added "${PLUMBER}"` })).toBeVisible({ timeout: 35_000 });
   await expect(page.getByRole("button", { name: /^Undo add/ })).toHaveCount(0);
   await expectNoViolations();
   await page.unrouteAll({ behavior: "ignoreErrors" });
@@ -226,22 +227,24 @@ test("a lost Undo response claims nothing either way (D2)", async () => {
   expect(await threads()).toHaveLength(0);
 });
 
-test("after a 6 s response, Undo is withdrawn before the server would refuse it (D4)", async () => {
+test("after a 19 s response, a focused Undo is offered over 8 s and withdrawn before the server would refuse it", async () => {
   await admin().from("threads").delete().eq("user_id", uid);
   let createdAt = 0;
   await page.route("**/add?mode=quick", async (route) => {
     if (route.request().method() !== "POST") return route.continue();
     const response = await route.fetch();
     createdAt = performance.now();
-    await new Promise((r) => setTimeout(r, 6_000));
+    await new Promise((r) => setTimeout(r, 19_000));
     await route.fulfill({ response });
   });
   await quickAdd(PLUMBER);
   const undo = page.getByRole("button", { name: `Undo add: ${PLUMBER}` });
-  await expect(undo).toBeVisible({ timeout: 10_000 });
+  await expect(undo).toBeVisible({ timeout: 25_000 });
+  const shownAt = performance.now();
   await undo.focus(); // a focused toast does not time out on its own: only the limit closes it
-  await expect(undo).toBeHidden({ timeout: 10_000 });
-  expect(performance.now() - createdAt).toBeLessThan(12_000);
+  await expect(undo).toBeHidden({ timeout: 12_000 });
+  expect(performance.now() - shownAt).toBeGreaterThan(8_000);
+  expect(performance.now() - createdAt).toBeLessThan(29_500);
   await expect(page.getByRole("textbox", { name: "Quick add" })).toBeFocused();
   await page.unrouteAll({ behavior: "ignoreErrors" });
 });
@@ -256,7 +259,7 @@ test("offline with another line after a lost response: Try again is about the li
     await route.abort("connectionreset");
   });
   await quickAdd(PLUMBER);
-  await expect(page.getByText("I can't tell if your last line was added.")).toBeVisible();
+  await expect(page.getByText("I can't tell if this line was added.")).toBeVisible();
   const addLine = async (line: string) => {
     await page.getByRole("textbox", { name: "Quick add" }).fill(line);
     await page.getByRole("button", { name: "Add", exact: true }).click();
@@ -265,7 +268,7 @@ test("offline with another line after a lost response: Try again is about the li
   await addLine("Buy stamps");
   await expect(page.getByText("Nothing was saved")).toBeVisible();
   await addLine(PLUMBER);
-  await expect(page.getByText("I can't tell if your last line was added.")).toBeVisible();
+  await expect(page.getByText("I can't tell if this line was added.")).toBeVisible();
   await expect(page.getByText("Nothing was saved")).toHaveCount(0);
   await context.setOffline(false);
   await page.getByRole("button", { name: "Try again" }).click();
@@ -284,7 +287,7 @@ test("an unknown line stays unknown while another is added via /review, until it
     await route.abort("connectionreset");
   });
   await quickAdd(PLUMBER);
-  const banner = page.getByRole("alert").filter({ hasText: "I can't tell if your last line was added." });
+  const banner = page.getByRole("alert").filter({ hasText: "I can't tell if this line was added." });
   await expect(banner).toContainText(PLUMBER);
   // B goes to /review; A is still unknown when the user comes back.
   await page.getByRole("textbox", { name: "Quick add" }).fill(MIXED);
@@ -314,7 +317,7 @@ test("two unknown lines: each is named, and each Try again is about its own line
     await route.abort("connectionreset");
   });
   await quickAdd(PLUMBER);
-  const banners = page.getByRole("alert").filter({ hasText: "I can't tell if your last line was added." });
+  const banners = page.getByRole("alert").filter({ hasText: "I can't tell if this line was added." });
   await expect(banners).toHaveCount(1);
   await page.getByRole("textbox", { name: "Quick add" }).fill(ACME);
   await page.getByRole("button", { name: "Add", exact: true }).click();
@@ -338,7 +341,7 @@ test("at the daily limit, an unknown line that was never stored is settled by th
     await route.abort("connectionreset"); // never reached the server
   });
   await quickAdd(PLUMBER);
-  const banner = page.getByRole("alert").filter({ hasText: "I can't tell if your last line was added." });
+  const banner = page.getByRole("alert").filter({ hasText: "I can't tell if this line was added." });
   await expect(banner).toBeVisible();
   await admin().from("usage_counters").update({ extractions: 30 }).eq("user_id", uid);
   await page.getByRole("button", { name: "Try again" }).click();
@@ -347,3 +350,105 @@ test("at the daily limit, an unknown line that was never stored is settled by th
   await admin().from("usage_counters").update({ extractions: 0 }).eq("user_id", uid);
   await page.unrouteAll({ behavior: "ignoreErrors" });
 });
+
+test("after a 19 s response, the last Undo offered is accepted by the server", async () => {
+  await admin().from("threads").delete().eq("user_id", uid);
+  let createdAt = 0;
+  await page.route("**/add?mode=quick", async (route) => {
+    if (route.request().method() !== "POST" || createdAt) return route.continue();
+    const response = await route.fetch();
+    createdAt = performance.now();
+    await new Promise((r) => setTimeout(r, 19_000));
+    await route.fulfill({ response });
+  });
+  await quickAdd(PLUMBER);
+  const undo = page.getByRole("button", { name: `Undo add: ${PLUMBER}` });
+  await expect(undo).toBeVisible({ timeout: 25_000 });
+  await undo.focus();
+  await page.waitForTimeout(27_000 - (performance.now() - createdAt));
+  await undo.press("Enter");
+  await expect.poll(async () => (await threads()).length).toBe(0);
+  await page.unrouteAll({ behavior: "ignoreErrors" });
+});
+
+test("a retry of an unknown line refused by the daily limit: no Try again (§2.13); adding the line again works", async () => {
+  await admin().from("threads").delete().eq("user_id", uid);
+  let lose = true;
+  await page.route("**/add?mode=quick", async (route) => {
+    if (route.request().method() !== "POST" || !lose) return route.continue();
+    lose = false;
+    await route.abort("connectionreset"); // never reached the server
+  });
+  await quickAdd(PLUMBER);
+  const retry = page.getByRole("button", { name: "Try again" });
+  await expect(retry).toBeVisible();
+  await admin().from("usage_counters").update({ extractions: 30 }).eq("user_id", uid);
+  await retry.click();
+  await expect(page.getByText("You've reached today's limit of 30 sources.")).toBeVisible();
+  await expect(retry).toHaveCount(0);
+  await admin().from("usage_counters").update({ extractions: 0 }).eq("user_id", uid);
+  await page.getByRole("button", { name: "Add", exact: true }).click();
+  await expect(page.getByRole("status").filter({ hasText: `Added "${PLUMBER}"` })).toBeVisible();
+  expect(await threads()).toHaveLength(1);
+  await page.unrouteAll({ behavior: "ignoreErrors" });
+});
+
+// Needs a server with a budget and the stack's database container, to close and reopen the budget.
+const DB = process.env.LE_S11_DB_CONTAINER ?? "";
+test("a retry of an unknown line refused by a closed budget: Try again resends that line, not newer text", async () => {
+  test.skip(!DB || DB === "supabase_db_loose-ends" || !(Number(process.env.DAILY_AI_BUDGET_USD) > 0), "needs LE_S11_DB_CONTAINER and DAILY_AI_BUDGET_USD");
+  const sql = (q: string) => execFileSync("docker", ["exec", DB, "psql", "-U", "postgres", "-tAc", q]);
+  await admin().from("threads").delete().eq("user_id", uid);
+  let lose = true;
+  await page.route("**/add?mode=quick", async (route) => {
+    if (route.request().method() !== "POST" || !lose) return route.continue();
+    lose = false;
+    await route.abort("connectionreset"); // never reached the server
+  });
+  await quickAdd(PLUMBER);
+  const retry = page.getByRole("button", { name: "Try again" });
+  await expect(retry).toBeVisible();
+  const field = page.getByRole("textbox", { name: "Quick add" });
+  await field.fill("typed since");
+  try {
+    sql("insert into private.ai_spend_daily (day, cost_micros, calls) values ((now() at time zone 'UTC')::date, 1000000000000, 0) on conflict (day) do update set cost_micros = 1000000000000");
+    await retry.click();
+    await expect(page.getByText("That didn't save. Try again.")).toBeVisible();
+    await expect(page.getByText("I can't tell if this line was added.")).toHaveCount(0);
+  } finally {
+    sql("delete from private.ai_spend_daily");
+  }
+  expect(await threads()).toHaveLength(0);
+  await retry.click();
+  await expect(page.getByRole("status").filter({ hasText: `Added "${PLUMBER}"` })).toBeVisible();
+  await expect(field).toHaveValue("typed since");
+  expect(await threads()).toHaveLength(1);
+  await page.unrouteAll({ behavior: "ignoreErrors" });
+});
+
+for (const [name, line] of [
+  ["2,000 characters of words", "Call the plumber about the tap ".repeat(65).slice(0, 1_999) + "Z"],
+  ["an unbroken 2,000 character string", "x".repeat(1_999) + "Z"],
+  ["repeated spaces", "Call   the    plumber"],
+] as const) {
+  test(`375 px: the unknown banner shows the whole line, wrapped, no sideways scroll (${name})`, async () => {
+    await admin().from("threads").delete().eq("user_id", uid);
+    await page.setViewportSize({ width: 375, height: 720 });
+    await page.route("**/add?mode=quick", (route) => (route.request().method() === "POST" ? route.abort("connectionreset") : route.continue()));
+    await quickAdd(line);
+    const shown = page.getByRole("alert").locator("span");
+    await expect(shown).toBeVisible();
+    expect(await shown.evaluate((e) => (e as HTMLElement).innerText)).toBe(line);
+    const m = await page.evaluate(() => {
+      const e = document.querySelector("[role=alert] span")!;
+      return { clipped: e.scrollHeight > e.clientHeight + 1 || e.scrollWidth > e.clientWidth + 1, sideways: document.documentElement.scrollWidth > document.documentElement.clientWidth };
+    });
+    expect(m).toEqual({ clipped: false, sideways: false });
+    const retry = (await page.getByRole("button", { name: "Try again" }).boundingBox())!;
+    expect(retry.x + retry.width).toBeLessThanOrEqual(375);
+    expect(retry.height).toBeGreaterThanOrEqual(44);
+    await expectNoViolations();
+    await page.unrouteAll({ behavior: "ignoreErrors" });
+    await page.setViewportSize({ width: 1280, height: 720 });
+  });
+}

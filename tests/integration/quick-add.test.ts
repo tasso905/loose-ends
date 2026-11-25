@@ -231,12 +231,12 @@ describe("quick_add_undo (F4: undo removes the thread and its events)", () => {
     expect(res2.ok && res2.created.length).toBe(1);
   });
 
-  it("is accepted at 12 s and refused after it, with nothing changed", async () => {
+  it("is accepted at 30 s and refused after it, with nothing changed", async () => {
     const m = await created();
     const before = await snapshot();
-    expect(await undoQuickAdd(dbA, pairs(m.created), { now: new Date(SOON.getTime() + 12_001) })).toMatchObject({ ok: false, code: "invalid_transition" });
+    expect(await undoQuickAdd(dbA, pairs(m.created), { now: new Date(SOON.getTime() + 30_001) })).toMatchObject({ ok: false, code: "invalid_transition" });
     expect(await snapshot()).toEqual(before);
-    expect(await undoQuickAdd(dbA, pairs(m.created), { now: new Date(SOON.getTime() + 12_000) })).toEqual({ ok: true, removed: 1 });
+    expect(await undoQuickAdd(dbA, pairs(m.created), { now: new Date(SOON.getTime() + 30_000) })).toEqual({ ok: true, removed: 1 });
   });
 
   it("is refused once the user has acted on the thread (Done), with nothing changed", async () => {

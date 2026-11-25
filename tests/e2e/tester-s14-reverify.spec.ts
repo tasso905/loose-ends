@@ -11,7 +11,7 @@ import { settled } from "./settled";
  * and axe / focus / 44 px of the new banner states at 1280 and 375 px. Recorded model only.
  */
 const PLUMBER = "Call the plumber about the leaking tap";
-const ADD_UNKNOWN = "I can't tell if your last line was added. Try again: it won't be added twice.";
+const ADD_UNKNOWN = "I can't tell if this line was added. Try again: it won't be added twice.";
 const UNDO_UNKNOWN = "I can't tell if that was undone. Check Threads to see.";
 const email = testEmail();
 let context: BrowserContext;
@@ -91,8 +91,8 @@ for (const [up, down] of [[0, 0], [0, 1_000], [0, 2_000], [0, 4_000], [0, 6_000]
     if (offered) await expect(undo()).toBeHidden({ timeout: 13_000 });
     const ms = offered ? Math.round(performance.now() - t0) : 0;
     console.log(`UNDO up=${up} down=${down} offered=${ms}ms`);
-    // A normal add gives the full 8 s (D8).
-    if (up + down <= 2_000) expect(ms).toBeGreaterThan(7_500);
+    // The full 8 s, however slow (30 s window, user decision Nov 24).
+    expect(ms).toBeGreaterThan(7_500);
     expect(await threads()).toBe(1);
   });
 }
@@ -168,7 +168,7 @@ for (const width of [1280, 375]) {
     await loseOnce();
     await add();
     await expect(page.getByText(ADD_UNKNOWN)).toBeVisible();
-    await page.waitForTimeout(10_000);
+    await page.waitForTimeout(27_000);
     await page.getByRole("button", { name: "Try again" }).click();
     await expect(added()).toBeVisible();
     await expect(page.getByRole("button", { name: /^Undo/ })).toHaveCount(0);
