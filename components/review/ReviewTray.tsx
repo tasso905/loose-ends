@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { useContext, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import { Clock, Quote, Sparkle } from "lucide-react";
 import {
@@ -9,11 +9,14 @@ import {
   undoRejectAction,
 } from "@/app/review/[extractionId]/actions";
 import { Spinner } from "@/components/auth/Spinner";
+import { showQuickAddToast, takeQuickAddToast } from "@/components/capture/quickAddToast";
 import { ErrorBanner } from "@/components/Notice";
+import { ActionHostContext } from "@/components/threads/ActionHost";
 import { Button } from "@/components/ui/button";
 import { formatDue } from "@/lib/dates";
 import { apiError, type ApiError } from "@/lib/errors";
 import type { ExtractionView, ProposalView } from "@/lib/extraction/service";
+import { reviewableProposals } from "@/lib/review/quickAdd";
 import { canAccept, groupProposals, initialSelection, TRAY_COPY as C, trayProposals, type TrayBand } from "@/lib/review/tray";
 import type { ReviewStatus, ThreadKind } from "@/lib/schemas";
 import { threadKindFor } from "@/lib/threads/mapping";
@@ -48,7 +51,15 @@ export function ReviewTray({
   /** The source, for the label above each quote; omitted: `Pasted text`. */
   source?: SourceRef | null;
 }) {
-  const shown = useMemo(() => trayProposals(view.proposals), [view.proposals]);
+  // A quick add's High proposals are threads already: the tray is for the rest only (SITE_CONTRACT §3.1).
+  const shown = useMemo(() => trayProposals(reviewableProposals(view.proposals)), [view.proposals]);
+  const host = useContext(ActionHostContext);
+  // Where focus goes when the toast that held it closes (S14 D3).
+  const headingRef = useRef<HTMLHeadingElement>(null);
+  useEffect(() => {
+    const handed = takeQuickAddToast(view.id);
+    if (handed && host) showQuickAddToast(host, handed, () => headingRef.current?.focus());
+  }, [view.id, host]);
   const [status, setStatus] = useState<Record<string, ReviewStatus>>(() =>
     Object.fromEntries(shown.map((p) => [p.id, p.reviewStatus])),
   );
@@ -140,7 +151,7 @@ export function ReviewTray({
   if (shown.length === 0) {
     return (
       <div>
-        <h1 className="text-display-sm text-le-text sm:text-display">{C.zero}</h1>
+        <h1 ref={headingRef} tabIndex={-1} className="focus-ring rounded-control text-display-sm text-le-text sm:text-display">{C.zero}</h1>
         <ExplainBrief brief={view.brief} source={source} className="mt-6" />
       </div>
     );
@@ -152,7 +163,7 @@ export function ReviewTray({
 
   return (
     <div>
-      <h1 className="text-display-sm text-le-text sm:text-display">{C.heading(shown.length)}</h1>
+      <h1 ref={headingRef} tabIndex={-1} className="focus-ring rounded-control text-display-sm text-le-text sm:text-display">{C.heading(shown.length)}</h1>
 
       <div role="status" aria-live="polite" className="mt-3 empty:hidden">
         {acceptedCount > 0 ? (

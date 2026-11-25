@@ -1,0 +1,22 @@
+{
+  "name": "quick-add-acme",
+  "task": "extract",
+  "input": "Acme said they'd pay the invoice by the 15th",
+  "responses": [
+    {
+      "source_summary": "Quick add: a payment Acme promised",
+      "participants": [{ "name": "Acme", "is_user": "no" }],
+      "items": [
+        {
+          "type": "waiting_on", "title": "Acme to pay the invoice",
+          "owner": "other", "counterparty": "Acme", "action": "Pay the invoice",
+          "date_text": "by the 15th", "date_iso": null, "amount_text": null,
+          "certainty": "explicit", "uncertainty_notes": [],
+          "matches_thread_id": null,
+          "evidence": [{ "quote": "Acme said they'd pay the invoice by the 15th", "speaker": null }]
+        }
+      ],
+      "brief": null
+    }
+  ]
+}

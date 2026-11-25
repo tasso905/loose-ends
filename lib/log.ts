@@ -24,6 +24,7 @@ export type LogEvent =
   | "analytics_setting_save_failed"
   | "review_persist_failed"
   | "thread_action_failed"
+  | "quick_add_failed"
   | "threads_load_failed"
   | "why_load_failed"
   | "reason_add_failed"

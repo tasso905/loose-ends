@@ -37,10 +37,15 @@ const WRITERS = [
   "thread_snooze",
   "thread_wake",
   "undo_reject_proposals",
+  // S14 (F4): auto-create writes threads, evidence, thread_events and extraction_items; undo deletes
+  // those threads (and their events) and puts the proposal back as rejected
+  "quick_add_auto_create",
+  "quick_add_undo",
+  "start_quick_add", // S14 D2: writes private.quick_add_submissions and, for a new key, what start_source_extraction writes
 ].sort();
 
 /** Read-only public functions `authenticated` may execute (invoker, RLS applies). */
-const READERS = ["extraction_context", "search_decisions"]; // S9 (F12): invoker, read-only
+const READERS = ["extraction_context", "quick_add_result", "search_decisions"]; // S9 (F12), S14 (D4): invoker, read-only
 
 const TRUST_TABLES = ["extractions", "extraction_items", "evidence", "threads", "thread_events", "suppressions", "decisions"];
 

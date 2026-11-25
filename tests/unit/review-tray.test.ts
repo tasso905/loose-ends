@@ -18,6 +18,8 @@ vi.mock("@/app/review/[extractionId]/actions", () => ({
   proposalsShownAction: vi.fn(),
   retryExtractionAction: vi.fn(),
 }));
+// S14: the tray can show a quick add's undo toast, whose Undo is the Add page's server action.
+vi.mock("@/app/add/actions", () => ({ undoQuickAddAction: vi.fn() }));
 const { ReviewTray } = await import("@/components/review/ReviewTray");
 
 const SOURCE = "11111111-1111-4111-8111-111111111111";

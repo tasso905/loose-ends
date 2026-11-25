@@ -17,6 +17,7 @@ const container = process.env.LE_S11_DB_CONTAINER ?? "";
 test.skip(!["0", "cap"].includes(MODE) || container === "" || container === "supabase_db_loose-ends", "needs LE_BUDGET_E2E and an isolated stack");
 
 const MIKE = "Thanks Mike — I'll send you the revised proposal Friday. We should grab lunch sometime.";
+const PLUMBER = "Call the plumber about the leaking tap";
 const FAB_Q = "Why did I hire Quillfeather for the kitchen?";
 const ZERO_Q = "Why did I choose the zzyzx plan?";
 const NO_RECORD = "I don't have a recorded decision about that.";
@@ -106,6 +107,19 @@ test.describe("cap 0", () => {
     await db.from("sources").delete().eq("id", s.data!.id);
   });
 
+  test("quick add with a recording (S14): save_failed, text kept, no thread, nothing saved or counted, no model call", async () => {
+    await page.goto("/add?mode=quick");
+    await page.getByRole("textbox", { name: "Quick add" }).fill(PLUMBER);
+    await page.getByRole("button", { name: "Add", exact: true }).click();
+    await expect(page.getByText(SAVE_FAILED)).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByText(/reached today's limit|budget|spend|Added "/i)).toHaveCount(0);
+    await expect(page.getByRole("textbox", { name: "Quick add" })).toHaveValue(PLUMBER);
+    expect((await admin().from("sources").select("id").eq("user_id", uid)).data).toEqual([]);
+    expect((await admin().from("threads").select("id").eq("user_id", uid).eq("title", PLUMBER)).data).toEqual([]);
+    expect(spendRow()).toBe("");
+    expect(await usage()).toMatchObject({ extractions: 0 });
+  });
+
   test("upload with a recording: save_failed, never rate_limited, no model call, nothing kept or counted", async () => {
     await page.goto("/add?mode=upload");
     await page.locator("#file").setInputFiles({ name: "Mike email.txt", mimeType: "text/plain", buffer: Buffer.from(MIKE) });
@@ -142,6 +156,20 @@ test.describe("cap 0", () => {
 
 test.describe("a valid cap on the fake provider", () => {
   test.skip(MODE !== "cap");
+
+  test("quick add (S14) succeeds and its cost is recorded in the day's spend", async () => {
+    const before = Number(spendRow().split("/")[1] ?? 0);
+    await page.goto("/add?mode=quick");
+    await page.getByRole("textbox", { name: "Quick add" }).fill(PLUMBER);
+    await page.getByRole("button", { name: "Add", exact: true }).click();
+    await expect(page.getByText(`Added "${PLUMBER}"`)).toBeVisible({ timeout: 20_000 });
+    expect(Number(spendRow().split("/")[1])).toBe(before + 1);
+    // Leave the paste test below its usual starting point.
+    sql("delete from private.ai_spend_daily");
+    await admin().from("threads").delete().eq("user_id", uid).eq("title", PLUMBER);
+    await admin().from("sources").delete().eq("user_id", uid);
+    await admin().from("usage_counters").delete().eq("user_id", uid);
+  });
 
   test("paste succeeds and its cost is recorded in the day's spend", async () => {
     await paste(MIKE);

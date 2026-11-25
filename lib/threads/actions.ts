@@ -17,7 +17,7 @@ import { charCount, EDIT_LIMITS, isBlankText } from "./transition";
  * `Back to me`, `Wake now` (PRD lifecycle table action names); `Cancel` (D56); field copy reused
  * from D47 (`Titles can be up to 120 characters.`, `Enter a real date between 1900 and 2100.`).
  *
- * PROPOSED copy (not in the docs; for user sign-off): every string marked PROPOSED below.
+ * Copy not in the docs was approved by the user on Nov 13 (S12), including the text limits.
  */
 export const ACTIONS_COPY = {
   markWaiting: "Mark waiting",
@@ -29,15 +29,15 @@ export const ACTIONS_COPY = {
   wakeNow: "Wake now",
   cancel: "Cancel",
   waitingOn: "Waiting on",
-  /** PROPOSED: `(optional)` added, as D47's `Title (optional)`. */
+  /** `(optional)` added, as D47's `Title (optional)`. */
   expectedBy: "Expected by (optional)",
   tomorrow: "Tomorrow, 9:00",
   nextMonday: "Next Monday, 9:00",
   pickDate: "Pick a date…",
-  /** PROPOSED: the date field and button after `Pick a date…`. */
+  /** The date field and button after `Pick a date…`. */
   snoozeDateLabel: "Snooze until",
   snoozeConfirm: "Snooze",
-  /** PROPOSED: Edit sheet. */
+  /** Edit sheet. */
   editHeading: "Edit thread",
   editSave: "Save changes",
   title: "Title",
@@ -47,14 +47,14 @@ export const ACTIONS_COPY = {
   dueDate: "Due date",
   dueTime: "Time (optional)",
   snoozedUntil: "Snoozed until",
-  /** PROPOSED: field errors. */
+  /** Field errors. */
   titleRequired: "Give this thread a title.",
   waitingOnRequired: "Write who you're waiting on.",
   pickFutureDate: "Pick a date after today.",
   /** D47 (approved for the Add form), reused. */
   titleTooLong: "Titles can be up to 120 characters.",
   badDate: "Enter a real date between 1900 and 2100.",
-  /** PROPOSED: undo toasts and their Undo labels, in the pattern of D47 / D56. */
+  /** Undo toasts and their Undo labels, in the pattern of D47 / D56. */
   markWaitingToast: (title: string) => `Marked waiting: "${title}"`,
   markWaitingUndo: (title: string) => `Undo mark waiting: ${title}`,
   snoozeToast: (title: string) => `Snoozed: "${title}"`,

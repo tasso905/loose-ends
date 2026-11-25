@@ -1,0 +1,30 @@
+{
+  "name": "quick-add-mixed",
+  "task": "extract",
+  "input": "Call the bank about the card, and maybe book a dentist visit",
+  "responses": [
+    {
+      "source_summary": "Quick add: two tasks, one hedged",
+      "participants": [],
+      "items": [
+        {
+          "type": "commitment", "title": "Call the bank about the card",
+          "owner": "user", "counterparty": "the bank", "action": "Call the bank about the card",
+          "date_text": null, "date_iso": null, "amount_text": null,
+          "certainty": "explicit", "uncertainty_notes": [],
+          "matches_thread_id": null,
+          "evidence": [{ "quote": "Call the bank about the card", "speaker": null }]
+        },
+        {
+          "type": "commitment", "title": "Book a dentist visit",
+          "owner": "user", "counterparty": null, "action": "Book a dentist visit",
+          "date_text": null, "date_iso": null, "amount_text": null,
+          "certainty": "explicit", "uncertainty_notes": [],
+          "matches_thread_id": null,
+          "evidence": [{ "quote": "maybe book a dentist visit", "speaker": null }]
+        }
+      ],
+      "brief": null
+    }
+  ]
+}
