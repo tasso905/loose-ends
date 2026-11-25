@@ -273,7 +273,7 @@ describe.skipIf(!live)("lead-tester S11 cron, account deletion failures, purge",
         current.client = A.client;
         current.admin = null;
         jar.set.length = 0;
-        const res = await deleteAccountAction("delete");
+        const res = await deleteAccountAction("delete", A.id);
         expect(res).toMatchObject({ ok: false, error: { code: "save_failed" } });
         expect(jar.set).toEqual([]);
         expect(await userExists(A.id)).toBe(true);
@@ -291,7 +291,7 @@ describe.skipIf(!live)("lead-tester S11 cron, account deletion failures, purge",
       current.admin = faulty(admin, { firstList: true });
       jar.set.length = 0;
       try {
-        expect(await deleteAccountAction("delete")).toMatchObject({ ok: false, error: { code: "save_failed" } });
+        expect(await deleteAccountAction("delete", A.id)).toMatchObject({ ok: false, error: { code: "save_failed" } });
       } finally {
         current.admin = null;
       }
@@ -307,7 +307,7 @@ describe.skipIf(!live)("lead-tester S11 cron, account deletion failures, purge",
       current.admin = faulty(admin, { deleteUser: "refused" });
       jar.set.length = 0;
       try {
-        expect(await deleteAccountAction("delete")).toMatchObject({ ok: false, error: { code: "save_failed" } });
+        expect(await deleteAccountAction("delete", A.id)).toMatchObject({ ok: false, error: { code: "save_failed" } });
       } finally {
         current.admin = null;
       }
@@ -333,7 +333,7 @@ describe.skipIf(!live)("lead-tester S11 cron, account deletion failures, purge",
       current.admin = faulty(admin, { deleteUser: "after" });
       jar.set.length = 0;
       try {
-        expect(await deleteAccountAction("delete")).toEqual({ ok: true });
+        expect(await deleteAccountAction("delete", A.id)).toEqual({ ok: true });
       } finally {
         current.admin = null;
       }
@@ -345,7 +345,7 @@ describe.skipIf(!live)("lead-tester S11 cron, account deletion failures, purge",
       expect(pendingAudit(A.id)).toBe(0);
 
       // A repeat from the dead session: not a success, not a second deletion.
-      expect(await deleteAccountAction("delete")).toMatchObject({ ok: false, error: { code: "unauthenticated" } });
+      expect(await deleteAccountAction("delete", A.id)).toMatchObject({ ok: false, error: { code: "unauthenticated" } });
 
       expect(pendingAudit(A.id)).toBe(0);
       expect(pendingFiles(A.id)).toBe(0);
@@ -358,7 +358,7 @@ describe.skipIf(!live)("lead-tester S11 cron, account deletion failures, purge",
       current.admin = faulty(admin, { finalSweep: true });
       jar.set.length = 0;
       try {
-        expect(await deleteAccountAction("delete")).toEqual({ ok: true });
+        expect(await deleteAccountAction("delete", A.id)).toEqual({ ok: true });
       } finally {
         current.admin = null;
       }
@@ -386,7 +386,7 @@ describe.skipIf(!live)("lead-tester S11 cron, account deletion failures, purge",
       current.admin = faulty(admin, { purge: true });
       jar.set.length = 0;
       try {
-        expect(await deleteAccountAction("delete")).toEqual({ ok: true });
+        expect(await deleteAccountAction("delete", A.id)).toEqual({ ok: true });
       } finally {
         current.admin = null;
       }
@@ -406,7 +406,7 @@ describe.skipIf(!live)("lead-tester S11 cron, account deletion failures, purge",
       current.admin = faulty(admin, { purge: true, finalSweep: true });
       jar.set.length = 0;
       try {
-        expect(await deleteAccountAction("delete")).toEqual({ ok: true });
+        expect(await deleteAccountAction("delete", A.id)).toEqual({ ok: true });
       } finally {
         current.admin = null;
       }
@@ -452,7 +452,7 @@ describe.skipIf(!live)("lead-tester S11 cron, account deletion failures, purge",
       current.client = A.client;
       current.admin = faulty(admin, { firstList: true });
       try {
-        expect((await deleteAccountAction("delete")).ok).toBe(false);
+        expect((await deleteAccountAction("delete", A.id)).ok).toBe(false);
       } finally {
         current.admin = null;
       }
@@ -492,13 +492,13 @@ describe.skipIf(!live)("lead-tester S11 cron, account deletion failures, purge",
       current.client = A.client;
       current.admin = faulty(admin, { firstList: true });
       try {
-        expect((await deleteAccountAction("delete")).ok).toBe(false);
+        expect((await deleteAccountAction("delete", A.id)).ok).toBe(false);
       } finally {
         current.admin = null;
       }
       expect(pendingAudit(A.id)).toBe(1);
       jar.set.length = 0;
-      expect(await deleteAccountAction("delete")).toEqual({ ok: true });
+      expect(await deleteAccountAction("delete", A.id)).toEqual({ ok: true });
       expect(jar.set.map((c) => c.value)).toEqual(["1"]);
       expect(pendingAudit(A.id)).toBe(0);
       expect(pendingFiles(A.id)).toBe(0);
@@ -516,7 +516,7 @@ describe.skipIf(!live)("lead-tester S11 cron, account deletion failures, purge",
       expect(auditCount(A)).toBeGreaterThan(0);
       current.client = A.client;
       jar.set.length = 0;
-      expect(await deleteAccountAction("delete")).toEqual({ ok: true });
+      expect(await deleteAccountAction("delete", A.id)).toEqual({ ok: true });
       expect(jar.set.map((c) => c.value)).toEqual(["1"]);
       expect(auditCount(A)).toBe(0);
       expect(auditCount(B)).toBe(bBefore);
@@ -533,7 +533,7 @@ describe.skipIf(!live)("lead-tester S11 cron, account deletion failures, purge",
       const near = await makeUser("ad", `x${local}@example.com`);
       const nearBefore = auditCount(near);
       current.client = A.client;
-      expect(await deleteAccountAction("delete")).toEqual({ ok: true });
+      expect(await deleteAccountAction("delete", A.id)).toEqual({ ok: true });
       expect(Number(psql(`select count(*) from auth.audit_log_entries where payload::text ilike '%${near.id}%'`))).toBeGreaterThan(0);
       expect(auditCount(near)).toBe(nearBefore);
     });
@@ -544,7 +544,7 @@ describe.skipIf(!live)("lead-tester S11 cron, account deletion failures, purge",
       current.client = A.client;
       current.admin = faulty(admin, { purge: true });
       try {
-        expect(await deleteAccountAction("delete")).toEqual({ ok: true });
+        expect(await deleteAccountAction("delete", A.id)).toEqual({ ok: true });
       } finally {
         current.admin = null;
       }
@@ -565,12 +565,12 @@ describe.skipIf(!live)("lead-tester S11 cron, account deletion failures, purge",
       const email = `le-test-u11twice-${randomUUID().slice(0, 6)}@example.com`;
       const A = await makeUser("ag", email);
       current.client = A.client;
-      expect(await deleteAccountAction("delete")).toEqual({ ok: true });
+      expect(await deleteAccountAction("delete", A.id)).toEqual({ ok: true });
       const Y = await makeUser("ah", email);
       const yBefore = auditCount(Y);
       expect(yBefore).toBeGreaterThan(0);
       current.client = Y.client;
-      expect(await deleteAccountAction("delete")).toEqual({ ok: true });
+      expect(await deleteAccountAction("delete", Y.id)).toEqual({ ok: true });
       expect(auditCount(Y)).toBe(0);
     });
 
@@ -646,7 +646,7 @@ describe.skipIf(!live)("lead-tester S11 cron, account deletion failures, purge",
       expect((await A.client.rpc("delete_source", { p_source_id: c.sourceId, p_everything: false })).data).toMatchObject({ ok: true });
       expect(psql(`select count(*) from private.thread_suppression_hashes where user_id='${A.id}'`)).toBe("1");
       current.client = A.client;
-      expect(await deleteAccountAction("delete")).toEqual({ ok: true });
+      expect(await deleteAccountAction("delete", A.id)).toEqual({ ok: true });
       expect(psql(`select count(*) from private.thread_suppression_hashes where user_id='${A.id}'`)).toBe("0");
       expect((await admin.from("suppressions").select("suppression_hash").eq("user_id", A.id)).data).toEqual([]);
     });
@@ -727,7 +727,7 @@ describe.skipIf(!live)("lead-tester S11 cron, account deletion failures, purge",
       current.admin = faulty(admin, { deleteUser: "refused" });
       jar.set.length = 0;
       try {
-        expect(await deleteAccountAction("delete")).toEqual({ ok: false, error: { code: "save_failed", message: "That didn't save. Try again.", retryable: true } });
+        expect(await deleteAccountAction("delete", A.id)).toEqual({ ok: false, error: { code: "save_failed", message: "That didn't save. Try again.", retryable: true } });
       } finally {
         current.admin = null;
       }
@@ -741,7 +741,7 @@ describe.skipIf(!live)("lead-tester S11 cron, account deletion failures, purge",
       expect((await cron()).status).toBe(200);
       for (const p of [one.path, two.path, unowned]) expect(await fileExists(p), p).toBe(true);
 
-      expect(await deleteAccountAction("delete")).toEqual({ ok: true });
+      expect(await deleteAccountAction("delete", A.id)).toEqual({ ok: true });
       for (const p of [one.path, two.path, unowned]) expect(await fileExists(p), p).toBe(false);
       expect(auditCount(A)).toBe(0);
     });
@@ -773,7 +773,7 @@ describe.skipIf(!live)("lead-tester S11 cron, account deletion failures, purge",
       current.admin = traced(A, { path: `${A.id}/none` }, seen, { removeFailAfter: 0 });
       jar.set.length = 0;
       try {
-        expect(await deleteAccountAction("delete")).toEqual({ ok: true });
+        expect(await deleteAccountAction("delete", A.id)).toEqual({ ok: true });
       } finally {
         current.admin = null;
       }
@@ -786,7 +786,7 @@ describe.skipIf(!live)("lead-tester S11 cron, account deletion failures, purge",
       const A = await makeUser("oe");
       await source(A);
       current.client = A.client;
-      expect(await deleteAccountAction("delete")).toEqual({ ok: true });
+      expect(await deleteAccountAction("delete", A.id)).toEqual({ ok: true });
       const token = createClient(url, anon, { ...opts, global: { headers: { Authorization: `Bearer ${(await A.client.auth.getSession()).data.session?.access_token ?? anon}` } } });
       const late = await token.storage.from("sources").upload(`${A.id}/${randomUUID()}`, new Blob(["late"]), { contentType: "text/plain" });
       expect(late.error).not.toBeNull();
@@ -838,7 +838,7 @@ describe.skipIf(!live)("lead-tester S11 cron, account deletion failures, purge",
         let res;
         const t0 = Date.now();
         try {
-          res = await deleteAccountAction("delete");
+          res = await deleteAccountAction("delete", A.id);
         } finally {
           current.admin = null;
           await startAuth();
@@ -851,7 +851,7 @@ describe.skipIf(!live)("lead-tester S11 cron, account deletion failures, purge",
         expect(auditCount(A)).toBeGreaterThanOrEqual(audit);
         expect((await cron()).status).toBe(200);
         expect(await fileExists(s.path)).toBe(true);
-        expect(await deleteAccountAction("delete")).toEqual({ ok: true });
+        expect(await deleteAccountAction("delete", A.id)).toEqual({ ok: true });
         expect(await fileExists(s.path)).toBe(false);
       },
       240_000,
@@ -867,7 +867,7 @@ describe.skipIf(!live)("lead-tester S11 cron, account deletion failures, purge",
         jar.set.length = 0;
         let res;
         try {
-          res = await deleteAccountAction("delete");
+          res = await deleteAccountAction("delete", A.id);
         } finally {
           current.admin = null;
           await startAuth();
@@ -910,7 +910,7 @@ describe.skipIf(!live)("lead-tester S11 cron, account deletion failures, purge",
         const t0 = Date.now();
         let res;
         try {
-          res = await deleteAccountAction("delete");
+          res = await deleteAccountAction("delete", A.id);
         } finally {
           current.admin = null;
           execFileSync("docker", ["unpause", AUTH!], { encoding: "utf8" });
@@ -945,10 +945,10 @@ describe.skipIf(!live)("lead-tester S11 cron, account deletion failures, purge",
           },
         },
       });
-      const run = async () => {
+      const run = async (id: string) => {
         jar.set.length = 0;
         const t0 = Date.now();
-        const res = await deleteAccountAction("delete");
+        const res = await deleteAccountAction("delete", id);
         return { res, ms: Date.now() - t0 };
       };
 
@@ -957,7 +957,7 @@ describe.skipIf(!live)("lead-tester S11 cron, account deletion failures, purge",
         const s = await source(A);
         current.client = A.client;
         current.admin = withDelete(never);
-        const { res, ms } = await run();
+        const { res, ms } = await run(A.id);
         current.admin = null;
         expect(res).toMatchObject({ ok: false, error: { code: "save_failed", message: UNCONFIRMED } });
         expect(ms).toBeGreaterThanOrEqual(14_900);
@@ -967,7 +967,7 @@ describe.skipIf(!live)("lead-tester S11 cron, account deletion failures, purge",
         expect(await fileExists(s.path)).toBe(true);
         expect((await cron()).status).toBe(200);
         expect(await fileExists(s.path)).toBe(true);
-        expect(await deleteAccountAction("delete")).toEqual({ ok: true });
+        expect(await deleteAccountAction("delete", A.id)).toEqual({ ok: true });
         expect(await userExists(A.id)).toBe(false);
         expect(await fileExists(s.path)).toBe(false);
         expect(pendingFiles(A.id)).toBe(0);
@@ -982,7 +982,7 @@ describe.skipIf(!live)("lead-tester S11 cron, account deletion failures, purge",
           await new Promise((r) => setTimeout(r, 16_000));
           return admin.auth.admin.deleteUser(id);
         });
-        const { res } = await run();
+        const { res } = await run(A.id);
         current.admin = null;
         expect(res).toMatchObject({ ok: false, error: { message: UNCONFIRMED } });
         expect(jar.set).toEqual([]);
@@ -991,7 +991,7 @@ describe.skipIf(!live)("lead-tester S11 cron, account deletion failures, purge",
         expect(pendingFiles(A.id)).toBe(1);
         expect(pendingAudit(A.id)).toBe(1);
         jar.set.length = 0;
-        const retry = await deleteAccountAction("delete");
+        const retry = await deleteAccountAction("delete", A.id);
         process.stderr.write(`LANDED LATE, RETRY: ${JSON.stringify(retry)}\n`);
         expect(retry).toMatchObject({ ok: false, error: { code: "unauthenticated" } });
         expect(jar.set).toEqual([]);
@@ -1007,7 +1007,7 @@ describe.skipIf(!live)("lead-tester S11 cron, account deletion failures, purge",
         const s = await source(A);
         current.client = A.client;
         current.admin = withDelete(never, never);
-        const { res, ms } = await run();
+        const { res, ms } = await run(A.id);
         current.admin = null;
         expect(res).toMatchObject({ ok: false, error: { message: UNCONFIRMED } });
         expect(ms).toBeGreaterThanOrEqual(29_900);
@@ -1025,7 +1025,7 @@ describe.skipIf(!live)("lead-tester S11 cron, account deletion failures, purge",
           await admin.auth.admin.deleteUser(id);
           return never();
         });
-        const { res } = await run();
+        const { res } = await run(A.id);
         current.admin = null;
         expect(res).toEqual({ ok: true });
         expect(jar.set.length).toBeGreaterThan(0);
@@ -1046,7 +1046,7 @@ describe.skipIf(!live)("lead-tester S11 cron, account deletion failures, purge",
         execFileSync("docker", ["pause", AUTH!], { encoding: "utf8" });
         let out;
         try {
-          out = await run();
+          out = await run(A.id);
         } finally {
           execFileSync("docker", ["unpause", AUTH!], { encoding: "utf8" });
         }
@@ -1056,7 +1056,7 @@ describe.skipIf(!live)("lead-tester S11 cron, account deletion failures, purge",
         expect(adminCalls).toBe(0);
         expect(await userExists(A.id)).toBe(true);
         expect(await fileExists(s.path)).toBe(true);
-        expect(await deleteAccountAction("delete")).toEqual({ ok: true });
+        expect(await deleteAccountAction("delete", A.id)).toEqual({ ok: true });
         current.admin = null;
         expect(await fileExists(s.path)).toBe(false);
       }, 240_000);
@@ -1071,7 +1071,7 @@ describe.skipIf(!live)("lead-tester S11 cron, account deletion failures, purge",
         ["network failure, status 0", { name: "AuthRetryableFetchError", status: 0 }, "save_failed"],
       ] as Array<[string, unknown, string]>)("the session check answers %s: %s", async (_n, error, code) => {
         current.client = { auth: { getUser: async () => ({ data: { user: null }, error }) } } as never;
-        const res = await deleteAccountAction("delete");
+        const res = await deleteAccountAction("delete", randomUUID());
         expect(res).toMatchObject({ ok: false, error: { code } });
         if (code === "save_failed") expect((res as { error: { message: string } }).error.message).toBe(UNCONFIRMED);
       });
@@ -1127,7 +1127,7 @@ describe.skipIf(!live)("lead-tester S11 cron, account deletion failures, purge",
         execFileSync("docker", ["stop", "-t", "1", STORAGE!], { encoding: "utf8" });
         try {
           const t0 = Date.now();
-          const res = await deleteAccountAction("delete");
+          const res = await deleteAccountAction("delete", A.id);
           console.log(`account outage: ${JSON.stringify(res)} in ${Date.now() - t0} ms`);
           expect(res).toMatchObject({ ok: false, error: { code: "save_failed" } });
           expect(Date.now() - t0).toBeLessThan(40_000);

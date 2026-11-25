@@ -12,8 +12,11 @@ import { apiError } from "@/lib/errors";
  * `Delete account…` (D14; CONTENT_MODEL "Delete account": typing `delete` confirms; backup expiry
  * explained honestly). Irreversible, no undo (D8). On success the session is already ended and
  * the browser goes to sign-in, which says the account was deleted (rule 10).
+ *
+ * `userId` is the user this was rendered for; the server refuses if someone else is signed in by now.
+ * The page keys this component by it, so a word typed for one user never confirms for another.
  */
-export function DeleteAccount() {
+export function DeleteAccount({ userId }: { userId: string }) {
   const [open, setOpen] = useState(false);
   const [word, setWord] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -32,8 +35,14 @@ export function DeleteAccount() {
     setFieldError(null);
     startTransition(async () => {
       try {
-        const res = await deleteAccountAction(word);
+        const res = await deleteAccountAction(word, userId);
         if (!res.ok) {
+          if (res.error.code === "unauthenticated") {
+            // Signed out, or someone else is signed in: /sign-in sends them on to their own Settings. A
+            // full page load that replaces this entry, so nothing of the previous user stays.
+            window.location.replace(`/sign-in?next=${encodeURIComponent("/settings")}`);
+            return;
+          }
           if (res.field === "confirm") setFieldError(res.error.message);
           else setError(res.error.message);
           return;

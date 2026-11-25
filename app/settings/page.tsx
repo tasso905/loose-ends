@@ -107,7 +107,7 @@ export default async function SettingsPage() {
           <div className="mt-8">
             <h3 className="text-h3 text-le-text">{D.accountHeading}</h3>
             <div className="mt-3">
-              <DeleteAccount />
+              <DeleteAccount key={user.id} userId={user.id} />
             </div>
           </div>
 

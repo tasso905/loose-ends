@@ -18,7 +18,7 @@ const BANNER: Partial<Record<OnboardingFailure, string>> = { save_failed: C.save
 const browserTimeZone = () => Intl.DateTimeFormat().resolvedOptions().timeZone ?? "";
 const noSubscribe = () => () => {};
 
-export function OnboardingForm({ next, email }: { next: string; email: string | null }) {
+export function OnboardingForm({ userId, next, email }: { userId: string; next: string; email: string | null }) {
   const router = useRouter();
   // The answer is uncontrolled so text typed before hydration survives (R2); see State.answer.
   const hydrated = useHydrated();
@@ -34,6 +34,11 @@ export function OnboardingForm({ next, email }: { next: string; email: string | 
     try {
       const result = await completeOnboarding(formData);
       if (!result.ok) return { failure: result.code, intent, answer };
+      if (result.fullLoad) {
+        // Someone else is signed in by now: nothing of the previous user stays.
+        window.location.replace(result.redirectTo);
+        return { failure: null, intent, answer: "" };
+      }
       router.replace(result.redirectTo);
       return { failure: null, intent, answer };
     } catch {
@@ -46,6 +51,7 @@ export function OnboardingForm({ next, email }: { next: string; email: string | 
 
   return (
     <form action={formAction} aria-busy={pending || undefined} className="mt-8 space-y-5">
+      <input type="hidden" name="user_id" value={userId} readOnly />
       <input type="hidden" name="next" value={next} readOnly />
       <input type="hidden" name="timezone" value={timezone} readOnly />
       {banner ? (

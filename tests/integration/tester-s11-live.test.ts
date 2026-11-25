@@ -560,11 +560,11 @@ describe.skipIf(!live)("lead-tester S11 on real local Supabase", () => {
       const A = await makeUser("aa");
       current.client = A.client;
       for (const bad of ["", "delet", "delete now", "yes", null, undefined, 1, {}, ["delete"]]) {
-        expect(await deleteAccountAction(bad), String(bad)).toMatchObject({ ok: false, field: "confirm" });
+        expect(await deleteAccountAction(bad, A.id), String(bad)).toMatchObject({ ok: false, field: "confirm" });
       }
       expect(await count("profiles", "id", A.id)).toBe(1);
       current.client = createClient(e.url, e.anon, opts);
-      expect(await deleteAccountAction("delete")).toMatchObject({ ok: false, error: { code: "unauthenticated" } });
+      expect(await deleteAccountAction("delete", A.id)).toMatchObject({ ok: false, error: { code: "unauthenticated" } });
       expect(await count("profiles", "id", A.id)).toBe(1);
     });
 
@@ -581,7 +581,7 @@ describe.skipIf(!live)("lead-tester S11 on real local Supabase", () => {
       const keep = await seedSource(B, `AccB${randomUUID().slice(0, 8)}`, ["three"]);
 
       current.client = A.client;
-      expect(await deleteAccountAction("delete")).toEqual({ ok: true });
+      expect(await deleteAccountAction("delete", A.id)).toEqual({ ok: true });
 
       for (const { table, owner } of EXPORT_TABLES) expect(await count(table, owner, A.id), table).toBe(0);
       expect((await admin.storage.from("sources").list(A.id)).data ?? []).toEqual([]);
@@ -609,7 +609,7 @@ describe.skipIf(!live)("lead-tester S11 on real local Supabase", () => {
       const s = await seedSource(A, `Ace${randomUUID().slice(0, 8)}`, []);
       const old = createClient(e.url, e.anon, { ...opts, global: { headers: { Authorization: `Bearer ${A.token}` } } });
       current.client = A.client;
-      expect(await deleteAccountAction("delete")).toEqual({ ok: true });
+      expect(await deleteAccountAction("delete", A.id)).toEqual({ ok: true });
       expect((await old.from("sources").select("id")).data ?? []).toEqual([]);
       expect((await old.rpc("delete_source", { p_source_id: s.sourceId, p_everything: true })).data).toEqual({ ok: false, error: "not_found" });
       const up = await old.storage.from("sources").upload(`${A.id}/${randomUUID()}`, new Blob(["late"]), { contentType: "text/plain" });
@@ -620,8 +620,8 @@ describe.skipIf(!live)("lead-tester S11 on real local Supabase", () => {
     it("the user's deletion retried after it already succeeded does not fail or touch anyone else", async () => {
       const A = await makeUser("ae");
       current.client = A.client;
-      expect(await deleteAccountAction("delete")).toEqual({ ok: true });
-      const again = await deleteAccountAction("delete");
+      expect(await deleteAccountAction("delete", A.id)).toEqual({ ok: true });
+      const again = await deleteAccountAction("delete", A.id);
       expect(again).toMatchObject({ ok: false, error: { code: "unauthenticated" } });
     });
   });

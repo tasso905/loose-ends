@@ -43,8 +43,12 @@ export async function deleteSourceAction(sourceId: unknown, everything: unknown)
  * Delete account (D14): every row and every stored file, with the service role (CLAUDE.md allows it
  * for account deletion only). The user ID comes from the session, never from the request. The
  * session is ended in this browser afterwards; the user is gone either way.
+ *
+ * `renderedFor` is the user the dialog was rendered for. Another user may have signed in from another
+ * tab since, and theirs must not be the account this deletes. It is only compared with the session,
+ * before anything is read, written or removed; a missing one is refused too.
  */
-export async function deleteAccountAction(confirm: unknown): Promise<DeleteAccountActionResult> {
+export async function deleteAccountAction(confirm: unknown, renderedFor: unknown): Promise<DeleteAccountActionResult> {
   if (typeof confirm !== "string" || confirm.trim().toLowerCase() !== ACCOUNT_DELETE_WORD) {
     return { ok: false, error: { code: "invalid_input", message: DATA_COPY.accountConfirmError, retryable: false }, field: "confirm" };
   }
@@ -57,6 +61,7 @@ export async function deleteAccountAction(confirm: unknown): Promise<DeleteAccou
     return { ok: false, error: !error || refused ? apiError("unauthenticated").error : unconfirmed().error };
   }
   const userId = data.user.id;
+  if (renderedFor !== userId) return { ok: false, error: apiError("unauthenticated").error };
 
   // Read the analytics choice now: once the account is gone, it can no longer be looked up.
   const settings = await supabase.from("user_settings").select("analytics_enabled").eq("user_id", userId).maybeSingle();

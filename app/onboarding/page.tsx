@@ -25,7 +25,7 @@ export default async function OnboardingPage({ searchParams }: { searchParams: S
   return (
     <AuthPage>
       <h1 className="text-display-sm text-le-text sm:text-display">{C.question}</h1>
-      <OnboardingForm next={next} email={user.email ?? null} />
+      <OnboardingForm key={user.id} userId={user.id} next={next} email={user.email ?? null} />
       <AuthNotices analytics />
     </AuthPage>
   );
