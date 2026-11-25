@@ -41,7 +41,7 @@
 | Route | Page | Auth | Notes |
 |---|---|---|---|
 | `/sign-in` | Sign in | Public | First screen for signed-out visitors; no public landing page (D38). `?sent=1` shows the check-your-email state. `?next={path}` is kept through the check-your-email state and the magic link. |
-| `/privacy` | Privacy | Public | *Decided (D77, D82, Nov 8); not built.* No sign-in needed, and signed-in users can open it too; never redirects to `/sign-in`. Built from `docs/PRIVACY.md`; linked from the sign-in page footer and Settings (§2.15). Its URL is the privacy policy URL Google needs before the consent screen can be published (D76). Not a landing page: signed-out visitors still start at `/sign-in` (D38). Wording approved Nov 8; the needs-checking items in `docs/PRIVACY.md` still block shipping |
+| `/privacy` | Privacy | Public | *Decided (D77, D82, Nov 8); live since Nov 10 (#49).* No sign-in needed, and signed-in users can open it too; never redirects to `/sign-in`. Built from `docs/PRIVACY.md`; linked from the sign-in page footer and Settings (§2.15). Its URL is the privacy policy URL Google needed before the consent screen could be published (In production, Nov 24, D76). Not a landing page: signed-out visitors still start at `/sign-in` (D38). Wording approved Nov 8 |
 | `/auth/callback` | Auth handoff | Public | Redirects to `/onboarding` on first sign-in, else to the `next` param or `/today` |
 | `/onboarding` | Aliases question | Signed in | Shown once; skippable |
 | `/` | — | Any | Signed in: redirects to `/today`. Signed out: redirects to `/sign-in`, with no `next` because `/` lands on Today anyway (D38) |
@@ -96,7 +96,7 @@ Field-level content, constraints and copy are defined in the content model v1.1;
 | File drop area | PDF, TXT, MD; ≤ 10 MB; ≤ 30 pages; one file; type sniffed, not taken from extension. Hint `PDF, TXT or MD · up to 10 MB and 30 pages` (D52). A chosen file shows as a row with its name and size and a `Remove` button (D52). Extracted text over 30,000 characters is refused with `input_too_long` and its upload message, not truncated (D52). DOCX stays in F3 scope until the Oct 25 review decides D17; until it ships, a Word file is refused with its `unsupported_type` message (§2.13). *Was:* "PDF, TXT, MD, DOCX" |
 | Source title | Optional, collapsed under `Add a title`; field label `Title (optional)` (D47); max 120 characters |
 | Written-on date | Optional, collapsed under `When was this written?`; defaults to today with an `Assumed` label. Field label: `I assumed this was written today. Change it if it wasn't.` until the user sets a date, then `Written on` (D47). Dates outside 1900–2100 show the §2.13 field error |
-| Quick-add field | Single line; max 2,000 characters; placeholder `e.g. Send Mike the proposal Friday` |
+| Quick-add field | Single line; max 2,000 characters; placeholder `e.g. Send Mike the proposal Friday`. Field name `Quick add`; hint `One line, up to 2,000 characters.` Over-limit text is reported, never cut off (§2.13). No written-on field: the date is today in the user's timezone, stored as known, with no `Assumed` line (D86) |
 | Submit | `Review source` (paste/upload) or `Add` (quick add); disabled while invalid or submitting |
 | AI provider notice (D42) | Conditional on Question #12 (PRD, due Oct 22). If the deployment uses the Gemini free tier: a plain-words notice on all three modes, visible before submit, saying the text is sent to Google, which may use it to improve its products, and that people at Google may read it. Wording pending user approval. If billing is enabled: no notice required here; Settings → Data and PRIVACY.md name Google as the AI provider. *Nov 7 (D81): production uses a billed key, so no notice here* |
 
@@ -154,9 +154,11 @@ Field-level content, constraints and copy are defined in the content model v1.1;
 | History | Append-only timeline; corrections phrased `You changed …`. Event lines (D47): `You accepted this from your source.`, `Added from quick add.`, `You marked this done.` / `Loose Ends marked this done.`, `You resolved this.` / `Loose Ends resolved this.`, `You undid the last change.`, `You reopened this.`, `You snoozed this.`, `You edited this.`, `Status changed to {status}.`; fallback `Updated.` |
 | Decision | Section heading `Decision` (D56). Shown when resolution is Decided, with the link `Ask why` to `/decisions?q=` (D57). Without a reason: `You didn't record a reason for this decision.` + `Add a reason now` (D58) |
 | Interim Resolve… | Until F11 ships, `Resolve…` is disabled with the reason `Resolving with a decision isn't available yet.` (D47) |
-| Actions | `Done` (not for decision threads), `Resolve…`, `Mark waiting`, `Snooze`, `Edit`, `Dismiss`, `Reopen` (closed threads only), `Forget permanently…`; desktop shows the first three as buttons and the rest in an overflow menu labelled `More actions` |
-| Mark waiting form | `Waiting on` (required, prefilled with counterparty), `Expected by` (optional date) |
-| Snooze menu | `Tomorrow, 9:00`, `Next Monday, 9:00`, `Pick a date…` (D11) |
+| Actions | `Done` (not for decision threads), `Resolve…`, `Mark waiting`, `Snooze`, `Edit`, `Dismiss`, `Reopen` (closed threads only), `Back to me` (waiting threads), `Wake now` (snoozed threads), `Forget permanently…`; each only where the PRD lifecycle table allows it. Desktop shows the first three offered as buttons and the rest in an overflow menu labelled `More actions`, with `Forget permanently…` last. Below 768 px only `Done` and `Snooze` are buttons; on a decision thread `Resolve…` takes Done's place; `Reopen` and everything else stay under `More actions` (D85(d), §3.4) |
+| Mark waiting form | `Waiting on` (required, prefilled with counterparty, up to 100 characters), `Expected by (optional)` (date) (D85(a)) |
+| Snooze menu | `Tomorrow, 9:00`, `Next Monday, 9:00`, `Pick a date…` (D11). `Pick a date…` shows the date field `Snooze until` (today and earlier disabled) and the button `Snooze`; the thread wakes at 9:00 on that date in the user's timezone (D85(a)) |
+| Edit sheet | Heading `Edit thread`; fields `Title`, `Loop type`, `Next action` (hidden when the loop type is `Waiting on`, D83(a)), `Person or organization`, `Due date`, `Time (optional)`; on a waiting thread `Loop type` can't change to or from `Waiting on`, and the sheet adds `Waiting on` and `Expected by (optional)`; on a snoozed thread it adds `Snoozed until`. Buttons `Save changes` and `Cancel` (D85(a)). Limits: title 120, next action 300, person or organization 100, waiting on 100 characters; the fields stop accepting text at the limit (D85(b)). Changing an open thread's loop type to `Waiting on` keeps it open; it is not marked waiting (D85(c)) |
+| Undo toasts (D85(a)) | `Marked waiting: "{title}"`, `Snoozed: "{title}"`, `Dismissed: "{title}"`, `Saved changes to "{title}"`, each with `Undo`, labelled for screen readers `Undo mark waiting: {title}`, `Undo snooze: {title}`, `Undo dismiss: {title}`, `Undo edit: {title}`. After Edit, `{title}` is the saved title. `Back to me`, `Wake now` and `Reopen` show no toast; the page shows the new status (D85(e), §3.6) |
 
 ### 2.8 Why panel
 
@@ -213,6 +215,7 @@ Field-level content, constraints and copy are defined in the content model v1.1;
 | Code | Message | Action | Retry? |
 |---|---|---|---|
 | `input_too_long`, paste | `That's {n} characters. The limit is 30,000 — trim it or split it into two pastes.` | Inline under the textarea | No |
+| `input_too_long`, quick add (D86) | `That's {n} characters. Quick add takes up to 2,000 — use Paste for longer text.` | Inline under the quick-add field | No |
 | `unsupported_type`, wrong type (D52) | `Loose Ends can read PDF, TXT and MD files.` *Was:* `Loose Ends can read PDF, TXT, MD and DOCX files.` (untrue while DOCX is deferred, D17) | `Choose another file` | No |
 | `unsupported_type`, Word file (D52; until DOCX ships, D17) | `I can't read Word files yet. Save it as a PDF, or paste the text instead.` | `Choose another file` | No |
 | `unsupported_type`, damaged or locked PDF (D52) | `I couldn't open this PDF. It may be damaged or locked with a password.` | `Choose another file` | No |
@@ -235,8 +238,14 @@ Field-level content, constraints and copy are defined in the content model v1.1;
 | Network / offline | `You're offline. Nothing was saved.` | `Try again` | Yes |
 | Any other save failure | `That didn't save. Try again.` | `Try again` | Yes |
 | `invalid_input` (D47), field `text` | `Paste some text first.` | Inline under the textarea | No |
+| `invalid_input` (D86), quick-add field empty | `Type something first.` | Inline under the quick-add field | No |
 | `invalid_input` (D47), field `title` | `Titles can be up to 120 characters.` | Inline under the title field | No |
 | `invalid_input` (D47), field `written_on` | `Enter a real date between 1900 and 2100.` | Inline under the date field | No |
+| `invalid_input` (D85), Edit field `title` empty or blank | `Give this thread a title.` | Inline under `Title` | No |
+| `invalid_input` (D47, D85), Edit field `title` over 120 characters | `Titles can be up to 120 characters.` | Inline under `Title` | No |
+| `invalid_input` (D85), field `waiting_on` (Mark waiting or Edit) | `Write who you're waiting on.` | Inline under `Waiting on` | No |
+| `invalid_input` (D85), Snooze `Pick a date…` or Edit `Snoozed until` not after today | `Pick a date after today.` | Inline under the date field | No |
+| `invalid_input` (D47, D85): not a real date in Mark waiting `Expected by (optional)`; Snooze `Snooze until` (also when empty); or Edit `Due date`, `Expected by (optional)` or `Snoozed until` (also when emptied) | `Enter a real date between 1900 and 2100.` | Inline under the date field | No |
 | `not_found` (D47; HTTP routes only, pages render the not-found page in §1.2) | `This doesn't exist or was deleted.` | `Go to Today` | No |
 | `unauthenticated` (D47; HTTP routes only, pages redirect to `/sign-in`) | `Sign in to continue.` | Sign in | No |
 | Today, Threads or Thread detail fail to load (D47) | `I couldn't load your threads.` | Page banner + `Try again` | Yes |
@@ -254,7 +263,7 @@ Field-level content, constraints and copy are defined in the content model v1.1;
 | Sign-in `send_failed` | `I couldn't send the link. Try again.` | Inline under the email field; `Email me a sign-in link` stays available | Yes |
 | `?error=link_expired` | `That sign-in link has expired or was already used. Enter your email to get a new one.` | Email field | No; request a new link |
 | `?error=link_other_browser` | `That link was opened in a different browser. Enter your email to get a new one, and open it in this browser.` | Email field | No; request a new link |
-| `?error=oauth_failed` | `Google sign-in didn't finish. Try again, or use your email.` | `Continue with Google` or the email field. Applies only while Google sign-in is switched on (D41). While the consent screen is in Testing (D76), people who aren't test users get Google's own error page instead of this message; email sign-in still works for them | Yes |
+| `?error=oauth_failed` | `Google sign-in didn't finish. Try again, or use your email.` | `Continue with Google` or the email field. Applies only while Google sign-in is switched on (D41). *Nov 24 (D76): the consent screen is In production. Was:* while in Testing, people who weren't test users got Google's own error page instead of this message | Yes |
 | Onboarding `too_many` | `That's more than 20 names and emails. Keep the ones people use most.` | Inline under the field | No |
 | Onboarding `too_long` | `Each name or email can be up to 100 characters.` | Inline under the field | No |
 | Onboarding save failure / offline | Generic rows above: `That didn't save. Try again.` / `You're offline. Nothing was saved.` | Page banner + `Try again` | Yes |
@@ -280,7 +289,7 @@ Errors appear next to the control that caused them (forms) or as an error banner
 
 ### 2.15 Privacy (D77, D82)
 
-Nothing here is built yet. The user approved the wording on Nov 8: the page text in `docs/PRIVACY.md` and the strings below. The needs-checking items in `docs/PRIVACY.md` still block shipping.
+The page is live (#49, Nov 10). The user approved the wording on Nov 8: the page text in `docs/PRIVACY.md` and the strings below. Every row in `docs/PRIVACY.md` was confirmed by Nov 10.
 
 | Field | Constraints |
 |---|---|
@@ -291,16 +300,16 @@ Nothing here is built yet. The user approved the wording on Nov 8: the page text
 | Links to it | Sign-in page footer (§2.0) and Settings → Data (§2.12), both `Privacy` (approved Nov 8) |
 | Keeping it true | A change to what is stored, sent, exported or deleted updates `docs/PRIVACY.md` and this page in the same change. The privacy copy check covers the page |
 
-**Google Auth Platform → Branding (D76).** Google needs these before the consent screen can move from Testing to In production. The user enters them; nothing here changes the code.
+**Google Auth Platform → Branding (D76).** Google needed these before the consent screen could move from Testing to In production. The user enters them; nothing here changes the code. *Nov 24: publishing status is In production (user-reported). The user confirmed the values below (D76, closed).*
 
 | Branding field | Value |
 |---|---|
-| App name | `Loose Ends` |
-| User support email | `info@piscesparadigm.ca` (user, Nov 8), the same address as `docs/PRIVACY.md` P33 |
-| Application home page | The production site's root URL. `/` redirects signed-out visitors to `/sign-in`, which shows the pitch and the `Privacy` footer link. **Needs checking:** whether Google accepts a home page that is the sign-in page |
-| Application privacy policy link | The production `/privacy` URL, once the page is live |
-| Authorized domain | The production domain. **Needs checking:** what Google accepts for a `vercel.app` subdomain |
-| Developer contact information | `info@piscesparadigm.ca` (user, Nov 8), the same address as the support email |
+| App name | `Loose Ends`. Confirmed by the user, Nov 24 |
+| User support email | The project owner's Google address (in use, user-reported Nov 24): Google offers only that. *Was:* `info@piscesparadigm.ca` (user, Nov 8). `/privacy` keeps `info@piscesparadigm.ca` (`docs/PRIVACY.md` P33) |
+| Application home page | The production site's root URL. `/` redirects signed-out visitors to `/sign-in`, which shows the pitch and the `Privacy` footer link. Confirmed by the user, Nov 24 |
+| Application privacy policy link | The production `/privacy` URL. Confirmed by the user, Nov 24 |
+| Authorized domain | The production domain. Includes `loose-ends-orcin.vercel.app`. Confirmed by the user, Nov 24 |
+| Developer contact information | `info@piscesparadigm.ca` (user, Nov 8; the user said on Nov 10 that it was added); no longer the same as the support email |
 
 ## 3. Behaviour Spec
 
@@ -309,7 +318,7 @@ Nothing here is built yet. The user approved the wording on Nov 8: the page text
 - Today, Threads and Decisions update the active nav state; Add opens `/add` and returns the user to their previous page on cancel.
 - Selecting a thread opens Thread detail; Back restores the previous list's filter and scroll position.
 - **Paste and upload:** after submit, route to `/review/[extractionId]`. On failure, stay on that route showing the failure state with `Try again` and `Back to Add`.
-- **Quick add (D9):** High-confidence items create threads immediately; the user stays on the current page and sees an 8 s undo toast (`Added "Send revised proposal to Mike" · Undo`). If any item is Medium or Low, route to the Review Tray for those items only.
+- **Quick add (D9):** High-confidence items create threads immediately; the user stays on the current page and sees an 8 s undo toast (`Added "{title}" · Undo`; *was* the example `Added "Send revised proposal to Mike"`, D86). If any item is Medium or Low, route to the Review Tray for those items only. More than one thread shows `Added {n} threads` + `Undo`. Undo's accessible name is `Undo add: {title}` or `Undo add: {n} threads`. `Try again` after a failed extraction sends everything to review, with no auto-create (D86).
 - After accepting proposals, show the result line with `View in Today`; do not auto-navigate.
 - Resolve opens as a sheet over Thread detail; saving closes it and shows the resolved state.
 - Why opens as a side sheet (desktop) or bottom sheet (mobile) from Today rows and Thread detail; closing returns focus to the `Why?` link that opened it.
@@ -340,7 +349,7 @@ Exact values are in the Visual Design Standard (Interactions). Contract-level re
 - Touch targets ≥ 44 × 44 px.
 - Review Tray: stacked list; source-beside-tray layout only at ≥ 1024 px.
 - Why panel and Resolve become bottom sheets (max 85vh).
-- Thread actions beyond Done and Snooze move to `More actions`.
+- Thread actions beyond Done and Snooze move to `More actions`. On a decision thread, which has no Done, `Resolve…` takes Done's place as a button; `Reopen` stays under `More actions` (D85(d)).
 - Respect safe areas and the virtual keyboard; submit buttons stay visible above the keyboard.
 
 ### 3.5 Transitions and animation
@@ -355,7 +364,7 @@ All durations, easing and product-moment animations are defined in the Visual De
 4. Unaccepted low-confidence proposals are never auto-accepted, ranked or notified.
 5. User wording and rationale are preserved; AI summaries are supplemental and labelled.
 6. Errors, empty states, missing rationale and unsupported files are handled honestly, using §2.13 copy.
-7. **Reversible actions** (Done, Resolve, Dismiss, Snooze, Mark waiting, Edit, quick-add auto-create) run immediately with an 8 s undo toast and no confirmation. The Done toast reads `Marked done: "{title}"` + `Undo` (D47); the Resolve toast after Decided or Not needed reads `Resolved: "{title}"` + `Undo`, labelled `Undo resolve: {title}` for screen readers (D56). Undo restores the exact state before the action and appends an `undone` history event; the server accepts it up to 12 s after the action (8 s toast plus 4 s grace) (D44). Hover or focus pauses the toast timer, but the toast closes 11 s after the action at the latest, 1 s before the server window closes (D49, D51). On a very slow network an Undo sent near that limit can still reach the server after 12 s; it is refused with the §2.13 copy and Refresh, and the 1 s buffer makes this rare (D51). **Irreversible actions** (Forget permanently, Delete source, Delete source and everything derived, Delete account) require a confirmation dialog that lists exactly what is deleted, and have no undo (D8).
+7. **Reversible actions** (Done, Resolve, Dismiss, Snooze, Mark waiting, Edit, quick-add auto-create) run immediately with an 8 s undo toast and no confirmation. The Done toast reads `Marked done: "{title}"` + `Undo` (D47); the Resolve toast after Decided or Not needed reads `Resolved: "{title}"` + `Undo`, labelled `Undo resolve: {title}` for screen readers (D56). Undo restores the exact state before the action and appends an `undone` history event; the server accepts it up to 12 s after the action (8 s toast plus 4 s grace) (D44). Hover or focus pauses the toast timer, but the toast closes 11 s after the action at the latest, 1 s before the server window closes (D49, D51). On a very slow network an Undo sent near that limit can still reach the server after 12 s; it is refused with the §2.13 copy and Refresh, and the 1 s buffer makes this rare (D51). The toasts for Mark waiting, Snooze, Dismiss and Edit are in §2.7 (D85(a)). `Back to me`, `Wake now` and `Reopen` are not in this list: they run at once with no confirmation and no Undo toast, and the page shows the new status (D85(e)). Exception, quick-add auto-create (D86): Undo deletes the created threads and their events, with no `undone` event, and marks each proposal rejected with no suppression, so typing the line again proposes it again. The source and extraction stay, listed in Settings, until the user deletes the source. **Irreversible actions** (Forget permanently, Delete source, Delete source and everything derived, Delete account) require a confirmation dialog that lists exactly what is deleted, and have no undo (D8).
 8. No interface state claims an action succeeded until the operation has succeeded.
 
 ## 4. Known gaps / implementation notes
