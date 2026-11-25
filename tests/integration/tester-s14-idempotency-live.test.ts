@@ -217,4 +217,17 @@ describe.skipIf(!live)("tester S14: quick-add idempotency", () => {
     expect(JSON.stringify(EXPORT_TABLES)).not.toContain("quick_add_submissions");
     expect(psql("select count(*) from information_schema.role_table_grants where table_name='quick_add_submissions' and grantee in ('anon','authenticated','PUBLIC','service_role')")).toBe("0");
   });
+
+  it("PRIVACY P19, P20: source only keeps the auto-created thread and its quote; everything leaves nothing of it", async () => {
+    const u = await user();
+    const { deleteSource } = await import("@/lib/account/data");
+    for (const everything of [false, true]) {
+      expect(await send(u, randomUUID())).toMatchObject({ ok: true, created: [{ title: PLUMBER }] });
+      const { data: s } = await admin.from("sources").select("id").eq("user_id", u.id).single();
+      await deleteSource(u.client as never, s!.id, everything, () => undefined);
+      expect([await n("sources", u), await n("extractions", u)]).toEqual([0, 0]);
+      expect([await n("threads", u), await n("evidence", u)]).toEqual([1, 1]); // round 2 removes only its own
+    }
+    if (DB) expect(psql(`select count(*) from private.quick_add_submissions where user_id = '${u.id}'`)).toBe("0");
+  });
 });
