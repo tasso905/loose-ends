@@ -105,7 +105,8 @@ export async function startExtraction(
 export type QuickAddStartResult =
   | { ok: true; sourceId: string; extractionId: string; replayed: boolean }
   /** `unknown`: no answer came from the database, so the source may exist. */
-  | { ok: false; error: ApiError; unknown: boolean };
+  /** `unsettled`: refused before the key was looked up, so an earlier try's outcome stays unknown. */
+  | { ok: false; error: ApiError; unknown: boolean; unsettled?: true };
 
 /**
  * F4 quick add (migration 20261124120000): startExtraction with an idempotency key. The same key
@@ -140,7 +141,7 @@ export async function startQuickAdd(
     logger("extraction_start_failed", { code: code ?? "no_ids", kind: "quick_add" });
     // A SQLSTATE or PostgREST code means the database refused and rolled back. Anything else (the
     // connection dropped) leaves the outcome open.
-    return { ok: false, unknown: !/^([0-9A-Z]{5}|PGRST\d+)$/.test(code ?? ""), error: apiError("save_failed") };
+    return { ok: false, unknown: !/^([0-9A-Z]{5}|PGRST\d+)$/.test(code ?? ""), unsettled: true, error: apiError("save_failed") };
   }
   return { ok: true, sourceId: out.source_id, extractionId: out.extraction_id, replayed: out.replayed === true };
 }

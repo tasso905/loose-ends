@@ -388,3 +388,8 @@ describe("start_quick_add: one submission key, one source (S14 D2)", () => {
     expect(await start(refused)).toMatchObject({ ok: false, unknown: false });
   });
 });
+
+it("RLS is on for private.quick_add_submissions, with no policy (D6)", async () => {
+  expect(await q("select relrowsecurity from pg_class where oid = 'private.quick_add_submissions'::regclass")).toEqual([{ relrowsecurity: true }]);
+  expect(await q("select policyname from pg_policies where tablename = 'quick_add_submissions'")).toEqual([]);
+});

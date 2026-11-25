@@ -179,8 +179,8 @@ for (const width of [1280, 375]) {
   });
 }
 
-// Pinned defect D5: flip to `test` when fixed.
-test.fail("an unknown line is still named as unknown after another line is added", async () => {
+// D5, fixed.
+test("an unknown line is still named as unknown after another line is added", async () => {
   await loseOnce();
   await add();
   await expect(page.getByText(ADD_UNKNOWN)).toBeVisible();

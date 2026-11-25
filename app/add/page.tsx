@@ -72,7 +72,7 @@ export default async function AddPage({ searchParams }: { searchParams: SearchPa
         {current === "upload" ? (
           <UploadForm today={today} userId={user.id} />
         ) : current === "quick" ? (
-          <QuickAddForm />
+          <QuickAddForm userId={user.id} />
         ) : (
           <PasteForm today={today} />
         )}

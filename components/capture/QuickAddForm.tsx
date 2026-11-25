@@ -1,5 +1,5 @@
 "use client";
-import { useContext, useEffect, useRef, useState, useTransition } from "react";
+import { useContext, useEffect, useId, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { submitQuickAdd } from "@/app/add/actions";
 import { Spinner } from "@/components/auth/Spinner";
@@ -15,7 +15,23 @@ import { handOffQuickAddToast, showQuickAddToast } from "./quickAddToast";
 
 type Failure = ApiError["error"];
 
-const UNKNOWN: Failure = { code: "save_failed", message: C.addUnknown, retryable: true };
+/**
+ * The lines whose outcome is unknown, and the idempotency key of every line the server has not
+ * answered for (S14 D2, D5). Kept in the module so a trip to /review or another tab of /add does not
+ * drop them; one user's lines are never shown to another. A full reload drops them. Browser only.
+ */
+interface Unanswered {
+  userId: string;
+  keys: Map<string, string>;
+  unknown: { line: string; tries: number }[];
+}
+let store: Unanswered | null = null;
+function unanswered(userId: string): Unanswered {
+  if (store?.userId === userId) return store;
+  const fresh: Unanswered = { userId, keys: new Map(), unknown: [] };
+  if (typeof window !== "undefined") store = fresh;
+  return fresh;
+}
 
 /**
  * Quick add mode (F4; SITE_CONTRACT §2.2, §3.1; D9). One line; `Add` sends it through the same
@@ -24,15 +40,15 @@ const UNKNOWN: Failure = { code: "save_failed", message: C.addUnknown, retryable
  * the review tray for those, and the toast for any created thread follows them there. Nothing claims
  * success before the server's result (rule 10).
  */
-export function QuickAddForm() {
+export function QuickAddForm({ userId }: { userId: string }) {
   return (
     <ActionHostProvider>
-      <QuickAddFields />
+      <QuickAddFields key={userId} userId={userId} />
     </ActionHostProvider>
   );
 }
 
-function QuickAddFields() {
+function QuickAddFields({ userId }: { userId: string }) {
   const router = useRouter();
   const host = useContext(ActionHostContext);
   const hydrated = useHydrated();
@@ -42,13 +58,11 @@ function QuickAddFields() {
   const [failure, setFailure] = useState<Failure | null>(null);
   const [fieldFailure, setFieldFailure] = useState(false);
   const [pending, startTransition] = useTransition();
-  // The idempotency key of each line sent (S14 D2). Kept until the server answers for that line, so
-  // sending the same line again after a lost response returns the first result.
-  const keys = useRef(new Map<string, string>());
-  // The line whose outcome is unknown: the banner's Try again sends it, whatever is in the field now.
-  const [unknownLine, setUnknownLine] = useState<string | null>(null);
-  // Every line whose outcome is still unknown, also after another line was sent.
-  const unknownLines = useRef(new Set<string>());
+  // Each has its own banner until the server answers for that line, whatever else is sent meanwhile.
+  const [unknown, setUnknown] = useState(() => unanswered(userId).unknown);
+  const unknownId = useId();
+  // Set when Try again on an unknown line was refused: the next Try again is about that line too.
+  const [retryLine, setRetryLine] = useState<string | null>(null);
 
   useEffect(() => {
     // SITE_CONTRACT §3.2: focus the first relevant field on /add, unless the user already moved on.
@@ -71,9 +85,16 @@ function QuickAddFields() {
     send(inputRef.current?.value ?? "");
   }
 
+  function settle(line: string) {
+    const s = unanswered(userId);
+    s.unknown = s.unknown.filter((u) => u.line !== line);
+    setUnknown(s.unknown);
+  }
+
   function send(line: string) {
     if (pending) return;
-    const key = keys.current.get(line) ?? crypto.randomUUID();
+    const s = unanswered(userId);
+    const key = s.keys.get(line) ?? crypto.randomUUID();
     const formData = new FormData();
     formData.set("text", line);
     formData.set("key", key);
@@ -81,23 +102,22 @@ function QuickAddFields() {
     inputRef.current?.focus();
     if (!navigator.onLine) {
       // Nothing was sent now, but an earlier try of this line may have been saved.
-      const maybeSaved = unknownLines.current.has(line);
-      setFailure(maybeSaved ? UNKNOWN : apiError("offline").error);
-      setUnknownLine(maybeSaved ? line : null);
+      setFailure(s.unknown.some((u) => u.line === line) ? null : apiError("offline").error);
+      setRetryLine(null);
       setFieldFailure(false);
       return;
     }
-    keys.current.set(line, key);
+    s.keys.set(line, key);
     setFailure(null);
     setFieldFailure(false);
-    setUnknownLine(null);
+    setRetryLine(null);
     const sentAt = performance.now();
     startTransition(async () => {
       const outcomeUnknown = () => {
-        setFailure(UNKNOWN);
-        setFieldFailure(false);
-        setUnknownLine(line);
-        unknownLines.current.add(line);
+        const before = s.unknown.find((u) => u.line === line);
+        // `tries` remounts the banner, so a repeated unknown outcome is announced again.
+        s.unknown = [...s.unknown.filter((u) => u.line !== line), { line, tries: (before?.tries ?? 0) + 1 }];
+        setUnknown(s.unknown);
       };
       try {
         const result = await submitQuickAdd(formData);
@@ -107,13 +127,18 @@ function QuickAddFields() {
             router.push(`/sign-in?next=${encodeURIComponent("/add?mode=quick")}`);
             return;
           }
+          // A refusal that never looked the key up says nothing about the earlier try of this line.
+          const earlier = s.unknown.some((u) => u.line === line);
+          if (earlier && result.unsettled) return outcomeUnknown();
+          settle(line);
           setFailure(result.error);
+          if (earlier) setRetryLine(line);
           // A field error belongs to the line it was about, not to newer text (D1).
           setFieldFailure(result.field === "text" && inputRef.current?.value === line);
           return;
         }
-        keys.current.delete(line);
-        unknownLines.current.delete(line);
+        s.keys.delete(line);
+        settle(line);
         // The request cannot have reached the server before it was sent, so this is never later than
         // the real creation time: the toast never outlives the server's Undo window (D4).
         const toast = { created: result.created, actionAt: sentAt + result.createdAfterMs, undoable: result.undoable };
@@ -145,11 +170,11 @@ function QuickAddFields() {
           action={
             banner.retryable ? (
               <Button
-                type={unknownLine === null ? "submit" : "button"}
+                type={retryLine === null ? "submit" : "button"}
                 variant="secondary"
                 size="small"
                 disabled={pending}
-                onClick={unknownLine === null ? undefined : () => send(unknownLine)}
+                onClick={retryLine === null ? undefined : () => send(retryLine)}
               >
                 Try again
               </Button>
@@ -159,6 +184,29 @@ function QuickAddFields() {
           {banner.message}
         </ErrorBanner>
       ) : null}
+      {unknown.map((u, i) => (
+        <ErrorBanner
+          key={`${u.line}:${u.tries}`}
+          action={
+            <Button
+              type="button"
+              variant="secondary"
+              size="small"
+              disabled={pending}
+              aria-describedby={`${unknownId}-${i}`}
+              onClick={() => send(u.line)}
+            >
+              Try again
+            </Button>
+          }
+        >
+          {C.addUnknown}
+          {/* The user's own words (as typed): which line this is about, once others have been added. */}
+          <span id={`${unknownId}-${i}`} className="line-clamp-2 text-small break-words text-le-text-secondary">
+            {u.line}
+          </span>
+        </ErrorBanner>
+      ))}
 
       <div>
         <label htmlFor="quick-text" className="sr-only">

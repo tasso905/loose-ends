@@ -273,3 +273,77 @@ test("offline with another line after a lost response: Try again is about the li
   expect(await threads()).toHaveLength(1);
   await page.unrouteAll({ behavior: "ignoreErrors" });
 });
+
+test("an unknown line stays unknown while another is added via /review, until its own Try again (D5)", async () => {
+  await admin().from("threads").delete().eq("user_id", uid);
+  let lose = true;
+  await page.route("**/add?mode=quick", async (route) => {
+    if (route.request().method() !== "POST" || !lose) return route.continue();
+    lose = false;
+    await route.fetch();
+    await route.abort("connectionreset");
+  });
+  await quickAdd(PLUMBER);
+  const banner = page.getByRole("alert").filter({ hasText: "I can't tell if your last line was added." });
+  await expect(banner).toContainText(PLUMBER);
+  // B goes to /review; A is still unknown when the user comes back.
+  await page.getByRole("textbox", { name: "Quick add" }).fill(MIXED);
+  await page.getByRole("button", { name: "Add", exact: true }).click();
+  await expect(page).toHaveURL(/\/review\//);
+  await page.goBack();
+  await expect(banner).toContainText(PLUMBER);
+  const field = page.getByRole("textbox", { name: "Quick add" });
+  await field.fill("typed since");
+  const before = (await threads()).length;
+  await expectNoViolations();
+  await page.getByRole("button", { name: "Try again" }).click();
+  await expect(page.getByRole("status").filter({ hasText: `Added "${PLUMBER}"` })).toBeVisible();
+  await expect(banner).toHaveCount(0);
+  await expect(field).toHaveValue("typed since");
+  expect((await threads()).length).toBe(before);
+  await page.unrouteAll({ behavior: "ignoreErrors" });
+});
+
+test("two unknown lines: each is named, and each Try again is about its own line (D5)", async () => {
+  await admin().from("threads").delete().eq("user_id", uid);
+  let lost = 0;
+  await page.route("**/add?mode=quick", async (route) => {
+    if (route.request().method() !== "POST" || lost >= 2) return route.continue();
+    lost += 1;
+    await route.fetch();
+    await route.abort("connectionreset");
+  });
+  await quickAdd(PLUMBER);
+  const banners = page.getByRole("alert").filter({ hasText: "I can't tell if your last line was added." });
+  await expect(banners).toHaveCount(1);
+  await page.getByRole("textbox", { name: "Quick add" }).fill(ACME);
+  await page.getByRole("button", { name: "Add", exact: true }).click();
+  await expect(banners).toHaveCount(2);
+  await expectNoViolations();
+  const retry = page.getByRole("button", { name: "Try again" });
+  await expect(retry.first()).toHaveAccessibleDescription(PLUMBER);
+  await retry.first().click();
+  await expect(page.getByRole("status").filter({ hasText: `Added "${PLUMBER}"` })).toBeVisible();
+  await expect(banners).toHaveCount(1);
+  await expect(banners).toContainText(ACME);
+  await page.unrouteAll({ behavior: "ignoreErrors" });
+});
+
+test("at the daily limit, an unknown line that was never stored is settled by the server's answer (D5)", async () => {
+  await admin().from("threads").delete().eq("user_id", uid);
+  let lose = true;
+  await page.route("**/add?mode=quick", async (route) => {
+    if (route.request().method() !== "POST" || !lose) return route.continue();
+    lose = false;
+    await route.abort("connectionreset"); // never reached the server
+  });
+  await quickAdd(PLUMBER);
+  const banner = page.getByRole("alert").filter({ hasText: "I can't tell if your last line was added." });
+  await expect(banner).toBeVisible();
+  await admin().from("usage_counters").update({ extractions: 30 }).eq("user_id", uid);
+  await page.getByRole("button", { name: "Try again" }).click();
+  await expect(banner).toHaveCount(0);
+  await expect(page.locator("main").getByRole("alert")).toBeVisible();
+  await admin().from("usage_counters").update({ extractions: 0 }).eq("user_id", uid);
+  await page.unrouteAll({ behavior: "ignoreErrors" });
+});

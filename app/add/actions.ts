@@ -188,8 +188,11 @@ export type SubmitQuickAddResult =
       /** Nothing has happened to the threads since, so Undo can still work inside its window. */
       undoable: boolean;
     }
-  /** `unknown`: it may have been saved. The same key is safe to send again. */
-  | { ok: false; error: ApiError["error"]; signedOut?: boolean; field?: "text"; unknown?: boolean };
+  /**
+   * `unknown`: it may have been saved. The same key is safe to send again. `unsettled`: this try
+   * was refused, but the key was not looked up, so an earlier try may still have been saved.
+   */
+  | { ok: false; error: ApiError["error"]; signedOut?: boolean; field?: "text"; unknown?: boolean; unsettled?: true };
 
 /** How long a replay waits for a first request that is still extracting (page maxDuration is 60 s). */
 const REPLAY_WAIT_MS = 45_000;
@@ -239,7 +242,7 @@ export async function submitQuickAdd(formData: FormData): Promise<SubmitQuickAdd
   const key = z.uuid().safeParse(formData.get("key")).data ?? crypto.randomUUID();
   const unknown = { ok: false as const, unknown: true, error: { code: "save_failed" as const, message: QUICK_ADD_COPY.addUnknown, retryable: true } };
   const started = await startQuickAdd(db, { key, text: parsed.data.text, writtenOn }, { now, budgetDb });
-  if (!started.ok) return started.unknown ? unknown : { ok: false, error: started.error.error };
+  if (!started.ok) return started.unknown ? unknown : { ok: false, error: started.error.error, ...(started.unsettled ? { unsettled: true as const } : {}) };
   if (!started.replayed) trackSourceSubmitted(auth.user.id, parsed.data.text.length, "quick_add");
 
   const review = { ok: true as const, extractionId: started.extractionId, route: "review" as const, created: [], createdAfterMs: 0, undoable: false };

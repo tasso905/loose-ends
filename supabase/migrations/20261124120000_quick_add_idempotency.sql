@@ -19,6 +19,8 @@ create table private.quick_add_submissions (
 );
 create index quick_add_submissions_source_idx on private.quick_add_submissions (source_id);
 create index quick_add_submissions_extraction_idx on private.quick_add_submissions (extraction_id);
+-- RLS on, no policy: only the SECURITY DEFINER function below reads or writes it.
+alter table private.quick_add_submissions enable row level security;
 revoke all on table private.quick_add_submissions from public, anon, authenticated;
 
 -- p_allow_new = false only looks the key up (the app uses it while the AI budget is closed, so a
